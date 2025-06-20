@@ -27,7 +27,11 @@ class LlamaFFI {
 
   void _loadLibrary() {
     String libraryPath;
-    if (Platform.isWindows) {
+    if (Platform.isAndroid) {
+      // For Android, we load the library by name, not path
+      // The library will be bundled in the APK's lib folder
+      libraryPath = 'libllama.so';
+    } else if (Platform.isWindows) {
       libraryPath = path.join(Directory.current.path, 'llama.dll');
     } else if (Platform.isLinux) {
       libraryPath = path.join(Directory.current.path, 'libllama.so');
@@ -38,7 +42,12 @@ class LlamaFFI {
     }
 
     try {
-      _lib = DynamicLibrary.open(libraryPath);
+      if (Platform.isAndroid) {
+        // On Android, DynamicLibrary.open() expects just the library name
+        _lib = DynamicLibrary.open('libllama.so');
+      } else {
+        _lib = DynamicLibrary.open(libraryPath);
+      }
       print('Successfully loaded llama.cpp library: $libraryPath');
     } catch (e) {
       throw Exception('Failed to load llama.cpp library: $e');
