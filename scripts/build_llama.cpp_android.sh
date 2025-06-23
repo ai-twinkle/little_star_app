@@ -69,13 +69,17 @@ build_architecture() {
     cmake .. \
         -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
         -DANDROID_ABI="$ABI" \
-        -DANDROID_PLATFORM=android-21 \
+        -DANDROID_PLATFORM=android-23 \
         -DCMAKE_BUILD_TYPE=Release \
         -DLLAMA_BUILD_TESTS=OFF \
         -DLLAMA_BUILD_EXAMPLES=OFF \
         -DLLAMA_BUILD_SERVER=OFF \
         -DLLAMA_STATIC=OFF \
-        -DBUILD_SHARED_LIBS=ON
+        -DBUILD_SHARED_LIBS=ON \
+        -DLLAMA_CURL=OFF \
+        -DGGML_NO_LLAMAFILE=ON \
+        -DCMAKE_C_FLAGS="-D__ANDROID_API__=23" \
+        -DCMAKE_CXX_FLAGS="-D__ANDROID_API__=23"
     
     # Build
     make -j4
