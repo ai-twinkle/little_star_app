@@ -78,6 +78,7 @@ build_architecture() {
         -DBUILD_SHARED_LIBS=ON \
         -DLLAMA_CURL=OFF \
         -DGGML_NO_LLAMAFILE=ON \
+        -DGGML_OPENMP=OFF \
         -DCMAKE_C_FLAGS="-D__ANDROID_API__=23" \
         -DCMAKE_CXX_FLAGS="-D__ANDROID_API__=23"
     
