@@ -28,8 +28,8 @@ if [ -z "$ANDROID_NDK" ]; then
     echo -e "     ${WHITE}Option 1: Via Android Studio (SDK Manager → SDK Tools → NDK)${NC}"
     echo -e "     ${WHITE}Option 2: Direct download:${NC}"
     echo -e "     ${WHITE}  wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip${NC}"
-    echo -e "     ${WHITE}  unzip android-ndk-r25c-linux.zip${NC}"
-    echo -e "     ${WHITE}  export ANDROID_NDK_ROOT=/path/to/android-ndk-r25c${NC}"
+    echo -e "     ${WHITE}  mkdir -p ~/Android/Sdk/ndk && unzip android-ndk-r25c-linux.zip -d ~/Android/Sdk/ndk${NC}"
+    echo -e "     ${WHITE}  export ANDROID_NDK_ROOT=~/Android/Sdk/ndk/android-ndk-r25c${NC}"
     all_checks=false
 elif [ ! -d "$ANDROID_NDK" ]; then
     echo -e "   ${RED}✗ Android NDK not found at: $ANDROID_NDK${NC}"
