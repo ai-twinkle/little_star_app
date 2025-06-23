@@ -24,9 +24,17 @@ echo -e "${YELLOW}1. Checking Android NDK...${NC}"
 if [ -z "$ANDROID_NDK" ]; then
     echo -e "   ${RED}✗ ANDROID_NDK_ROOT not set${NC}"
     echo -e "   ${CYAN}→ Set environment variable or pass as first argument${NC}"
+    echo -e "   ${CYAN}→ Install Android NDK:${NC}"
+    echo -e "     ${WHITE}Option 1: Via Android Studio (SDK Manager → SDK Tools → NDK)${NC}"
+    echo -e "     ${WHITE}Option 2: Direct download:${NC}"
+    echo -e "     ${WHITE}  wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip${NC}"
+    echo -e "     ${WHITE}  unzip android-ndk-r25c-linux.zip${NC}"
+    echo -e "     ${WHITE}  export ANDROID_NDK_ROOT=/path/to/android-ndk-r25c${NC}"
     all_checks=false
 elif [ ! -d "$ANDROID_NDK" ]; then
     echo -e "   ${RED}✗ Android NDK not found at: $ANDROID_NDK${NC}"
+    echo -e "   ${CYAN}→ Install Android NDK at the specified path or update ANDROID_NDK_ROOT${NC}"
+    echo -e "   ${CYAN}→ Download from: https://developer.android.com/ndk/downloads${NC}"
     all_checks=false
 else
     echo -e "   ${GREEN}✓ Android NDK found: $ANDROID_NDK${NC}"
@@ -37,6 +45,9 @@ else
         echo -e "   ${GREEN}✓ CMake toolchain found${NC}"
     else
         echo -e "   ${RED}✗ CMake toolchain missing${NC}"
+        echo -e "   ${CYAN}→ Your NDK installation appears incomplete${NC}"
+        echo -e "   ${CYAN}→ Reinstall NDK or download complete package from:${NC}"
+        echo -e "     ${WHITE}https://developer.android.com/ndk/downloads${NC}"
         all_checks=false
     fi
     
@@ -45,6 +56,9 @@ else
         echo -e "   ${GREEN}✓ LLVM toolchain found${NC}"
     else
         echo -e "   ${RED}✗ LLVM toolchain missing${NC}"
+        echo -e "   ${CYAN}→ LLVM toolchain not found for Linux x86_64${NC}"
+        echo -e "   ${CYAN}→ Ensure you downloaded the correct NDK for Linux${NC}"
+        echo -e "   ${CYAN}→ Expected path: \$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64${NC}"
         all_checks=false
     fi
 fi
@@ -56,7 +70,13 @@ if command -v cmake >/dev/null 2>&1; then
     echo -e "   ${GREEN}✓ CMake found: $cmake_version${NC}"
 else
     echo -e "   ${RED}✗ CMake not found in PATH${NC}"
-    echo -e "   ${CYAN}→ Install CMake through Android Studio or package manager${NC}"
+    echo -e "   ${CYAN}→ Install CMake using one of these methods:${NC}"
+    echo -e "     ${WHITE}Ubuntu/Debian: sudo apt update && sudo apt install cmake${NC}"
+    echo -e "     ${WHITE}CentOS/RHEL:   sudo yum install cmake${NC}"
+    echo -e "     ${WHITE}Fedora:        sudo dnf install cmake${NC}"
+    echo -e "     ${WHITE}Arch Linux:    sudo pacman -S cmake${NC}"
+    echo -e "     ${WHITE}Snap:          sudo snap install cmake --classic${NC}"
+    echo -e "     ${WHITE}Or via Android Studio: SDK Manager → SDK Tools → CMake${NC}"
     all_checks=false
 fi
 
@@ -67,7 +87,12 @@ if command -v git >/dev/null 2>&1; then
     echo -e "   ${GREEN}✓ Git found: $git_version${NC}"
 else
     echo -e "   ${RED}✗ Git not found in PATH${NC}"
-    echo -e "   ${CYAN}→ Install Git using your package manager (apt, yum, etc.)${NC}"
+    echo -e "   ${CYAN}→ Install Git using your package manager:${NC}"
+    echo -e "     ${WHITE}Ubuntu/Debian: sudo apt update && sudo apt install git${NC}"
+    echo -e "     ${WHITE}CentOS/RHEL:   sudo yum install git${NC}"
+    echo -e "     ${WHITE}Fedora:        sudo dnf install git${NC}"
+    echo -e "     ${WHITE}Arch Linux:    sudo pacman -S git${NC}"
+    echo -e "     ${WHITE}Or download from: https://git-scm.com/download/linux${NC}"
     all_checks=false
 fi
 
@@ -78,6 +103,13 @@ if command -v flutter >/dev/null 2>&1; then
     echo -e "   ${GREEN}✓ Flutter found: $flutter_version${NC}"
 else
     echo -e "   ${RED}✗ Flutter not found in PATH${NC}"
+    echo -e "   ${CYAN}→ Install Flutter SDK:${NC}"
+    echo -e "     ${WHITE}1. Download: wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.16.0-stable.tar.xz${NC}"
+    echo -e "     ${WHITE}2. Extract:  tar xf flutter_linux_3.16.0-stable.tar.xz${NC}"
+    echo -e "     ${WHITE}3. Add to PATH: echo 'export PATH=\"\$HOME/flutter/bin:\$PATH\"' >> ~/.bashrc${NC}"
+    echo -e "     ${WHITE}4. Reload:   source ~/.bashrc${NC}"
+    echo -e "     ${WHITE}5. Verify:   flutter doctor${NC}"
+    echo -e "   ${CYAN}→ Or install via Snap: sudo snap install flutter --classic${NC}"
     all_checks=false
 fi
 
@@ -92,6 +124,9 @@ if [ -d "$android_dir" ]; then
     echo -e "   ${GREEN}✓ Android directory found${NC}"
 else
     echo -e "   ${RED}✗ Android directory missing${NC}"
+    echo -e "   ${CYAN}→ This should be a Flutter project with Android support${NC}"
+    echo -e "   ${CYAN}→ Create Flutter project: flutter create --platforms=android .${NC}"
+    echo -e "   ${CYAN}→ Or add Android support: flutter create --platforms=android .${NC}"
     all_checks=false
 fi
 
