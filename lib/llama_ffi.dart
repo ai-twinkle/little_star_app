@@ -111,6 +111,7 @@ class LlamaFFI {
   // Simple wrapper to check if model file exists
   bool modelFileExists(String modelPath) {
     final file = File(modelPath);
+    print('Checking if model file exists: ${file.parent} ${file.path}');
     final exists = file.existsSync();
     print('Model file $modelPath exists: $exists');
     if (exists) {

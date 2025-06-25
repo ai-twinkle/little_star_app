@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
 import 'llama_ffi.dart';
 
 void main() {
@@ -41,6 +45,85 @@ class _MyHomePageState extends State<MyHomePage> {
     _initializeLlama();
   }
 
+  // Request necessary permissions for Android
+  Future<bool> _requestPermissions() async {
+    if (!Platform.isAndroid) return true;
+
+    // Request storage permission
+    final status = await Permission.storage.request();
+    if (status.isGranted) {
+      return true;
+    }
+
+    // For Android 11+, try manage external storage permission
+    if (await Permission.manageExternalStorage.isDenied) {
+      final manageStatus = await Permission.manageExternalStorage.request();
+      return manageStatus.isGranted;
+    }
+
+    return status.isGranted;
+  }
+
+  // Get the correct path for the model file based on platform
+  Future<String> getModelPath() async {
+    const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_S.gguf';
+    
+    if (Platform.isAndroid) {
+      // Try different approaches for Android
+      final possiblePaths = [
+        '/storage/emulated/0/Download/$modelFileName',
+        '/sdcard/Download/$modelFileName',
+        '/storage/self/primary/Download/$modelFileName',
+      ];
+
+      // Try to get external storage directory
+      try {
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          // Navigate to Downloads from external storage
+          final downloadsPath = '/storage/emulated/0/Download/$modelFileName';
+          possiblePaths.insert(0, downloadsPath);
+        }
+      } catch (e) {
+        print('Could not get external storage directory: $e');
+      }
+
+      return possiblePaths.first; // Return the first path to try
+    } else if (Platform.isWindows) {
+      return path.join(Directory.current.path, modelFileName);
+    } else if (Platform.isLinux || Platform.isMacOS) {
+      return path.join(Directory.current.path, modelFileName);
+    } else {
+      return modelFileName;
+    }
+  }
+
+  // Check multiple possible locations for the model file
+  Future<String?> findModelFile() async {
+    const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_S.gguf';
+    
+    if (Platform.isAndroid) {
+      final possiblePaths = [
+        '/storage/emulated/0/Download/$modelFileName',
+        '/sdcard/Download/$modelFileName',
+        '/storage/self/primary/Download/$modelFileName',
+      ];
+
+      for (final testPath in possiblePaths) {
+        print('Checking path: $testPath');
+        final file = File(testPath);
+        if (file.existsSync()) {
+          print('Found model file at: $testPath');
+          return testPath;
+        }
+      }
+      return null;
+    } else {
+      final modelPath = await getModelPath();
+      return File(modelPath).existsSync() ? modelPath : null;
+    }
+  }
+
   Future<void> _initializeLlama() async {
     setState(() {
       _isLoading = true;
@@ -48,22 +131,62 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
+      // Request permissions first on Android
+      if (Platform.isAndroid) {
+        setState(() {
+          _statusMessage = 'Requesting storage permissions...';
+        });
+
+        final hasPermission = await _requestPermissions();
+        if (!hasPermission) {
+          setState(() {
+            _statusMessage = 'Storage permission denied. Cannot access Downloads folder.';
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
       _llamaFFI = LlamaFFI();
       _llamaFFI!.initBackend();
       
       // Test the library
       final testResult = _llamaFFI!.testLibrary();
       
-      // Check if model file exists
-      final modelExists = _llamaFFI!.modelFileExists('Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_M.gguf');
+      // Platform info
+      print('Platform: ${Platform.operatingSystem}');
+      print('Current directory: ${Directory.current.path}');
+
+      // Find the model file
+      setState(() {
+        _statusMessage = 'Looking for model file...';
+      });
+
+      final modelPath = await findModelFile();
+      final modelExists = modelPath != null;
+
+      if (Platform.isAndroid && !modelExists) {
+        // Try to list Downloads directory for debugging
+        try {
+          final downloadsDir = Directory('/storage/emulated/0/Download');
+          if (downloadsDir.existsSync()) {
+            final files = downloadsDir.listSync();
+            print('Files in Downloads: ${files.map((f) => path.basename(f.path)).toList()}');
+          } else {
+            print('Downloads directory does not exist or is not accessible');
+          }
+        } catch (e) {
+          print('Error accessing Downloads directory: $e');
+        }
+      }
       
       // List available functions
       _llamaFFI!.listAvailableFunctions();
       
       setState(() {
         _statusMessage = testResult 
-          ? 'Llama FFI initialized successfully!\nModel file exists: $modelExists'
-          : 'Llama FFI loaded but test failed';
+          ? 'Llama FFI initialized successfully!\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}'
+          : 'Llama FFI loaded but test failed\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}';
         _isLoading = false;
       });
     } catch (e) {
