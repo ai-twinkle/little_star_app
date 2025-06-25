@@ -38,10 +38,20 @@ class _MyHomePageState extends State<MyHomePage> {
   LlamaFFI? _llamaFFI;
   String _statusMessage = 'Ready to test Llama FFI';
   bool _isLoading = false;
+  
+  // Inference-related state
+  final TextEditingController _promptController = TextEditingController();
+  String _inferenceResult = '';
+  bool _isInferenceLoading = false;
+  bool _isModelLoaded = false;
+  String? _modelPath;
 
   @override
   void initState() {
     super.initState();
+    _promptController.addListener(() {
+      setState(() {}); // Rebuild to update button state
+    });
     _initializeLlama();
   }
 
@@ -164,6 +174,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       final modelPath = await findModelFile();
       final modelExists = modelPath != null;
+      _modelPath = modelPath;
 
       if (Platform.isAndroid && !modelExists) {
         // Try to list Downloads directory for debugging
@@ -197,6 +208,70 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> _loadModel() async {
+    if (_llamaFFI == null || _modelPath == null) {
+      setState(() {
+        _statusMessage = 'FFI not initialized or model file not found';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Loading model...';
+    });
+
+    try {
+      final success = _llamaFFI!.loadModel(_modelPath!);
+      if (success) {
+        final contextCreated = _llamaFFI!.createContext();
+        setState(() {
+          _isModelLoaded = success && contextCreated;
+          _statusMessage = _isModelLoaded 
+            ? 'Model loaded successfully! Ready for inference.' 
+            : 'Model loaded but failed to create context.';
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isModelLoaded = false;
+          _statusMessage = 'Failed to load model from: $_modelPath';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isModelLoaded = false;
+        _statusMessage = 'Error loading model: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _performInference() async {
+    if (_llamaFFI == null || !_isModelLoaded || _promptController.text.trim().isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isInferenceLoading = true;
+      _inferenceResult = 'Processing...';
+    });
+
+    try {
+      final result = _llamaFFI!.performInference(_promptController.text.trim());
+      setState(() {
+        _inferenceResult = result ?? 'Failed to generate response';
+        _isInferenceLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _inferenceResult = 'Error during inference: $e';
+        _isInferenceLoading = false;
+      });
+    }
+  }
+
   void _incrementCounter() {
     setState(() {
       _counter++;
@@ -206,6 +281,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     _llamaFFI?.freeBackend();
+    _promptController.dispose();
     super.dispose();
   }
 
@@ -215,10 +291,9 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             const Icon(
               Icons.star,
@@ -231,6 +306,8 @@ class _MyHomePageState extends State<MyHomePage> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
+            
+            // FFI Status Section
             if (_isLoading)
               const CircularProgressIndicator()
             else
@@ -241,20 +318,139 @@ class _MyHomePageState extends State<MyHomePage> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[300]!),
                 ),
-                child: Text(
-                  _statusMessage,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16),
+                child: Column(
+                  children: [
+                    Text(
+                      _statusMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _initializeLlama,
+                              child: const Text('Reinitialize FFI'),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: ElevatedButton(
+                              onPressed: (_isLoading || _modelPath == null) ? null : _loadModel,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isModelLoaded ? Colors.green : null,
+                              ),
+                              child: Text(_isModelLoaded ? 'Model Loaded ✓' : 'Load Model'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _initializeLlama,
-              child: const Text('Reinitialize Llama FFI'),
-            ),
+            
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 20),
+            
+            // Inference Testing Section
+            const Text(
+              'Model Inference Test',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            
+            TextField(
+              controller: _promptController,
+              enabled: _isModelLoaded && !_isInferenceLoading,
+              decoration: const InputDecoration(
+                labelText: 'Enter your prompt',
+                hintText: 'e.g., What is the capital of France?',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isModelLoaded && !_isInferenceLoading && _promptController.text.trim().isNotEmpty 
+                  ? _performInference 
+                  : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _isInferenceLoading 
+                  ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text('Processing...'),
+                      ],
+                    )
+                  : const Text('Run Inference'),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Results Section
+            if (_inferenceResult.isNotEmpty)
+              Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(
+                  minHeight: 150,
+                  maxHeight: 300,
+                ),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Inference Result:',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Text(
+                          _inferenceResult,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 20),
+            
+            // Counter Section (existing functionality)
             const Text(
               'You have pushed the button this many times:',
               style: TextStyle(fontSize: 16),
@@ -263,6 +459,9 @@ class _MyHomePageState extends State<MyHomePage> {
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
+            
+            // Add some bottom padding to ensure content doesn't get cut off
+            const SizedBox(height: 80),
           ],
         ),
       ),
