@@ -3,6 +3,91 @@ import 'dart:io';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 
+// Union for kv override values
+final class LlamaModelKvOverrideValue extends ffi.Union {
+  @ffi.Int64()
+  external int valI64;
+  
+  @ffi.Double()
+  external double valF64;
+  
+  @ffi.Bool()
+  external bool valBool;
+  
+  @ffi.Array<ffi.Char>(128)
+  external ffi.Array<ffi.Char> valStr;
+}
+
+// Struct for llama_model_kv_override
+final class llama_model_kv_override extends ffi.Struct {
+  @ffi.Int32()
+  external int tag; // enum llama_model_kv_override_type
+  
+  @ffi.Array<ffi.Char>(128)
+  external ffi.Array<ffi.Char> key;
+  
+  external LlamaModelKvOverrideValue value;
+}
+
+// Function pointer typedef for progress callback
+typedef LlamaProgressCallbackNative = ffi.Bool Function(ffi.Float progress, ffi.Pointer<ffi.Void> userData);
+typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.Void> userData);
+
+final class ggml_backend_device extends ffi.Opaque {}
+
+typedef ggml_backend_dev_t = ffi.Pointer<ggml_backend_device>;
+
+// Struct for llama_model_tensor_buft_override
+final class llama_model_tensor_buft_override extends ffi.Struct {
+  external ffi.Pointer<Utf8> pattern;
+  external ffi.Pointer<ffi.Void> buft; // ggml_backend_buffer_type_t
+}
+
+// Main llama_model_params struct
+final class llama_model_params extends ffi.Struct {
+  // NULL-terminated list of devices to use for offloading (if NULL, all available devices are used)
+  external ffi.Pointer<ggml_backend_dev_t> devices;
+
+  // NULL-terminated list of buffer types to use for tensors that match a pattern
+  external ffi.Pointer<llama_model_tensor_buft_override> tensor_buft_overrides;
+
+  @ffi.Int32()
+  external int n_gpu_layers; // number of layers to store in VRAM
+  
+  @ffi.Int32()
+  external int split_mode; // how to split the model across multiple GPUs (enum llama_split_mode)
+
+  @ffi.Int32()
+  external int main_gpu; // the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
+
+  // proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()
+  external ffi.Pointer<ffi.Float> tensor_split;
+
+  // Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
+  // If the provided progress_callback returns true, model loading continues.
+  // If it returns false, model loading is immediately aborted.
+  external ffi.Pointer<ffi.NativeFunction<LlamaProgressCallbackNative>> progress_callback;
+
+  // context pointer passed to the progress callback
+  external ffi.Pointer<ffi.Void> progress_callback_user_data;
+
+  // override key-value pairs of the model meta data
+  external ffi.Pointer<llama_model_kv_override> kv_overrides;
+
+  // Keep the booleans together to avoid misalignment during copy-by-value.
+  @ffi.Bool()
+  external bool vocab_only;    // only load the vocabulary, no weights
+  
+  @ffi.Bool()
+  external bool use_mmap;      // use mmap if possible
+  
+  @ffi.Bool()
+  external bool use_mlock;     // force system to keep model in RAM
+  
+  @ffi.Bool()
+  external bool check_tensors; // validate model tensor data
+}
+
 // Simple function signatures without complex structs
 typedef LlamaInitBackendNative = ffi.Void Function();
 typedef LlamaInitBackend = void Function();
@@ -15,11 +100,11 @@ typedef LlamaTimeUsNative = ffi.Int64 Function();
 typedef LlamaTimeUs = int Function();
 
 // Model loading functions
-typedef LlamaModelDefaultParamsNative = ffi.Pointer Function();
-typedef LlamaModelDefaultParams = ffi.Pointer Function();
+typedef LlamaModelDefaultParamsNative = llama_model_params Function();
+typedef LlamaModelDefaultParams = llama_model_params Function();
 
-typedef LlamaModelLoadFromFileNative = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, ffi.Pointer params);
-typedef LlamaModelLoadFromFile = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, ffi.Pointer params);
+typedef LlamaModelLoadFromFileNative = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
+typedef LlamaModelLoadFromFile = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
 
 typedef LlamaFreeModelNative = ffi.Void Function(ffi.Pointer model);
 typedef LlamaFreeModel = void Function(ffi.Pointer model);
@@ -165,7 +250,7 @@ class LlamaFFI {
       final pathPtr = modelPath.toNativeUtf8();
       
       // Get default model parameters
-      final modelParams = _llamaModelDefaultParams();
+      final llama_model_params modelParams = _llamaModelDefaultParams();
       
       // Load model with default parameters
       _model = _llamaModelLoadFromFile(pathPtr, modelParams);
