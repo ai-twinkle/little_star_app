@@ -194,18 +194,21 @@ typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.V
 typedef LlamaModelDefaultParamsNative = llama_model_params Function();
 typedef LlamaModelDefaultParams = llama_model_params Function();
 
-typedef LlamaLoadModelFromFileNative = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
-typedef LlamaLoadModelFromFile = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
+typedef LlamaModelLoadFromFileNative = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
+typedef LlamaModelLoadFromFile = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
 
-typedef LlamaFreeModelNative = ffi.Void Function(ffi.Pointer model);
-typedef LlamaFreeModel = void Function(ffi.Pointer model);
+typedef LlamaModelGetVocabNative = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
+typedef LlamaModelGetVocab = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
 
 // Context functions
-typedef LlamaNewContextWithModelNative = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, ffi.Pointer<llama_context_params> params);
-typedef LlamaNewContextWithModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, ffi.Pointer<llama_context_params> params);
+typedef LlamaNewContextWithModelNative = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
+typedef LlamaNewContextWithModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 
-typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
-typedef LlamaFree = void Function(ffi.Pointer ctx);
+typedef LlamaContextDefaultParamsNative = llama_context_params Function();
+typedef LlamaContextDefaultParams = llama_context_params Function();
+
+typedef LlamaInitFromModelNative = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
+typedef LlamaInitFromModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 
 // Tokenization functions
 typedef LlamaTokenizeNative = ffi.Int32 Function(ffi.Pointer model, ffi.Pointer<Utf8> text, ffi.Int32 textLen, ffi.Pointer<ffi.Int32> tokens, ffi.Int32 nMaxTokens, ffi.Bool addBos, ffi.Bool special);
@@ -214,30 +217,32 @@ typedef LlamaTokenize = int Function(ffi.Pointer model, ffi.Pointer<Utf8> text, 
 typedef LlamaTokenToPieceNative = ffi.Int32 Function(ffi.Pointer model, ffi.Int32 token, ffi.Pointer<Utf8> buf, ffi.Int32 length, ffi.Bool special);
 typedef LlamaTokenToPiece = int Function(ffi.Pointer model, int token, ffi.Pointer<Utf8> buf, int length, bool special);
 
-// Inference functions
-typedef LlamaDecodeNative = ffi.Int32 Function(ffi.Pointer ctx, ffi.Pointer batch);
-typedef LlamaDecode = int Function(ffi.Pointer ctx, ffi.Pointer batch);
+// Free functions
+typedef LlamaModelFreeNative = ffi.Void Function(ffi.Pointer model);
+typedef LlamaModelFree = void Function(ffi.Pointer model);
 
-typedef LlamaSampleTokenGreedyNative = ffi.Int32 Function(ffi.Pointer ctx, ffi.Pointer candidates);
-typedef LlamaSampleTokenGreedy = int Function(ffi.Pointer ctx, ffi.Pointer candidates);
-
-typedef LlamaModelGetVocabNative = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
-typedef LlamaModelGetVocab = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
+typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
+typedef LlamaFree = void Function(ffi.Pointer ctx);
 
 // Simplified FFI integration for llama.cpp
 class LlamaFFI {
   late ffi.DynamicLibrary _lib;
   late LlamaInitBackend llama_backend_init;
   late LlamaBackendFree llama_backend_free;
+  // 
   late LlamaModelDefaultParams llama_model_default_params;
-  late LlamaLoadModelFromFile llama_load_model_from_file;
-  late LlamaFreeModel llama_free_model;
-  late LlamaFree llama_free;
-  late LlamaTokenToPiece llama_token_to_piece;
-  late LlamaDecode llama_decode;
+  late LlamaModelLoadFromFile llama_model_load_from_file;
   late LlamaModelGetVocab llama_model_get_vocab;
+  // 
   late LlamaNewContextWithModel llama_new_context_with_model;
+  late LlamaContextDefaultParams llama_context_default_params;
+  late LlamaInitFromModel llama_init_from_model;
+  // 
   late LlamaTokenize llama_tokenize;
+  late LlamaTokenToPiece llama_token_to_piece;
+  // 
+  late LlamaModelFree llama_model_free;
+  late LlamaFree llama_free;
 
   ffi.Pointer<llama_model>? _model;
   ffi.Pointer<llama_context>? _context;
@@ -292,22 +297,26 @@ class LlamaFFI {
           .lookup<ffi.NativeFunction<LlamaModelDefaultParamsNative>>('llama_model_default_params')
           .asFunction<LlamaModelDefaultParams>();
 
-      llama_load_model_from_file = _lib
-          .lookup<ffi.NativeFunction<LlamaLoadModelFromFileNative>>('llama_load_model_from_file')
-          .asFunction<LlamaLoadModelFromFile>();
+      llama_model_load_from_file = _lib
+          .lookup<ffi.NativeFunction<LlamaModelLoadFromFileNative>>('llama_model_load_from_file')
+          .asFunction<LlamaModelLoadFromFile>();
 
-      llama_free_model = _lib
-          .lookup<ffi.NativeFunction<LlamaFreeModelNative>>('llama_free_model')
-          .asFunction<LlamaFreeModel>();
-
-      llama_free = _lib
-          .lookup<ffi.NativeFunction<LlamaFreeNative>>('llama_free')
-          .asFunction<LlamaFree>();
+      llama_model_get_vocab = _lib
+          .lookup<ffi.NativeFunction<LlamaModelGetVocabNative>>('llama_model_get_vocab')
+          .asFunction<LlamaModelGetVocab>();
 
       // Load context functions
       llama_new_context_with_model = _lib
           .lookup<ffi.NativeFunction<LlamaNewContextWithModelNative>>('llama_new_context_with_model')
           .asFunction<LlamaNewContextWithModel>();
+
+      llama_context_default_params = _lib
+          .lookup<ffi.NativeFunction<LlamaContextDefaultParamsNative>>('llama_context_default_params')
+          .asFunction<LlamaContextDefaultParams>();
+
+      llama_init_from_model = _lib
+          .lookup<ffi.NativeFunction<LlamaInitFromModelNative>>('llama_init_from_model')
+          .asFunction<LlamaInitFromModel>();
 
       // Load tokenization functions
       llama_tokenize = _lib
@@ -318,9 +327,14 @@ class LlamaFFI {
           .lookup<ffi.NativeFunction<LlamaTokenToPieceNative>>('llama_token_to_piece')
           .asFunction<LlamaTokenToPiece>();
 
-      llama_model_get_vocab = _lib
-          .lookup<ffi.NativeFunction<LlamaModelGetVocabNative>>('llama_model_get_vocab')
-          .asFunction<LlamaModelGetVocab>();
+      // 
+      llama_model_free = _lib
+          .lookup<ffi.NativeFunction<LlamaModelFreeNative>>('llama_model_free')
+          .asFunction<LlamaModelFree>();
+
+      llama_free = _lib
+          .lookup<ffi.NativeFunction<LlamaFreeNative>>('llama_free')
+          .asFunction<LlamaFree>();
 
       print('Successfully loaded llama.cpp functions');
     } catch (e) {
@@ -352,7 +366,7 @@ class LlamaFFI {
       final llama_model_params modelParams = llama_model_default_params();
       
       // Load model with default parameters
-      _model = llama_load_model_from_file(pathPtr, modelParams);
+      _model = llama_model_load_from_file(pathPtr, modelParams);
       malloc.free(pathPtr);
 
       if (_model == ffi.nullptr) {
@@ -396,7 +410,7 @@ class LlamaFFI {
       }
 
       // For now, use null for context params (default parameters)
-      _context = llama_new_context_with_model(_model!, ffi.nullptr);
+      _context = llama_new_context_with_model(_model!, llama_context_default_params());
 
       if (_context == ffi.nullptr) {
         print('Failed to create context');
@@ -446,7 +460,7 @@ class LlamaFFI {
   // Free model
   void freeModel() {
     if (_model != null && _model != ffi.nullptr) {
-      llama_free_model(_model!);
+      llama_model_free(_model!);
       _model = null;
       print('Model freed');
     }
@@ -508,27 +522,21 @@ class LlamaFFI {
     final commonFunctions = [
       'llama_backend_init',
       'llama_backend_free',
+      //
       'llama_model_default_params',
-      'llama_load_model_from_file',
-      'llama_new_context_with_model',
+      'llama_model_load_from_file',
       'llama_model_get_vocab',
-      'llama_tokenize',
+      // 
+      'llama_new_context_with_model',
       'llama_context_default_params',
       'llama_init_from_model',
-      'llama_sampler_chain_default_params',
-      'llama_sampler_chain_init',
-      'llama_sampler_chain_add',
-      'llama_sampler_init_greedy',
-      'llama_sampler_sample',
+      // 
+      'llama_tokenize',
       'llama_token_to_piece',
-      'llama_batch_get_one',
-      'llama_decode',
-      'llama_perf_sampler_print',
-      'llama_perf_context_print',
-      'llama_time_us',
-      'llama_sampler_free',
+      //
       'llama_free',
       'llama_model_free',
+      
     ];
 
     print('Checking for common llama.cpp functions:');
