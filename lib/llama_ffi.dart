@@ -1,53 +1,53 @@
-import 'dart:ffi';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 
 // Simple function signatures without complex structs
-typedef LlamaInitBackendNative = Void Function();
+typedef LlamaInitBackendNative = ffi.Void Function();
 typedef LlamaInitBackend = void Function();
 
-typedef LlamaBackendFreeNative = Void Function();
+typedef LlamaBackendFreeNative = ffi.Void Function();
 typedef LlamaBackendFree = void Function();
 
 // Simple test function - most llama.cpp builds have this
-typedef LlamaTimeUsNative = Int64 Function();
+typedef LlamaTimeUsNative = ffi.Int64 Function();
 typedef LlamaTimeUs = int Function();
 
 // Model loading functions
-typedef LlamaModelDefaultParamsNative = Pointer Function();
-typedef LlamaModelDefaultParams = Pointer Function();
+typedef LlamaModelDefaultParamsNative = ffi.Pointer Function();
+typedef LlamaModelDefaultParams = ffi.Pointer Function();
 
-typedef LlamaModelLoadFromFileNative = Pointer Function(Pointer<Utf8> pathModel, Pointer params);
-typedef LlamaModelLoadFromFile = Pointer Function(Pointer<Utf8> pathModel, Pointer params);
+typedef LlamaModelLoadFromFileNative = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, ffi.Pointer params);
+typedef LlamaModelLoadFromFile = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, ffi.Pointer params);
 
-typedef LlamaFreeModelNative = Void Function(Pointer model);
-typedef LlamaFreeModel = void Function(Pointer model);
+typedef LlamaFreeModelNative = ffi.Void Function(ffi.Pointer model);
+typedef LlamaFreeModel = void Function(ffi.Pointer model);
 
 // Context functions
-typedef LlamaNewContextWithModelNative = Pointer Function(Pointer model, Pointer params);
-typedef LlamaNewContextWithModel = Pointer Function(Pointer model, Pointer params);
+typedef LlamaNewContextWithModelNative = ffi.Pointer Function(ffi.Pointer model, ffi.Pointer params);
+typedef LlamaNewContextWithModel = ffi.Pointer Function(ffi.Pointer model, ffi.Pointer params);
 
-typedef LlamaFreeNative = Void Function(Pointer ctx);
-typedef LlamaFree = void Function(Pointer ctx);
+typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
+typedef LlamaFree = void Function(ffi.Pointer ctx);
 
 // Tokenization functions
-typedef LlamaTokenizeNative = Int32 Function(Pointer model, Pointer<Utf8> text, Int32 textLen, Pointer<Int32> tokens, Int32 nMaxTokens, Bool addBos, Bool special);
-typedef LlamaTokenize = int Function(Pointer model, Pointer<Utf8> text, int textLen, Pointer<Int32> tokens, int nMaxTokens, bool addBos, bool special);
+typedef LlamaTokenizeNative = ffi.Int32 Function(ffi.Pointer model, ffi.Pointer<Utf8> text, ffi.Int32 textLen, ffi.Pointer<ffi.Int32> tokens, ffi.Int32 nMaxTokens, ffi.Bool addBos, ffi.Bool special);
+typedef LlamaTokenize = int Function(ffi.Pointer model, ffi.Pointer<Utf8> text, int textLen, ffi.Pointer<ffi.Int32> tokens, int nMaxTokens, bool addBos, bool special);
 
-typedef LlamaTokenToPieceNative = Int32 Function(Pointer model, Int32 token, Pointer<Utf8> buf, Int32 length, Bool special);
-typedef LlamaTokenToPiece = int Function(Pointer model, int token, Pointer<Utf8> buf, int length, bool special);
+typedef LlamaTokenToPieceNative = ffi.Int32 Function(ffi.Pointer model, ffi.Int32 token, ffi.Pointer<Utf8> buf, ffi.Int32 length, ffi.Bool special);
+typedef LlamaTokenToPiece = int Function(ffi.Pointer model, int token, ffi.Pointer<Utf8> buf, int length, bool special);
 
 // Inference functions
-typedef LlamaDecodeNative = Int32 Function(Pointer ctx, Pointer batch);
-typedef LlamaDecode = int Function(Pointer ctx, Pointer batch);
+typedef LlamaDecodeNative = ffi.Int32 Function(ffi.Pointer ctx, ffi.Pointer batch);
+typedef LlamaDecode = int Function(ffi.Pointer ctx, ffi.Pointer batch);
 
-typedef LlamaSampleTokenGreedyNative = Int32 Function(Pointer ctx, Pointer candidates);
-typedef LlamaSampleTokenGreedy = int Function(Pointer ctx, Pointer candidates);
+typedef LlamaSampleTokenGreedyNative = ffi.Int32 Function(ffi.Pointer ctx, ffi.Pointer candidates);
+typedef LlamaSampleTokenGreedy = int Function(ffi.Pointer ctx, ffi.Pointer candidates);
 
 // Simplified FFI integration for llama.cpp
 class LlamaFFI {
-  late DynamicLibrary _lib;
+  late ffi.DynamicLibrary _lib;
   late LlamaInitBackend _llamaInitBackend;
   late LlamaBackendFree _llamaBackendFree;
   late LlamaModelDefaultParams _llamaModelDefaultParams;
@@ -60,8 +60,8 @@ class LlamaFFI {
   late LlamaDecode _llamaDecode;
   late LlamaSampleTokenGreedy _llamaSampleTokenGreedy;
 
-  Pointer? _model;
-  Pointer? _context;
+  ffi.Pointer? _model;
+  ffi.Pointer? _context;
 
   LlamaFFI() {
     _loadLibrary();
@@ -87,9 +87,9 @@ class LlamaFFI {
     try {
       if (Platform.isAndroid) {
         // On Android, DynamicLibrary.open() expects just the library name
-        _lib = DynamicLibrary.open('libllama.so');
+        _lib = ffi.DynamicLibrary.open('libllama.so');
       } else {
-        _lib = DynamicLibrary.open(libraryPath);
+        _lib = ffi.DynamicLibrary.open(libraryPath);
       }
       print('Successfully loaded llama.cpp library: $libraryPath');
     } catch (e) {
@@ -101,42 +101,42 @@ class LlamaFFI {
     try {
       // Load basic functions that should be available in most llama.cpp builds
       _llamaInitBackend = _lib
-          .lookup<NativeFunction<LlamaInitBackendNative>>('llama_backend_init')
+          .lookup<ffi.NativeFunction<LlamaInitBackendNative>>('llama_backend_init')
           .asFunction<LlamaInitBackend>();
 
       _llamaBackendFree = _lib
-          .lookup<NativeFunction<LlamaBackendFreeNative>>('llama_backend_free')
+          .lookup<ffi.NativeFunction<LlamaBackendFreeNative>>('llama_backend_free')
           .asFunction<LlamaBackendFree>();
 
       // Load model functions
       _llamaModelDefaultParams = _lib
-          .lookup<NativeFunction<LlamaModelDefaultParamsNative>>('llama_model_default_params')
+          .lookup<ffi.NativeFunction<LlamaModelDefaultParamsNative>>('llama_model_default_params')
           .asFunction<LlamaModelDefaultParams>();
 
       _llamaModelLoadFromFile = _lib
-          .lookup<NativeFunction<LlamaModelLoadFromFileNative>>('llama_load_model_from_file')
+          .lookup<ffi.NativeFunction<LlamaModelLoadFromFileNative>>('llama_load_model_from_file')
           .asFunction<LlamaModelLoadFromFile>();
 
       _llamaFreeModel = _lib
-          .lookup<NativeFunction<LlamaFreeModelNative>>('llama_free_model')
+          .lookup<ffi.NativeFunction<LlamaFreeModelNative>>('llama_free_model')
           .asFunction<LlamaFreeModel>();
 
       // Load context functions
       _llamaNewContextWithModel = _lib
-          .lookup<NativeFunction<LlamaNewContextWithModelNative>>('llama_new_context_with_model')
+          .lookup<ffi.NativeFunction<LlamaNewContextWithModelNative>>('llama_new_context_with_model')
           .asFunction<LlamaNewContextWithModel>();
 
       _llamaFree = _lib
-          .lookup<NativeFunction<LlamaFreeNative>>('llama_free')
+          .lookup<ffi.NativeFunction<LlamaFreeNative>>('llama_free')
           .asFunction<LlamaFree>();
 
       // Load tokenization functions
       _llamaTokenize = _lib
-          .lookup<NativeFunction<LlamaTokenizeNative>>('llama_tokenize')
+          .lookup<ffi.NativeFunction<LlamaTokenizeNative>>('llama_tokenize')
           .asFunction<LlamaTokenize>();
 
       _llamaTokenToPiece = _lib
-          .lookup<NativeFunction<LlamaTokenToPieceNative>>('llama_token_to_piece')
+          .lookup<ffi.NativeFunction<LlamaTokenToPieceNative>>('llama_token_to_piece')
           .asFunction<LlamaTokenToPiece>();
 
       print('Successfully loaded llama.cpp functions');
@@ -171,7 +171,7 @@ class LlamaFFI {
       _model = _llamaModelLoadFromFile(pathPtr, modelParams);
       malloc.free(pathPtr);
 
-      if (_model == nullptr) {
+      if (_model == ffi.nullptr) {
         print('Failed to load model from: $modelPath');
         return false;
       }
@@ -187,7 +187,7 @@ class LlamaFFI {
   // Create context for inference
   bool createContext() {
     try {
-      if (_model == null || _model == nullptr) {
+      if (_model == null || _model == ffi.nullptr) {
         print('No model loaded');
         return false;
       }
@@ -197,9 +197,9 @@ class LlamaFFI {
       }
 
       // For now, use null for context params (default parameters)
-      _context = _llamaNewContextWithModel(_model!, nullptr);
+      _context = _llamaNewContextWithModel(_model!, ffi.nullptr);
 
-      if (_context == nullptr) {
+      if (_context == ffi.nullptr) {
         print('Failed to create context');
         return false;
       }
@@ -215,7 +215,7 @@ class LlamaFFI {
   // Simple inference function
   String? performInference(String prompt, {int maxTokens = 50}) {
     try {
-      if (_model == null || _context == null || _model == nullptr || _context == nullptr) {
+      if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
         print('Model or context not initialized');
         return null;
       }
@@ -239,14 +239,14 @@ class LlamaFFI {
   }
 
   // Check if model is loaded
-  bool get isModelLoaded => _model != null && _model != nullptr;
+  bool get isModelLoaded => _model != null && _model != ffi.nullptr;
 
   // Check if context is created
-  bool get isContextCreated => _context != null && _context != nullptr;
+  bool get isContextCreated => _context != null && _context != ffi.nullptr;
 
   // Free model
   void freeModel() {
-    if (_model != null && _model != nullptr) {
+    if (_model != null && _model != ffi.nullptr) {
       _llamaFreeModel(_model!);
       _model = null;
       print('Model freed');
@@ -255,7 +255,7 @@ class LlamaFFI {
 
   // Free context
   void freeContext() {
-    if (_context != null && _context != nullptr) {
+    if (_context != null && _context != ffi.nullptr) {
       _llamaFree(_context!);
       _context = null;
       print('Context freed');
@@ -279,7 +279,7 @@ class LlamaFFI {
     try {
       // Try to get a function that should exist
       final timeFunc = _lib
-          .lookup<NativeFunction<LlamaTimeUsNative>>('llama_time_us')
+          .lookup<ffi.NativeFunction<LlamaTimeUsNative>>('llama_time_us')
           .asFunction<LlamaTimeUs>();
       
       final time = timeFunc();
