@@ -29,10 +29,6 @@ final class llama_model_kv_override extends ffi.Struct {
   external LlamaModelKvOverrideValue value;
 }
 
-// Function pointer typedef for progress callback
-typedef LlamaProgressCallbackNative = ffi.Bool Function(ffi.Float progress, ffi.Pointer<ffi.Void> userData);
-typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.Void> userData);
-
 final class ggml_backend_device extends ffi.Opaque {}
 
 typedef ggml_backend_dev_t = ffi.Pointer<ggml_backend_device>;
@@ -42,6 +38,8 @@ final class llama_model_tensor_buft_override extends ffi.Struct {
   external ffi.Pointer<Utf8> pattern;
   external ffi.Pointer<ffi.Void> buft; // ggml_backend_buffer_type_t
 }
+
+final class llama_model extends ffi.Opaque {}
 
 // Main llama_model_params struct
 final class llama_model_params extends ffi.Struct {
@@ -88,6 +86,95 @@ final class llama_model_params extends ffi.Struct {
   external bool check_tensors; // validate model tensor data
 }
 
+final class llama_vocab extends ffi.Opaque {} // struct llama_vocab
+
+final class llama_context extends ffi.Opaque {}
+
+final class llama_context_params extends ffi.Struct {
+  @ffi.Uint32()
+  external int n_ctx;             // text context, 0 = from model
+
+  @ffi.Uint32()
+  external int n_batch;           // logical maximum batch size that can be submitted to llama_decode
+
+  @ffi.Uint32()
+  external int n_ubatch;          // physical maximum batch size
+
+  @ffi.Uint32()
+  external int n_seq_max;         // max number of sequences (i.e. distinct states for recurrent models)
+
+  @ffi.Int32()
+  external int n_threads;         // number of threads to use for generation
+
+  @ffi.Int32()
+  external int n_threads_batch;   // number of threads to use for batch processing
+
+  @ffi.Int32()
+  external int rope_scaling_type; // RoPE scaling type, from enum llama_rope_scaling_type
+
+  @ffi.Int32()
+  external int pooling_type;      // whether to pool (sum) embedding results by sequence id
+
+  @ffi.Int32()
+  external int attention_type;    // attention type to use for embeddings
+
+  @ffi.Float()
+  external double rope_freq_base;   // RoPE base frequency, 0 = from model
+
+  @ffi.Float()
+  external double rope_freq_scale;  // RoPE frequency scaling factor, 0 = from model
+
+  @ffi.Float()
+  external double yarn_ext_factor;  // YaRN extrapolation mix factor, negative = from model
+
+  @ffi.Float()
+  external double yarn_attn_factor; // YaRN magnitude scaling factor
+
+  @ffi.Float()
+  external double yarn_beta_fast;   // YaRN low correction dim
+
+  @ffi.Float()
+  external double yarn_beta_slow;   // YaRN high correction dim
+
+  @ffi.Uint32()
+  external int yarn_orig_ctx;       // YaRN original context size
+
+  @ffi.Float()
+  external double defrag_thold;     // defragment the KV cache if holes/size > thold, <= 0 disabled (default)
+
+  external ffi.Pointer<ffi.Void> cb_eval;        // ggml_backend_sched_eval_callback
+  external ffi.Pointer<ffi.Void> cb_eval_user_data;
+
+  @ffi.Int32()
+  external int type_k; // data type for K cache [EXPERIMENTAL] (enum ggml_type)
+
+  @ffi.Int32()
+  external int type_v; // data type for V cache [EXPERIMENTAL] (enum ggml_type)
+
+  external ffi.Pointer<ffi.Void> abort_callback;      // ggml_abort_callback
+  external ffi.Pointer<ffi.Void> abort_callback_data;
+
+  // Keep the booleans together and at the end of the struct to avoid misalignment during copy-by-value.
+  @ffi.Bool()
+  external bool embeddings;  // if true, extract embeddings (together with logits)
+
+  @ffi.Bool()
+  external bool offload_kqv; // offload the KQV ops (including the KV cache) to GPU
+
+  @ffi.Bool()
+  external bool flash_attn;  // use flash attention [EXPERIMENTAL]
+
+  @ffi.Bool()
+  external bool no_perf;     // measure performance timings
+
+  @ffi.Bool()
+  external bool op_offload;  // offload host tensor operations to device
+
+  @ffi.Bool()
+  external bool swa_full;    // use full-size SWA cache
+}
+
+
 // Simple function signatures without complex structs
 typedef LlamaInitBackendNative = ffi.Void Function();
 typedef LlamaInitBackend = void Function();
@@ -99,19 +186,23 @@ typedef LlamaBackendFree = void Function();
 typedef LlamaTimeUsNative = ffi.Int64 Function();
 typedef LlamaTimeUs = int Function();
 
+// Function pointer typedef for progress callback
+typedef LlamaProgressCallbackNative = ffi.Bool Function(ffi.Float progress, ffi.Pointer<ffi.Void> userData);
+typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.Void> userData);
+
 // Model loading functions
 typedef LlamaModelDefaultParamsNative = llama_model_params Function();
 typedef LlamaModelDefaultParams = llama_model_params Function();
 
-typedef LlamaModelLoadFromFileNative = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
-typedef LlamaModelLoadFromFile = ffi.Pointer Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
+typedef LlamaLoadModelFromFileNative = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
+typedef LlamaLoadModelFromFile = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
 
 typedef LlamaFreeModelNative = ffi.Void Function(ffi.Pointer model);
 typedef LlamaFreeModel = void Function(ffi.Pointer model);
 
 // Context functions
-typedef LlamaNewContextWithModelNative = ffi.Pointer Function(ffi.Pointer model, ffi.Pointer params);
-typedef LlamaNewContextWithModel = ffi.Pointer Function(ffi.Pointer model, ffi.Pointer params);
+typedef LlamaNewContextWithModelNative = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, ffi.Pointer<llama_context_params> params);
+typedef LlamaNewContextWithModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, ffi.Pointer<llama_context_params> params);
 
 typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
 typedef LlamaFree = void Function(ffi.Pointer ctx);
@@ -130,23 +221,26 @@ typedef LlamaDecode = int Function(ffi.Pointer ctx, ffi.Pointer batch);
 typedef LlamaSampleTokenGreedyNative = ffi.Int32 Function(ffi.Pointer ctx, ffi.Pointer candidates);
 typedef LlamaSampleTokenGreedy = int Function(ffi.Pointer ctx, ffi.Pointer candidates);
 
+typedef LlamaModelGetVocabNative = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
+typedef LlamaModelGetVocab = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
+
 // Simplified FFI integration for llama.cpp
 class LlamaFFI {
   late ffi.DynamicLibrary _lib;
-  late LlamaInitBackend _llamaInitBackend;
-  late LlamaBackendFree _llamaBackendFree;
-  late LlamaModelDefaultParams _llamaModelDefaultParams;
-  late LlamaModelLoadFromFile _llamaModelLoadFromFile;
-  late LlamaFreeModel _llamaFreeModel;
-  late LlamaNewContextWithModel _llamaNewContextWithModel;
-  late LlamaFree _llamaFree;
-  late LlamaTokenize _llamaTokenize;
-  late LlamaTokenToPiece _llamaTokenToPiece;
-  late LlamaDecode _llamaDecode;
-  late LlamaSampleTokenGreedy _llamaSampleTokenGreedy;
+  late LlamaInitBackend llama_backend_init;
+  late LlamaBackendFree llama_backend_free;
+  late LlamaModelDefaultParams llama_model_default_params;
+  late LlamaLoadModelFromFile llama_load_model_from_file;
+  late LlamaFreeModel llama_free_model;
+  late LlamaFree llama_free;
+  late LlamaTokenToPiece llama_token_to_piece;
+  late LlamaDecode llama_decode;
+  late LlamaModelGetVocab llama_model_get_vocab;
+  late LlamaNewContextWithModel llama_new_context_with_model;
+  late LlamaTokenize llama_tokenize;
 
-  ffi.Pointer? _model;
-  ffi.Pointer? _context;
+  ffi.Pointer<llama_model>? _model;
+  ffi.Pointer<llama_context>? _context;
 
   LlamaFFI() {
     _loadLibrary();
@@ -185,44 +279,48 @@ class LlamaFFI {
   void _loadFunctions() {
     try {
       // Load basic functions that should be available in most llama.cpp builds
-      _llamaInitBackend = _lib
+      llama_backend_init = _lib
           .lookup<ffi.NativeFunction<LlamaInitBackendNative>>('llama_backend_init')
           .asFunction<LlamaInitBackend>();
 
-      _llamaBackendFree = _lib
+      llama_backend_free = _lib
           .lookup<ffi.NativeFunction<LlamaBackendFreeNative>>('llama_backend_free')
           .asFunction<LlamaBackendFree>();
 
       // Load model functions
-      _llamaModelDefaultParams = _lib
+      llama_model_default_params = _lib
           .lookup<ffi.NativeFunction<LlamaModelDefaultParamsNative>>('llama_model_default_params')
           .asFunction<LlamaModelDefaultParams>();
 
-      _llamaModelLoadFromFile = _lib
-          .lookup<ffi.NativeFunction<LlamaModelLoadFromFileNative>>('llama_load_model_from_file')
-          .asFunction<LlamaModelLoadFromFile>();
+      llama_load_model_from_file = _lib
+          .lookup<ffi.NativeFunction<LlamaLoadModelFromFileNative>>('llama_load_model_from_file')
+          .asFunction<LlamaLoadModelFromFile>();
 
-      _llamaFreeModel = _lib
+      llama_free_model = _lib
           .lookup<ffi.NativeFunction<LlamaFreeModelNative>>('llama_free_model')
           .asFunction<LlamaFreeModel>();
 
-      // Load context functions
-      _llamaNewContextWithModel = _lib
-          .lookup<ffi.NativeFunction<LlamaNewContextWithModelNative>>('llama_new_context_with_model')
-          .asFunction<LlamaNewContextWithModel>();
-
-      _llamaFree = _lib
+      llama_free = _lib
           .lookup<ffi.NativeFunction<LlamaFreeNative>>('llama_free')
           .asFunction<LlamaFree>();
 
+      // Load context functions
+      llama_new_context_with_model = _lib
+          .lookup<ffi.NativeFunction<LlamaNewContextWithModelNative>>('llama_new_context_with_model')
+          .asFunction<LlamaNewContextWithModel>();
+
       // Load tokenization functions
-      _llamaTokenize = _lib
+      llama_tokenize = _lib
           .lookup<ffi.NativeFunction<LlamaTokenizeNative>>('llama_tokenize')
           .asFunction<LlamaTokenize>();
 
-      _llamaTokenToPiece = _lib
+      llama_token_to_piece = _lib
           .lookup<ffi.NativeFunction<LlamaTokenToPieceNative>>('llama_token_to_piece')
           .asFunction<LlamaTokenToPiece>();
+
+      llama_model_get_vocab = _lib
+          .lookup<ffi.NativeFunction<LlamaModelGetVocabNative>>('llama_model_get_vocab')
+          .asFunction<LlamaModelGetVocab>();
 
       print('Successfully loaded llama.cpp functions');
     } catch (e) {
@@ -233,7 +331,7 @@ class LlamaFFI {
   // Initialize the llama backend
   void initBackend() {
     try {
-      _llamaInitBackend();
+      llama_backend_init();
       print('Llama backend initialized successfully');
     } catch (e) {
       throw Exception('Failed to initialize llama backend: $e');
@@ -242,6 +340,7 @@ class LlamaFFI {
 
   // Load model from file
   bool loadModel(String modelPath) {
+    print('loadModel(modelPath: $modelPath)');
     try {
       if (_model != null) {
         freeModel();
@@ -250,10 +349,10 @@ class LlamaFFI {
       final pathPtr = modelPath.toNativeUtf8();
       
       // Get default model parameters
-      final llama_model_params modelParams = _llamaModelDefaultParams();
+      final llama_model_params modelParams = llama_model_default_params();
       
       // Load model with default parameters
-      _model = _llamaModelLoadFromFile(pathPtr, modelParams);
+      _model = llama_load_model_from_file(pathPtr, modelParams);
       malloc.free(pathPtr);
 
       if (_model == ffi.nullptr) {
@@ -269,8 +368,23 @@ class LlamaFFI {
     }
   }
 
+  bool tokenizePrompt(String prompt) {
+    print('tokenizePrompt(prompt: $prompt)');
+    try {
+      final vocab = llama_model_get_vocab(_model!);
+      final promptPtr = prompt.toNativeUtf8();
+      final tokens = llama_tokenize(vocab, promptPtr, prompt.length, ffi.nullptr, 0, true, true);
+      print('tokens: $tokens');
+      return true;
+    } catch (e) {
+      print('Error tokenizing prompt: $e');
+      return false;
+    }
+  }
+
   // Create context for inference
   bool createContext() {
+    print('createContext:');
     try {
       if (_model == null || _model == ffi.nullptr) {
         print('No model loaded');
@@ -282,7 +396,7 @@ class LlamaFFI {
       }
 
       // For now, use null for context params (default parameters)
-      _context = _llamaNewContextWithModel(_model!, ffi.nullptr);
+      _context = llama_new_context_with_model(_model!, ffi.nullptr);
 
       if (_context == ffi.nullptr) {
         print('Failed to create context');
@@ -332,7 +446,7 @@ class LlamaFFI {
   // Free model
   void freeModel() {
     if (_model != null && _model != ffi.nullptr) {
-      _llamaFreeModel(_model!);
+      llama_free_model(_model!);
       _model = null;
       print('Model freed');
     }
@@ -341,7 +455,7 @@ class LlamaFFI {
   // Free context
   void freeContext() {
     if (_context != null && _context != ffi.nullptr) {
-      _llamaFree(_context!);
+      llama_free(_context!);
       _context = null;
       print('Context freed');
     }
@@ -352,7 +466,7 @@ class LlamaFFI {
     try {
       freeContext();
       freeModel();
-      _llamaBackendFree();
+      llama_backend_free();
       print('Llama backend freed successfully');
     } catch (e) {
       print('Warning: Failed to free llama backend: $e');
@@ -397,23 +511,33 @@ class LlamaFFI {
       'llama_model_default_params',
       'llama_load_model_from_file',
       'llama_new_context_with_model',
+      'llama_model_get_vocab',
       'llama_tokenize',
-      'llama_decode',
-      'llama_sample_token_greedy',
+      'llama_context_default_params',
+      'llama_init_from_model',
+      'llama_sampler_chain_default_params',
+      'llama_sampler_chain_init',
+      'llama_sampler_chain_add',
+      'llama_sampler_init_greedy',
+      'llama_sampler_sample',
       'llama_token_to_piece',
+      'llama_batch_get_one',
+      'llama_decode',
+      'llama_perf_sampler_print',
+      'llama_perf_context_print',
       'llama_time_us',
-      'llama_max_devices',
-      'llama_free_model',
+      'llama_sampler_free',
       'llama_free',
+      'llama_model_free',
     ];
 
     print('Checking for common llama.cpp functions:');
     for (final funcName in commonFunctions) {
       try {
         _lib.lookup(funcName);
-        print('✓ $funcName - available');
+        print('✅ $funcName - available');
       } catch (e) {
-        print('✗ $funcName - not found');
+        print('❌ $funcName - not found');
       }
     }
   }
