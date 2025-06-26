@@ -174,6 +174,9 @@ final class llama_context_params extends ffi.Struct {
   external bool swa_full;    // use full-size SWA cache
 }
 
+// 
+typedef llama_token = ffi.Int32;
+
 
 // Simple function signatures without complex structs
 typedef LlamaInitBackendNative = ffi.Void Function();
@@ -181,7 +184,6 @@ typedef LlamaInitBackend = void Function();
 
 typedef LlamaBackendFreeNative = ffi.Void Function();
 typedef LlamaBackendFree = void Function();
-
 // Simple test function - most llama.cpp builds have this
 typedef LlamaTimeUsNative = ffi.Int64 Function();
 typedef LlamaTimeUs = int Function();
@@ -211,8 +213,8 @@ typedef LlamaInitFromModelNative = ffi.Pointer<llama_context> Function(ffi.Point
 typedef LlamaInitFromModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 
 // Tokenization functions
-typedef LlamaTokenizeNative = ffi.Int32 Function(ffi.Pointer model, ffi.Pointer<Utf8> text, ffi.Int32 textLen, ffi.Pointer<ffi.Int32> tokens, ffi.Int32 nMaxTokens, ffi.Bool addBos, ffi.Bool special);
-typedef LlamaTokenize = int Function(ffi.Pointer model, ffi.Pointer<Utf8> text, int textLen, ffi.Pointer<ffi.Int32> tokens, int nMaxTokens, bool addBos, bool special);
+typedef LlamaTokenizeNative = ffi.Int32 Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer<ffi.Char> text, ffi.Int32 textLen, ffi.Pointer<llama_token> tokens, ffi.Int32 nMaxTokens, ffi.Bool addBos, ffi.Bool special);
+typedef LlamaTokenize = int Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer<ffi.Char> text, int textLen, ffi.Pointer<llama_token> tokens, int nMaxTokens, bool addBos, bool special);
 
 typedef LlamaTokenToPieceNative = ffi.Int32 Function(ffi.Pointer model, ffi.Int32 token, ffi.Pointer<Utf8> buf, ffi.Int32 length, ffi.Bool special);
 typedef LlamaTokenToPiece = int Function(ffi.Pointer model, int token, ffi.Pointer<Utf8> buf, int length, bool special);
@@ -386,7 +388,7 @@ class LlamaFFI {
     print('tokenizePrompt(prompt: $prompt)');
     try {
       final vocab = llama_model_get_vocab(_model!);
-      final promptPtr = prompt.toNativeUtf8();
+      final promptPtr = prompt.toNativeUtf8().cast<ffi.Char>();
       final tokens = llama_tokenize(vocab, promptPtr, prompt.length, ffi.nullptr, 0, true, true);
       print('tokens: $tokens');
       return true;
