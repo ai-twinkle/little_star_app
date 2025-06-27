@@ -117,6 +117,66 @@ void main() {
     malloc.free(buf);
   }
 
+    // Track timing
+  final tMainStart = DateTime.now().microsecondsSinceEpoch;
+
+  // Prepare initial batch
+  var batch = llamaFFI.llama_batch_get_one(tokens, nPrompt);
+  print("batch: ${batch.ref.n_tokens}");
+
+  // Main generation loop
+  int nDecode = 0;
+  int newTokenId;
+  final tokenPtr = malloc<llama_token>();
+
+  for (int nPos = 0; nPos + batch.ref.n_tokens < nPrompt + nPredict;) {
+    if (llamaFFI.llama_decode(ctx, batch) != 0) {
+      stderr.writeln("failed to eval");
+      malloc.free(tokenPtr);
+      malloc.free(tokens);
+      return;
+    }
+
+    nPos += batch.ref.n_tokens;
+
+    // Sample next token
+    newTokenId = llamaFFI.llama_sampler_sample(smpl, ctx, -1);
+
+    if (llamaFFI.llama_vocab_is_eog(vocab, newTokenId)) {
+      break;
+    }
+
+    final buf = malloc<ffi.Char>(128);
+    int n = llamaFFI.llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
+    if (n < 0) {
+      stderr.writeln("error: failed to convert token to piece");
+      malloc.free(buf);
+      malloc.free(tokenPtr);
+      malloc.free(tokens);
+      return;
+    }
+
+    String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
+    stdout.write(piece);
+    stdout.flush();
+    malloc.free(buf);
+
+    // Prepare next batch
+    tokenPtr.value = newTokenId;
+    batch = llamaFFI.llama_batch_get_one(tokenPtr, 1);
+
+    nDecode++;
+  }
+
+  final tMainEnd = DateTime.now().microsecondsSinceEpoch;
+  stdout.writeln();
+
+  // Print performance statistics
+  final decodeTime = (tMainEnd - tMainStart) / 1000000.0;
+  stderr.writeln(
+      "decoded $nDecode tokens in ${decodeTime.toStringAsFixed(2)} s, speed: ${(nDecode / decodeTime).toStringAsFixed(2)} t/s");
+  stderr.writeln();
+
   // Clean up
   malloc.free(tokens);
   llamaFFI.llama_free(ctx);

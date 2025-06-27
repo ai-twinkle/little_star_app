@@ -248,6 +248,26 @@ final class llama_sampler extends ffi.Struct {
   external llama_sampler_context_t ctx;
 }
 
+//
+typedef llama_pos = ffi.Int32;
+typedef llama_seq_id = ffi.Int32;
+
+final class llama_batch extends ffi.Struct {
+  @ffi.Int32()
+  external int n_tokens;
+
+  external ffi.Pointer<llama_token> token;
+
+  external ffi.Pointer<ffi.Float> embd;
+
+  external ffi.Pointer<llama_pos> pos;
+
+  external ffi.Pointer<ffi.Int32> n_seq_id;
+
+  external ffi.Pointer<ffi.Pointer<llama_seq_id>> seq_id;
+
+  external ffi.Pointer<ffi.Int8> logits;
+}
 
 // Simple function signatures without complex structs
 typedef LlamaInitBackendNative = ffi.Void Function();
@@ -283,6 +303,10 @@ typedef LlamaContextDefaultParams = llama_context_params Function();
 typedef LlamaInitFromModelNative = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 typedef LlamaInitFromModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 
+// Vocab functions
+typedef LlamaVocabIsEogNative = ffi.Bool Function(ffi.Pointer<llama_vocab> vocab, ffi.Int32 token);
+typedef LlamaVocabIsEog = bool Function(ffi.Pointer<llama_vocab> vocab, int token);
+
 // Tokenization functions
 typedef LlamaTokenizeNative = ffi.Int32 Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer<ffi.Char> text, ffi.Int32 textLen, ffi.Pointer<llama_token> tokens, ffi.Int32 nMaxTokens, ffi.Bool addBos, ffi.Bool special);
 typedef LlamaTokenize = int Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer<ffi.Char> text, int textLen, ffi.Pointer<llama_token> tokens, int nMaxTokens, bool addBos, bool special);
@@ -305,6 +329,14 @@ typedef LlamaSamplerInitGreedy = ffi.Pointer<llama_sampler> Function();
 
 typedef LlamaSamplerSampleNative = ffi.Int32 Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, ffi.Int32 idx);
 typedef LlamaSamplerSample = int Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, int idx);
+
+// Batch functions
+typedef LlamaBatchGetOneNative = ffi.Pointer<llama_batch> Function(ffi.Pointer<llama_token> tokens, ffi.Int32 nTokens);
+typedef LlamaBatchGetOne = ffi.Pointer<llama_batch> Function(ffi.Pointer<llama_token> tokens, int nTokens);
+
+// Encode Decode functions
+typedef LlamaDecodeNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx, ffi.Pointer<llama_batch> batch);
+typedef LlamaDecode = int Function(ffi.Pointer<llama_context> ctx, ffi.Pointer<llama_batch> batch);
 
 // Free functions
 typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
@@ -329,6 +361,8 @@ class LlamaFFI {
   late LlamaNewContextWithModel llama_new_context_with_model;
   late LlamaContextDefaultParams llama_context_default_params;
   late LlamaInitFromModel llama_init_from_model;
+  //
+  late LlamaVocabIsEog llama_vocab_is_eog;
   // 
   late LlamaTokenize llama_tokenize;
   late LlamaTokenToPiece llama_token_to_piece;
@@ -338,6 +372,10 @@ class LlamaFFI {
   late LlamaSamplerChainAdd llama_sampler_chain_add;
   late LlamaSamplerInitGreedy llama_sampler_init_greedy;
   late LlamaSamplerSample llama_sampler_sample;
+  //
+  late LlamaBatchGetOne llama_batch_get_one;
+  //
+  late LlamaDecode llama_decode;
   // 
   late LlamaFree llama_free;
   late LlamaModelFree llama_model_free;
@@ -417,6 +455,11 @@ class LlamaFFI {
           .lookup<ffi.NativeFunction<LlamaInitFromModelNative>>('llama_init_from_model')
           .asFunction<LlamaInitFromModel>();
 
+      //
+      llama_vocab_is_eog = _lib
+          .lookup<ffi.NativeFunction<LlamaVocabIsEogNative>>('llama_vocab_is_eog')
+          .asFunction<LlamaVocabIsEog>();
+
       // Load tokenization functions
       llama_tokenize = _lib
           .lookup<ffi.NativeFunction<LlamaTokenizeNative>>('llama_tokenize')
@@ -446,6 +489,16 @@ class LlamaFFI {
       llama_sampler_sample = _lib
           .lookup<ffi.NativeFunction<LlamaSamplerSampleNative>>('llama_sampler_sample')
           .asFunction<LlamaSamplerSample>();
+
+      // Batch functions
+      llama_batch_get_one = _lib
+          .lookup<ffi.NativeFunction<LlamaBatchGetOneNative>>('llama_batch_get_one')
+          .asFunction<LlamaBatchGetOne>();
+
+      // Encode Decode functions
+      llama_decode = _lib
+          .lookup<ffi.NativeFunction<LlamaDecodeNative>>('llama_decode')
+          .asFunction<LlamaDecode>();
 
       // Free functions
       llama_free = _lib
@@ -654,6 +707,8 @@ class LlamaFFI {
       'llama_new_context_with_model',
       'llama_context_default_params',
       'llama_init_from_model',
+      //
+      'llama_vocab_is_eog',
       // 
       'llama_tokenize',
       'llama_token_to_piece',
@@ -663,6 +718,10 @@ class LlamaFFI {
       'llama_sampler_chain_add',
       'llama_sampler_init_greedy',
       'llama_sampler_sample',
+      //
+      'llama_batch_get_one',
+      //
+      'llama_decode',
       //
       'llama_free',
       'llama_model_free',
