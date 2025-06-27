@@ -174,8 +174,79 @@ final class llama_context_params extends ffi.Struct {
   external bool swa_full;    // use full-size SWA cache
 }
 
-// 
+// Token typedefs & structs
 typedef llama_token = ffi.Int32;
+
+final class llama_token_data extends ffi.Struct {
+  @llama_token()
+  external int id;
+
+  @ffi.Float()
+  external double logit;
+
+  @ffi.Float()
+  external double p;
+}
+
+final class llama_token_data_array extends ffi.Struct {
+  external ffi.Pointer<llama_token_data> data;
+
+  @ffi.Size()
+  external int size;
+
+  @ffi.Int64()
+  external int selected;
+
+  @ffi.Bool()
+  external bool sorted;
+}
+
+// Sampler structs & typedefs
+final class llama_sampler_chain_params extends ffi.Struct {
+  @ffi.Bool()
+  external bool no_perf;
+}
+
+final class llama_sampler_chain extends ffi.Opaque {}
+
+final class llama_sampler_i extends ffi.Struct {
+  external ffi.Pointer<
+          ffi.NativeFunction<
+              ffi.Pointer<ffi.Char> Function(ffi.Pointer<llama_sampler> smpl)>>
+      name;
+
+  external ffi.Pointer<
+      ffi.NativeFunction<
+          ffi.Void Function(
+              ffi.Pointer<llama_sampler> smpl, llama_token token)>> accept;
+
+  external ffi.Pointer<
+      ffi.NativeFunction<
+          ffi.Void Function(ffi.Pointer<llama_sampler> smpl,
+              ffi.Pointer<llama_token_data_array> cur_p)>> apply;
+
+  external ffi.Pointer<
+          ffi
+          .NativeFunction<ffi.Void Function(ffi.Pointer<llama_sampler> smpl)>>
+      reset;
+
+  external ffi.Pointer<
+      ffi.NativeFunction<
+          ffi.Pointer<llama_sampler> Function(
+              ffi.Pointer<llama_sampler> smpl)>> clone;
+
+  external ffi.Pointer<
+      ffi
+      .NativeFunction<ffi.Void Function(ffi.Pointer<llama_sampler> smpl)>> free;
+}
+
+typedef llama_sampler_context_t = ffi.Pointer<ffi.Void>;
+
+final class llama_sampler extends ffi.Struct {
+  external ffi.Pointer<llama_sampler_i> iface;
+
+  external llama_sampler_context_t ctx;
+}
 
 
 // Simple function signatures without complex structs
@@ -216,15 +287,34 @@ typedef LlamaInitFromModel = ffi.Pointer<llama_context> Function(ffi.Pointer<lla
 typedef LlamaTokenizeNative = ffi.Int32 Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer<ffi.Char> text, ffi.Int32 textLen, ffi.Pointer<llama_token> tokens, ffi.Int32 nMaxTokens, ffi.Bool addBos, ffi.Bool special);
 typedef LlamaTokenize = int Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer<ffi.Char> text, int textLen, ffi.Pointer<llama_token> tokens, int nMaxTokens, bool addBos, bool special);
 
-typedef LlamaTokenToPieceNative = ffi.Int32 Function(ffi.Pointer model, ffi.Int32 token, ffi.Pointer<Utf8> buf, ffi.Int32 length, ffi.Bool special);
-typedef LlamaTokenToPiece = int Function(ffi.Pointer model, int token, ffi.Pointer<Utf8> buf, int length, bool special);
+typedef LlamaTokenToPieceNative = ffi.Int32 Function(ffi.Pointer<llama_vocab> vocab, ffi.Int32 token, ffi.Pointer<ffi.Char> buf, ffi.Int32 length, ffi.Int32 lstrip, ffi.Bool special);
+typedef LlamaTokenToPiece = int Function(ffi.Pointer<llama_vocab> vocab, int token, ffi.Pointer<ffi.Char> buf, int length, int lstrip, bool special);
+
+// Sampler functions
+typedef LlamaSamplerChainDefaultParamsNative = llama_sampler_chain_params Function();
+typedef LlamaSamplerChainDefaultParams = llama_sampler_chain_params Function();
+
+typedef LlamaSamplerChainInitNative = ffi.Pointer<llama_sampler> Function(llama_sampler_chain_params params);
+typedef LlamaSamplerChainInit = ffi.Pointer<llama_sampler> Function(llama_sampler_chain_params params);
+
+typedef LlamaSamplerChainAddNative = ffi.Void Function(ffi.Pointer<llama_sampler> chain, ffi.Pointer<llama_sampler> sampler);
+typedef LlamaSamplerChainAdd = void Function(ffi.Pointer<llama_sampler> chain, ffi.Pointer<llama_sampler> sampler);
+
+typedef LlamaSamplerInitGreedyNative = ffi.Pointer<llama_sampler> Function();
+typedef LlamaSamplerInitGreedy = ffi.Pointer<llama_sampler> Function();
+
+typedef LlamaSamplerSampleNative = ffi.Int32 Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, ffi.Int32 idx);
+typedef LlamaSamplerSample = int Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, int idx);
 
 // Free functions
+typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
+typedef LlamaFree = void Function(ffi.Pointer ctx);
+
 typedef LlamaModelFreeNative = ffi.Void Function(ffi.Pointer model);
 typedef LlamaModelFree = void Function(ffi.Pointer model);
 
-typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
-typedef LlamaFree = void Function(ffi.Pointer ctx);
+typedef LlamaSamplerFreeNative = ffi.Void Function(ffi.Pointer<llama_sampler> sampler);
+typedef LlamaSamplerFree = void Function(ffi.Pointer<llama_sampler> sampler);
 
 // Simplified FFI integration for llama.cpp
 class LlamaFFI {
@@ -242,9 +332,16 @@ class LlamaFFI {
   // 
   late LlamaTokenize llama_tokenize;
   late LlamaTokenToPiece llama_token_to_piece;
+  //
+  late LlamaSamplerChainDefaultParams llama_sampler_chain_default_params;
+  late LlamaSamplerChainInit llama_sampler_chain_init;
+  late LlamaSamplerChainAdd llama_sampler_chain_add;
+  late LlamaSamplerInitGreedy llama_sampler_init_greedy;
+  late LlamaSamplerSample llama_sampler_sample;
   // 
-  late LlamaModelFree llama_model_free;
   late LlamaFree llama_free;
+  late LlamaModelFree llama_model_free;
+  late LlamaSamplerFree llama_sampler_free;
 
   ffi.Pointer<llama_model>? _model;
   ffi.Pointer<llama_context>? _context;
@@ -329,14 +426,39 @@ class LlamaFFI {
           .lookup<ffi.NativeFunction<LlamaTokenToPieceNative>>('llama_token_to_piece')
           .asFunction<LlamaTokenToPiece>();
 
-      // 
+      // Sampler functions
+      llama_sampler_chain_default_params = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerChainDefaultParamsNative>>('llama_sampler_chain_default_params')
+          .asFunction<LlamaSamplerChainDefaultParams>();
+
+      llama_sampler_chain_init = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerChainInitNative>>('llama_sampler_chain_init')
+          .asFunction<LlamaSamplerChainInit>();
+
+      llama_sampler_chain_add = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerChainAddNative>>('llama_sampler_chain_add')
+          .asFunction<LlamaSamplerChainAdd>();
+
+      llama_sampler_init_greedy = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerInitGreedyNative>>('llama_sampler_init_greedy')
+          .asFunction<LlamaSamplerInitGreedy>();
+
+      llama_sampler_sample = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerSampleNative>>('llama_sampler_sample')
+          .asFunction<LlamaSamplerSample>();
+
+      // Free functions
+      llama_free = _lib
+          .lookup<ffi.NativeFunction<LlamaFreeNative>>('llama_free')
+          .asFunction<LlamaFree>();
+
       llama_model_free = _lib
           .lookup<ffi.NativeFunction<LlamaModelFreeNative>>('llama_model_free')
           .asFunction<LlamaModelFree>();
 
-      llama_free = _lib
-          .lookup<ffi.NativeFunction<LlamaFreeNative>>('llama_free')
-          .asFunction<LlamaFree>();
+      llama_sampler_free = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerFreeNative>>('llama_sampler_free')
+          .asFunction<LlamaSamplerFree>();
 
       print('Successfully loaded llama.cpp functions');
     } catch (e) {
@@ -536,9 +658,15 @@ class LlamaFFI {
       'llama_tokenize',
       'llama_token_to_piece',
       //
+      'llama_sampler_chain_default_params',
+      'llama_sampler_chain_init',
+      'llama_sampler_chain_add',
+      'llama_sampler_init_greedy',
+      'llama_sampler_sample',
+      //
       'llama_free',
       'llama_model_free',
-      
+      'llama_sampler_free',
     ];
 
     print('Checking for common llama.cpp functions:');

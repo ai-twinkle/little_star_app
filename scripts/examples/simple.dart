@@ -96,6 +96,27 @@ void main() {
 
   print("Successfully created context");
 
+  // Initialize sampler
+  var sparams = llamaFFI.llama_sampler_chain_default_params();
+  sparams.no_perf = false;
+  final smpl = llamaFFI.llama_sampler_chain_init(sparams);
+  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_greedy());
+
+  // Print prompt tokens
+  for (int i = 0; i < nPrompt; i++) {
+    final buf = malloc<ffi.Char>(128);
+    int n = llamaFFI.llama_token_to_piece(vocab, tokens[i], buf, 128, 0, true);
+    if (n < 0) {
+      stderr.writeln("error: failed to convert token to piece");
+      malloc.free(buf);
+      malloc.free(tokens);
+      return;
+    }
+    String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
+    stdout.write(piece);
+    malloc.free(buf);
+  }
+
   // Clean up
   malloc.free(tokens);
   llamaFFI.llama_free(ctx);
