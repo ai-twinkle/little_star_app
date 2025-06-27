@@ -12,11 +12,18 @@ void main() {
   int nPredict = 32;
 
   final LlamaFFI llamaFFI = LlamaFFI();
+  if (!llamaFFI.modelFileExists(modelPath)) {
+    stderr.writeln("error: model file not found");
+    return;
+  }
+
   llamaFFI.llama_backend_init();
+  print("Backend initialized successfully");
 
   // Initialize model
   final modelParams = llamaFFI.llama_model_default_params();
-  final pathPtr = modelPath.toNativeUtf8();
+  modelParams.vocab_only = true;
+  final pathPtr = modelPath.toNativeUtf8().cast<ffi.Char>();
   final model = llamaFFI.llama_model_load_from_file(pathPtr, modelParams);
   malloc.free(pathPtr);
 

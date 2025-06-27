@@ -196,8 +196,8 @@ typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.V
 typedef LlamaModelDefaultParamsNative = llama_model_params Function();
 typedef LlamaModelDefaultParams = llama_model_params Function();
 
-typedef LlamaModelLoadFromFileNative = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
-typedef LlamaModelLoadFromFile = ffi.Pointer<llama_model> Function(ffi.Pointer<Utf8> pathModel, llama_model_params params);
+typedef LlamaModelLoadFromFileNative = ffi.Pointer<llama_model> Function(ffi.Pointer<ffi.Char> pathModel, llama_model_params params);
+typedef LlamaModelLoadFromFile = ffi.Pointer<llama_model> Function(ffi.Pointer<ffi.Char> pathModel, llama_model_params params);
 
 typedef LlamaModelGetVocabNative = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
 typedef LlamaModelGetVocab = ffi.Pointer<llama_vocab> Function(ffi.Pointer<llama_model> model);
@@ -362,7 +362,7 @@ class LlamaFFI {
         freeModel();
       }
 
-      final pathPtr = modelPath.toNativeUtf8();
+      final pathPtr = modelPath.toNativeUtf8().cast<ffi.Char>();
       
       // Get default model parameters
       final llama_model_params modelParams = llama_model_default_params();
