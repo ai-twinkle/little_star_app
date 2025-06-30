@@ -48,7 +48,6 @@ void main() {
   final promptUtf8 = prompt.toNativeUtf8();
   final promptPtr = promptUtf8.cast<ffi.Char>();
   final promptByteLength = promptUtf8.length; // This gives actual byte length
-  
   print("prompt: $prompt, promptPtr: ${promptPtr.address}, byteLength: $promptByteLength");
 
   // First call to get required token count (negative return value)

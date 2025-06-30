@@ -7,13 +7,13 @@ import 'package:path/path.dart' as path;
 final class LlamaModelKvOverrideValue extends ffi.Union {
   @ffi.Int64()
   external int valI64;
-  
+
   @ffi.Double()
   external double valF64;
-  
+
   @ffi.Bool()
   external bool valBool;
-  
+
   @ffi.Array<ffi.Char>(128)
   external ffi.Array<ffi.Char> valStr;
 }
@@ -22,10 +22,10 @@ final class LlamaModelKvOverrideValue extends ffi.Union {
 final class llama_model_kv_override extends ffi.Struct {
   @ffi.Int32()
   external int tag; // enum llama_model_kv_override_type
-  
+
   @ffi.Array<ffi.Char>(128)
   external ffi.Array<ffi.Char> key;
-  
+
   external LlamaModelKvOverrideValue value;
 }
 
@@ -51,7 +51,7 @@ final class llama_model_params extends ffi.Struct {
 
   @ffi.Int32()
   external int n_gpu_layers; // number of layers to store in VRAM
-  
+
   @ffi.Int32()
   external int split_mode; // how to split the model across multiple GPUs (enum llama_split_mode)
 
@@ -75,13 +75,13 @@ final class llama_model_params extends ffi.Struct {
   // Keep the booleans together to avoid misalignment during copy-by-value.
   @ffi.Bool()
   external bool vocab_only;    // only load the vocabulary, no weights
-  
+
   @ffi.Bool()
   external bool use_mmap;      // use mmap if possible
-  
+
   @ffi.Bool()
   external bool use_mlock;     // force system to keep model in RAM
-  
+
   @ffi.Bool()
   external bool check_tensors; // validate model tensor data
 }
@@ -365,17 +365,17 @@ class LlamaFFI {
 
   late LlamaInitBackend llama_backend_init;
   late LlamaBackendFree llama_backend_free;
-  // 
+  //
   late LlamaModelDefaultParams llama_model_default_params;
   late LlamaModelLoadFromFile llama_model_load_from_file;
   late LlamaModelGetVocab llama_model_get_vocab;
-  // 
+  //
   late LlamaNewContextWithModel llama_new_context_with_model;
   late LlamaContextDefaultParams llama_context_default_params;
   late LlamaInitFromModel llama_init_from_model;
   //
   late LlamaVocabIsEog llama_vocab_is_eog;
-  // 
+  //
   late LlamaTokenize llama_tokenize;
   late LlamaTokenToPiece llama_token_to_piece;
   //
@@ -388,7 +388,7 @@ class LlamaFFI {
   late LlamaBatchGetOne llama_batch_get_one;
   //
   late LlamaDecode llama_decode;
-  // 
+  //
   late LlamaFree llama_free;
   late LlamaModelFree llama_model_free;
   late LlamaSamplerFree llama_sampler_free;
@@ -410,7 +410,7 @@ class LlamaFFI {
   void _loadLibrary() {
     String llamaLibraryPath;
     String ggmlLibraryPath;
-    
+
     if (Platform.isAndroid) {
       llamaLibraryPath = 'libllama.so';
       ggmlLibraryPath = 'libggml.so';
@@ -430,7 +430,7 @@ class LlamaFFI {
     try {
       _lib = ffi.DynamicLibrary.open(llamaLibraryPath);
       print('Successfully loaded llama.cpp library: $llamaLibraryPath');
-      
+
       _ggmlLib = ffi.DynamicLibrary.open(ggmlLibraryPath);
       print('Successfully loaded GGML library: $ggmlLibraryPath');
     } catch (e) {
@@ -536,11 +536,11 @@ class LlamaFFI {
       llama_time_us = _lib
           .lookup<ffi.NativeFunction<LlamaTimeUsNative>>('llama_time_us')
           .asFunction<LlamaTimeUs>();
-      
+
       llama_perf_context_print = _lib
           .lookup<ffi.NativeFunction<LlamaPerfContextPrintNative>>('llama_perf_context_print')
           .asFunction<LlamaPerfContextPrint>();
-      
+
       llama_perf_sampler_print = _lib
           .lookup<ffi.NativeFunction<LlamaPerfSamplerPrintNative>>('llama_perf_sampler_print')
           .asFunction<LlamaPerfSamplerPrint>();
@@ -561,6 +561,8 @@ class LlamaFFI {
     try {
       llama_backend_init();
       print('Llama backend initialized successfully');
+      // ggml_backend_load_all(); // This causes filesystem permission errors on Android
+      // print('GGML backend loaded successfully');
     } catch (e) {
       throw Exception('Failed to initialize llama backend: $e');
     }
@@ -575,10 +577,10 @@ class LlamaFFI {
       }
 
       final pathPtr = modelPath.toNativeUtf8().cast<ffi.Char>();
-      
+
       // Get default model parameters
       final llama_model_params modelParams = llama_model_default_params();
-      
+
       // Load model with default parameters
       _model = llama_model_load_from_file(pathPtr, modelParams);
       malloc.free(pathPtr);
@@ -641,24 +643,115 @@ class LlamaFFI {
 
   // Simple inference function
   String? performInference(String prompt, {int maxTokens = 50}) {
+    print('performInference(prompt: "$prompt", maxTokens: $maxTokens)');
+
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
         print('Model or context not initialized');
         return null;
       }
 
-      // This is a simplified version - real implementation would need proper batch handling
-      // For now, we'll return a placeholder response to test the UI
-      print('Performing inference with prompt: $prompt');
-      
-      // In a real implementation, you would:
-      // 1. Tokenize the prompt
-      // 2. Create a batch with the tokens
-      // 3. Process the batch through the model
-      // 4. Sample tokens and convert back to text
-      
-      // For testing purposes, return a simple response
-      return "This is a test response from the GGUF model. The prompt was: '$prompt'. Model inference is working!";
+      // Get vocabulary from model
+      final vocab = llama_model_get_vocab(_model!);
+      if (vocab.address == 0) {
+        print("Error: failed to get vocabulary from model");
+        return null;
+      }
+
+      // Convert prompt to UTF-8 and get proper byte length
+      final promptUtf8 = prompt.toNativeUtf8();
+      final promptPtr = promptUtf8.cast<ffi.Char>();
+      final promptByteLength = promptUtf8.length;
+
+      // First call to get required token count (negative return value)
+      final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
+      if (nPromptRequired >= 0) {
+        print("Error: unexpected positive return from tokenize call");
+        malloc.free(promptUtf8);
+        return null;
+      }
+      final nPrompt = -nPromptRequired;
+
+      // Allocate space for the tokens and tokenize the prompt
+      final tokens = malloc<llama_token>(nPrompt);
+      final actualTokens = llama_tokenize(vocab, promptPtr, promptByteLength, tokens, nPrompt, true, true);
+
+      if (actualTokens < 0) {
+        print("Error: failed to tokenize the prompt");
+        malloc.free(promptUtf8);
+        malloc.free(tokens);
+        return null;
+      }
+      print("Prompt(tokenized): $actualTokens tokens");
+
+      // Free the prompt memory now that we're done with it
+      malloc.free(promptUtf8);
+
+      // Initialize sampler
+      final sparams = llama_sampler_chain_default_params();
+      sparams.no_perf = false;
+      final smpl = llama_sampler_chain_init(sparams);
+      llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+
+      // Prepare initial batch
+      var batch = llama_batch_get_one(tokens, nPrompt);
+
+      // Initialize response string
+      final responseBuffer = StringBuffer();
+
+      // Main generation loop
+      int nDecode = 0;
+      int newTokenId;
+      final tokenPtr = malloc<llama_token>();
+
+      for (int nPos = 0; nPos + batch.n_tokens < nPrompt + maxTokens;) {
+        // Decode the batch
+        if (llama_decode(_context!, batch) != 0) {
+          print("Error: failed to decode batch");
+          break;
+        }
+
+        nPos += batch.n_tokens;
+
+        // Sample next token
+        newTokenId = llama_sampler_sample(smpl, _context!, -1);
+
+        // Check if end of generation
+        if (llama_vocab_is_eog(vocab, newTokenId)) {
+          print("End of generation reached");
+          break;
+        }
+
+        // Convert token to text piece
+        final buf = malloc<ffi.Char>(128);
+        int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
+        if (n < 0) {
+          print("Error: failed to convert token to piece");
+          malloc.free(buf);
+          break;
+        }
+
+        // Convert to Dart string and add to response
+        String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
+        responseBuffer.write(piece);
+        malloc.free(buf);
+
+        // Prepare next batch with the new token
+        tokenPtr.value = newTokenId;
+        batch = llama_batch_get_one(tokenPtr, 1);
+
+        nDecode++;
+      }
+      print("Sampled(decoded): $nDecode tokens");
+
+      // Clean up memory
+      malloc.free(tokens);
+      malloc.free(tokenPtr);
+      llama_sampler_free(smpl);
+
+      final response = responseBuffer.toString();
+      print("Generated response: $response, length: ${response.length}");
+      return response;
     } catch (e) {
       print('Error during inference: $e');
       return null;
@@ -708,7 +801,7 @@ class LlamaFFI {
       final timeFunc = _lib
           .lookup<ffi.NativeFunction<LlamaTimeUsNative>>('llama_time_us')
           .asFunction<LlamaTimeUs>();
-      
+
       final time = timeFunc();
       print('Llama library test successful. Current time: $time microseconds');
       return true;
@@ -740,13 +833,13 @@ class LlamaFFI {
       'llama_model_default_params',
       'llama_model_load_from_file',
       'llama_model_get_vocab',
-      // 
+      //
       'llama_new_context_with_model',
       'llama_context_default_params',
       'llama_init_from_model',
       //
       'llama_vocab_is_eog',
-      // 
+      //
       'llama_tokenize',
       'llama_token_to_piece',
       //
@@ -778,7 +871,7 @@ class LlamaFFI {
     final ggmlFunctions = [
       'ggml_backend_load_all',
     ];
-    
+
     print('Checking for ggml backend functions:');
     for (final funcName in ggmlFunctions) {
       try {
@@ -789,4 +882,4 @@ class LlamaFFI {
       }
     }
   }
-} 
+}

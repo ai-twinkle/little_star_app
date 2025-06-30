@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.amber),
       ),
-      home: const MyHomePage(title: 'A Little Star\'s Home'),
+      home: const MyHomePage(title: '✨ A Little Star'),
     );
   }
 }
@@ -38,13 +38,16 @@ class _MyHomePageState extends State<MyHomePage> {
   LlamaFFI? _llamaFFI;
   String _statusMessage = 'Ready to test Llama FFI';
   bool _isLoading = false;
+
+  // Model-related state
+  final ExpansibleController _modelController = ExpansibleController();
+  String? _modelPath;
+  bool _isModelLoaded = false;
   
   // Inference-related state
   final TextEditingController _promptController = TextEditingController();
   String _inferenceResult = '';
   bool _isInferenceLoading = false;
-  bool _isModelLoaded = false;
-  String? _modelPath;
 
   @override
   void initState() {
@@ -157,9 +160,22 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       }
 
+      setState(() {
+        _statusMessage = 'Creating FFI instance...';
+      });
+
       _llamaFFI = LlamaFFI();
+      
+      setState(() {
+        _statusMessage = 'Initializing backend...';
+      });
+
       _llamaFFI!.initBackend();
       
+      setState(() {
+        _statusMessage = 'Testing library...';
+      });
+
       // Test the library
       final testResult = _llamaFFI!.testLibrary();
       
@@ -222,11 +238,12 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
-      final success = _llamaFFI!.loadModel(_modelPath!);
-      if (success) {
+      final loadModelSuccess = _llamaFFI!.loadModel(_modelPath!);
+      if (loadModelSuccess) {
+        _modelController.collapse();
         final contextCreated = _llamaFFI!.createContext();
         setState(() {
-          _isModelLoaded = success && contextCreated;
+          _isModelLoaded = loadModelSuccess && contextCreated;
           _statusMessage = _isModelLoaded 
             ? 'Model loaded successfully! Ready for inference.' 
             : 'Model loaded but failed to create context.';
@@ -292,78 +309,70 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
         child: Column(
           children: <Widget>[
-            const Icon(
-              Icons.star,
-              size: 64,
-              color: Colors.amber,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Llama.cpp FFI Integration',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            
-            // FFI Status Section
+            // Model Status Section
             if (_isLoading)
               const CircularProgressIndicator()
             else
               Container(
-                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[300]!),
                 ),
-                child: Column(
+                child: ExpansionTile(
+                  controller: _modelController,
+                  title: const Text(
+                    'Model Status',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    _statusMessage,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  initiallyExpanded: !_isModelLoaded,
                   children: [
-                    Text(
-                      _statusMessage,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _initializeLlama,
-                              child: const Text('Reinitialize FFI'),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child: ElevatedButton(
-                              onPressed: (_isLoading || _modelPath == null) ? null : _loadModel,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isModelLoaded ? Colors.green : null,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _initializeLlama,
+                                child: const Text('Reinitialize FFI'),
                               ),
-                              child: Text(_isModelLoaded ? 'Model Loaded ✓' : 'Load Model'),
                             ),
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: ElevatedButton(
+                                onPressed: (_isLoading || _modelPath == null) ? null : _loadModel,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _isModelLoaded ? Colors.lightGreenAccent : null,
+                                ),
+                                child: Text(_isModelLoaded ? 'Model Loaded ✓' : 'Load Model'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
             
-            const SizedBox(height: 20),
-            const Divider(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
             
-            // Inference Testing Section
+            // Inference Section
             const Text(
-              'Model Inference Test',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              'Model Inference',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             
