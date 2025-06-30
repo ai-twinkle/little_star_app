@@ -170,7 +170,12 @@ class _MyHomePageState extends State<MyHomePage> {
         _statusMessage = 'Initializing backend...';
       });
 
-      _llamaFFI!.initBackend();
+      // Initialize the llama backend
+      if (Platform.isWindows) {
+        _llamaFFI!.ggml_backend_load_all();
+      } else {
+        _llamaFFI!.initBackend();
+      }
       
       setState(() {
         _statusMessage = 'Testing library...';
@@ -276,7 +281,7 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
-      final result = _llamaFFI!.performInference(_promptController.text.trim());
+      final result = _llamaFFI!.performInference(_promptController.text.trim(), maxTokens: 500);
       setState(() {
         _inferenceResult = result ?? 'Failed to generate response';
         _isInferenceLoading = false;
@@ -287,12 +292,6 @@ class _MyHomePageState extends State<MyHomePage> {
         _isInferenceLoading = false;
       });
     }
-  }
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
   }
 
   @override
@@ -454,30 +453,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 ),
               ),
-            
-            const SizedBox(height: 20),
-            const Divider(),
-            const SizedBox(height: 20),
-            
-            // Counter Section (existing functionality)
-            const Text(
-              'You have pushed the button this many times:',
-              style: TextStyle(fontSize: 16),
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            
-            // Add some bottom padding to ensure content doesn't get cut off
-            const SizedBox(height: 80),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
       ),
     );
   }

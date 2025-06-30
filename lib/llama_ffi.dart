@@ -561,8 +561,6 @@ class LlamaFFI {
     try {
       llama_backend_init();
       print('Llama backend initialized successfully');
-      // ggml_backend_load_all(); // This causes filesystem permission errors on Android
-      // print('GGML backend loaded successfully');
     } catch (e) {
       throw Exception('Failed to initialize llama backend: $e');
     }
