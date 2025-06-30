@@ -7,9 +7,9 @@ import '../../lib/llama_ffi.dart';
 void main() {
   // Initialize settings
   String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_M.gguf";
-  String prompt = "<start_of_turn>2 * 4 =<end_of_turn>\n<start_of_turn>model\n";
-  int ngl = 99;
-  int nPredict = 32;
+  String prompt = "Why is the sky blue?";
+  int ngl = 0;
+  int nPredict = 100;
 
   final LlamaFFI llamaFFI = LlamaFFI();
   if (!llamaFFI.modelFileExists(modelPath)) {
@@ -124,14 +124,19 @@ void main() {
 
   // Prepare initial batch
   var batch = llamaFFI.llama_batch_get_one(tokens, nPrompt);
-  print("batch: ${batch.ref.n_tokens}");
+  print("\nBatch validation:");
+  print("- n_tokens: ${batch.n_tokens}");
+  print("- token ptr: ${batch.token.hashCode}");
+  print("- pos ptr: ${batch.pos.hashCode}");
+  print("- seq_id ptr: ${batch.seq_id.hashCode}");
+  print("- logits ptr: ${batch.logits.hashCode}");
 
   // Main generation loop
   int nDecode = 0;
   int newTokenId;
   final tokenPtr = malloc<llama_token>();
 
-  for (int nPos = 0; nPos + batch.ref.n_tokens < nPrompt + nPredict;) {
+  for (int nPos = 0; nPos + batch.n_tokens < nPrompt + nPredict;) {
     if (llamaFFI.llama_decode(ctx, batch) != 0) {
       stderr.writeln("failed to eval");
       malloc.free(tokenPtr);
@@ -139,7 +144,7 @@ void main() {
       return;
     }
 
-    nPos += batch.ref.n_tokens;
+    nPos += batch.n_tokens;
 
     // Sample next token
     newTokenId = llamaFFI.llama_sampler_sample(smpl, ctx, -1);
@@ -159,8 +164,7 @@ void main() {
     }
 
     String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
-    stdout.write(piece);
-    stdout.flush();
+    stderr.write(piece);
     malloc.free(buf);
 
     // Prepare next batch
@@ -178,6 +182,10 @@ void main() {
   stderr.writeln(
       "decoded $nDecode tokens in ${decodeTime.toStringAsFixed(2)} s, speed: ${(nDecode / decodeTime).toStringAsFixed(2)} t/s");
   stderr.writeln();
+
+  // Print performance statistics
+  llamaFFI.llama_perf_sampler_print(smpl);
+  llamaFFI.llama_perf_context_print(ctx);
 
   // Clean up
   malloc.free(tokens);

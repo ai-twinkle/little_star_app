@@ -275,11 +275,6 @@ typedef LlamaInitBackend = void Function();
 
 typedef LlamaBackendFreeNative = ffi.Void Function();
 typedef LlamaBackendFree = void Function();
-
-// Simple test function - most llama.cpp builds have this
-typedef LlamaTimeUsNative = ffi.Int64 Function();
-typedef LlamaTimeUs = int Function();
-
 // Function pointer typedef for progress callback
 typedef LlamaProgressCallbackNative = ffi.Bool Function(ffi.Float progress, ffi.Pointer<ffi.Void> userData);
 typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.Void> userData);
@@ -332,12 +327,12 @@ typedef LlamaSamplerSampleNative = ffi.Int32 Function(ffi.Pointer<llama_sampler>
 typedef LlamaSamplerSample = int Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, int idx);
 
 // Batch functions
-typedef LlamaBatchGetOneNative = ffi.Pointer<llama_batch> Function(ffi.Pointer<llama_token> tokens, ffi.Int32 nTokens);
-typedef LlamaBatchGetOne = ffi.Pointer<llama_batch> Function(ffi.Pointer<llama_token> tokens, int nTokens);
+typedef LlamaBatchGetOneNative = llama_batch Function(ffi.Pointer<llama_token> tokens, ffi.Int32 nTokens);
+typedef LlamaBatchGetOne = llama_batch Function(ffi.Pointer<llama_token> tokens, int nTokens);
 
 // Encode Decode functions
-typedef LlamaDecodeNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx, ffi.Pointer<llama_batch> batch);
-typedef LlamaDecode = int Function(ffi.Pointer<llama_context> ctx, ffi.Pointer<llama_batch> batch);
+typedef LlamaDecodeNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx, llama_batch batch);
+typedef LlamaDecode = int Function(ffi.Pointer<llama_context> ctx, llama_batch batch);
 
 // Free functions
 typedef LlamaFreeNative = ffi.Void Function(ffi.Pointer ctx);
@@ -348,6 +343,16 @@ typedef LlamaModelFree = void Function(ffi.Pointer model);
 
 typedef LlamaSamplerFreeNative = ffi.Void Function(ffi.Pointer<llama_sampler> sampler);
 typedef LlamaSamplerFree = void Function(ffi.Pointer<llama_sampler> sampler);
+
+// Simple test function - most llama.cpp builds have this
+typedef LlamaTimeUsNative = ffi.Int64 Function();
+typedef LlamaTimeUs = int Function();
+
+typedef LlamaPerfContextPrintNative = ffi.Void Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaPerfContextPrint = void Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaPerfSamplerPrintNative = ffi.Void Function(ffi.Pointer<llama_sampler> sampler);
+typedef LlamaPerfSamplerPrint = void Function(ffi.Pointer<llama_sampler> sampler);
 
 // Backend loading functions
 typedef GgmlBackendLoadAllNative = ffi.Void Function();
@@ -387,6 +392,10 @@ class LlamaFFI {
   late LlamaFree llama_free;
   late LlamaModelFree llama_model_free;
   late LlamaSamplerFree llama_sampler_free;
+  //
+  late LlamaTimeUs llama_time_us;
+  late LlamaPerfContextPrint llama_perf_context_print;
+  late LlamaPerfSamplerPrint llama_perf_sampler_print;
 
   late GgmlBackendLoadAll ggml_backend_load_all;
 
@@ -523,6 +532,18 @@ class LlamaFFI {
       llama_sampler_free = _lib
           .lookup<ffi.NativeFunction<LlamaSamplerFreeNative>>('llama_sampler_free')
           .asFunction<LlamaSamplerFree>();
+
+      llama_time_us = _lib
+          .lookup<ffi.NativeFunction<LlamaTimeUsNative>>('llama_time_us')
+          .asFunction<LlamaTimeUs>();
+      
+      llama_perf_context_print = _lib
+          .lookup<ffi.NativeFunction<LlamaPerfContextPrintNative>>('llama_perf_context_print')
+          .asFunction<LlamaPerfContextPrint>();
+      
+      llama_perf_sampler_print = _lib
+          .lookup<ffi.NativeFunction<LlamaPerfSamplerPrintNative>>('llama_perf_sampler_print')
+          .asFunction<LlamaPerfSamplerPrint>();
 
       // GGML backend functions - try to load from main library first
       ggml_backend_load_all = _ggmlLib
