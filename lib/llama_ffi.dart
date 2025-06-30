@@ -275,6 +275,7 @@ typedef LlamaInitBackend = void Function();
 
 typedef LlamaBackendFreeNative = ffi.Void Function();
 typedef LlamaBackendFree = void Function();
+
 // Simple test function - most llama.cpp builds have this
 typedef LlamaTimeUsNative = ffi.Int64 Function();
 typedef LlamaTimeUs = int Function();
@@ -348,9 +349,15 @@ typedef LlamaModelFree = void Function(ffi.Pointer model);
 typedef LlamaSamplerFreeNative = ffi.Void Function(ffi.Pointer<llama_sampler> sampler);
 typedef LlamaSamplerFree = void Function(ffi.Pointer<llama_sampler> sampler);
 
+// Backend loading functions
+typedef GgmlBackendLoadAllNative = ffi.Void Function();
+typedef GgmlBackendLoadAll = void Function();
+
 // Simplified FFI integration for llama.cpp
 class LlamaFFI {
   late ffi.DynamicLibrary _lib;
+  late ffi.DynamicLibrary _ggmlLib;
+
   late LlamaInitBackend llama_backend_init;
   late LlamaBackendFree llama_backend_free;
   // 
@@ -381,6 +388,8 @@ class LlamaFFI {
   late LlamaModelFree llama_model_free;
   late LlamaSamplerFree llama_sampler_free;
 
+  late GgmlBackendLoadAll ggml_backend_load_all;
+
   ffi.Pointer<llama_model>? _model;
   ffi.Pointer<llama_context>? _context;
 
@@ -390,31 +399,33 @@ class LlamaFFI {
   }
 
   void _loadLibrary() {
-    String libraryPath;
+    String llamaLibraryPath;
+    String ggmlLibraryPath;
+    
     if (Platform.isAndroid) {
-      // For Android, we load the library by name, not path
-      // The library will be bundled in the APK's lib folder
-      libraryPath = 'libllama.so';
+      llamaLibraryPath = 'libllama.so';
+      ggmlLibraryPath = 'libggml.so';
     } else if (Platform.isWindows) {
-      libraryPath = path.join(Directory.current.path, 'llama.dll');
+      llamaLibraryPath = path.join(Directory.current.path, 'llama.dll');
+      ggmlLibraryPath = path.join(Directory.current.path, 'ggml.dll');
     } else if (Platform.isLinux) {
-      libraryPath = path.join(Directory.current.path, 'libllama.so');
+      llamaLibraryPath = path.join(Directory.current.path, 'libllama.so');
+      ggmlLibraryPath = path.join(Directory.current.path, 'libggml.so');
     } else if (Platform.isMacOS) {
-      libraryPath = path.join(Directory.current.path, 'libllama.dylib');
+      llamaLibraryPath = path.join(Directory.current.path, 'libllama.dylib');
+      ggmlLibraryPath = path.join(Directory.current.path, 'libggml.dylib');
     } else {
       throw UnsupportedError('Platform not supported');
     }
 
     try {
-      if (Platform.isAndroid) {
-        // On Android, DynamicLibrary.open() expects just the library name
-        _lib = ffi.DynamicLibrary.open('libllama.so');
-      } else {
-        _lib = ffi.DynamicLibrary.open(libraryPath);
-      }
-      print('Successfully loaded llama.cpp library: $libraryPath');
+      _lib = ffi.DynamicLibrary.open(llamaLibraryPath);
+      print('Successfully loaded llama.cpp library: $llamaLibraryPath');
+      
+      _ggmlLib = ffi.DynamicLibrary.open(ggmlLibraryPath);
+      print('Successfully loaded GGML library: $ggmlLibraryPath');
     } catch (e) {
-      throw Exception('Failed to load llama.cpp library: $e');
+      throw Exception('Failed to load libraries: $e');
     }
   }
 
@@ -512,6 +523,11 @@ class LlamaFFI {
       llama_sampler_free = _lib
           .lookup<ffi.NativeFunction<LlamaSamplerFreeNative>>('llama_sampler_free')
           .asFunction<LlamaSamplerFree>();
+
+      // GGML backend functions - try to load from main library first
+      ggml_backend_load_all = _ggmlLib
+          .lookup<ffi.NativeFunction<GgmlBackendLoadAllNative>>('ggml_backend_load_all')
+          .asFunction<GgmlBackendLoadAll>();
 
       print('Successfully loaded llama.cpp functions');
     } catch (e) {
@@ -735,6 +751,20 @@ class LlamaFFI {
         print('✅ $funcName - available');
       } catch (e) {
         print('❌ $funcName - not found');
+      }
+    }
+
+    final ggmlFunctions = [
+      'ggml_backend_load_all',
+    ];
+    
+    print('Checking for ggml backend functions:');
+    for (final funcName in ggmlFunctions) {
+      try {
+        _ggmlLib.lookup(funcName);
+        print('✅ $funcName - available in GGML library');
+      } catch (e) {
+        print('❌ $funcName - not found in GGML library');
       }
     }
   }

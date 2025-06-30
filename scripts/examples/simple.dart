@@ -17,12 +17,14 @@ void main() {
     return;
   }
 
-  llamaFFI.llama_backend_init();
-  print("Backend initialized successfully");
+  // Try modern backend loading first, fallback to legacy method
+  print("Attempting to load backends...");
+  llamaFFI.ggml_backend_load_all();
 
   // Initialize model
   final modelParams = llamaFFI.llama_model_default_params();
-  modelParams.vocab_only = true;
+  modelParams.n_gpu_layers = ngl;
+  // modelParams.vocab_only = true;
   final pathPtr = modelPath.toNativeUtf8().cast<ffi.Char>();
   final model = llamaFFI.llama_model_load_from_file(pathPtr, modelParams);
   malloc.free(pathPtr);
