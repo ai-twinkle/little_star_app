@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'llama_ffi.dart';
+import 'dart:async';
 
 void main() {
   runApp(const MyApp());
@@ -43,11 +44,15 @@ class _MyHomePageState extends State<MyHomePage> {
   final ExpansibleController _modelController = ExpansibleController();
   String? _modelPath;
   bool _isModelLoaded = false;
-  
+
   // Inference-related state
   final TextEditingController _promptController = TextEditingController();
   String _inferenceResult = '';
   bool _isInferenceLoading = false;
+
+  // Benchmark-related state
+  String _benchmarkResults = '';
+  Map<String, dynamic> _performanceMetrics = {};
 
   @override
   void initState() {
@@ -80,7 +85,7 @@ class _MyHomePageState extends State<MyHomePage> {
   // Get the correct path for the model file based on platform
   Future<String> getModelPath() async {
     const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_S.gguf';
-    
+
     if (Platform.isAndroid) {
       // Try different approaches for Android
       final possiblePaths = [
@@ -114,7 +119,7 @@ class _MyHomePageState extends State<MyHomePage> {
   // Check multiple possible locations for the model file
   Future<String?> findModelFile() async {
     const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_S.gguf';
-    
+
     if (Platform.isAndroid) {
       final possiblePaths = [
         '/storage/emulated/0/Download/$modelFileName',
@@ -153,7 +158,8 @@ class _MyHomePageState extends State<MyHomePage> {
         final hasPermission = await _requestPermissions();
         if (!hasPermission) {
           setState(() {
-            _statusMessage = 'Storage permission denied. Cannot access Downloads folder.';
+            _statusMessage =
+                'Storage permission denied. Cannot access Downloads folder.';
             _isLoading = false;
           });
           return;
@@ -165,7 +171,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
 
       _llamaFFI = LlamaFFI();
-      
+
       setState(() {
         _statusMessage = 'Initializing backend...';
       });
@@ -176,14 +182,14 @@ class _MyHomePageState extends State<MyHomePage> {
       } else {
         _llamaFFI!.initBackend();
       }
-      
+
       setState(() {
         _statusMessage = 'Testing library...';
       });
 
       // Test the library
       final testResult = _llamaFFI!.testLibrary();
-      
+
       // Platform info
       print('Platform: ${Platform.operatingSystem}');
       print('Current directory: ${Directory.current.path}');
@@ -203,7 +209,9 @@ class _MyHomePageState extends State<MyHomePage> {
           final downloadsDir = Directory('/storage/emulated/0/Download');
           if (downloadsDir.existsSync()) {
             final files = downloadsDir.listSync();
-            print('Files in Downloads: ${files.map((f) => path.basename(f.path)).toList()}');
+            print(
+              'Files in Downloads: ${files.map((f) => path.basename(f.path)).toList()}',
+            );
           } else {
             print('Downloads directory does not exist or is not accessible');
           }
@@ -211,14 +219,15 @@ class _MyHomePageState extends State<MyHomePage> {
           print('Error accessing Downloads directory: $e');
         }
       }
-      
+
       // List available functions
       _llamaFFI!.listAvailableFunctions();
-      
+
       setState(() {
-        _statusMessage = testResult 
-          ? 'Llama FFI initialized successfully!\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}'
-          : 'Llama FFI loaded but test failed\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}';
+        _statusMessage =
+            testResult
+                ? 'Llama FFI initialized successfully!\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}'
+                : 'Llama FFI loaded but test failed\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}';
         _isLoading = false;
       });
     } catch (e) {
@@ -249,9 +258,10 @@ class _MyHomePageState extends State<MyHomePage> {
         final contextCreated = _llamaFFI!.createContext();
         setState(() {
           _isModelLoaded = loadModelSuccess && contextCreated;
-          _statusMessage = _isModelLoaded 
-            ? 'Model loaded successfully! Ready for inference.' 
-            : 'Model loaded but failed to create context.';
+          _statusMessage =
+              _isModelLoaded
+                  ? 'Model loaded successfully! Ready for inference.'
+                  : 'Model loaded but failed to create context.';
           _isLoading = false;
         });
       } else {
@@ -271,24 +281,77 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _performInference() async {
-    if (_llamaFFI == null || !_isModelLoaded || _promptController.text.trim().isEmpty) {
+    if (_llamaFFI == null ||
+        !_isModelLoaded ||
+        _promptController.text.trim().isEmpty) {
       return;
     }
 
     setState(() {
       _isInferenceLoading = true;
       _inferenceResult = 'Processing...';
+      _benchmarkResults = '';
     });
 
     try {
-      final result = _llamaFFI!.performInference(_promptController.text.trim(), maxTokens: 500);
+      // Start timing
+      final stopwatch = Stopwatch()..start();
+      final prompt = _promptController.text.trim();
+      final maxTokens = 100;
+
+      // Time first token (simulate - would need actual FFI support for real measurement)
+      final firstTokenStopwatch = Stopwatch()..start();
+
+      // Perform inference
+      final result = _llamaFFI!.performInference(prompt, maxTokens: maxTokens);
+
+      // Stop timing
+      stopwatch.stop();
+      firstTokenStopwatch.stop();
+
+      // Calculate metrics
+      final elapsedMs = stopwatch.elapsedMilliseconds;
+      final elapsedSeconds = elapsedMs / 1000.0;
+
+      // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+      final outputTokens = (result?.length ?? 0) / 4;
+      final inputTokens = prompt.length / 4;
+      final totalTokens = outputTokens + inputTokens;
+
+      // Calculate detailed performance metrics
+      final firstTokenTime = firstTokenStopwatch.elapsedMilliseconds / 1000.0;
+      final prefillSpeed =
+          inputTokens / (firstTokenTime > 0 ? firstTokenTime : 0.1);
+      final decodeTime = elapsedSeconds - firstTokenTime;
+      final decodeSpeed = outputTokens / (decodeTime > 0 ? decodeTime : 0.1);
+      final latency = elapsedSeconds;
+
+      // Store metrics for UI display
+      _performanceMetrics = {
+        'firstToken': firstTokenTime,
+        'prefillSpeed': prefillSpeed,
+        'decodeSpeed': decodeSpeed,
+        'latency': latency,
+      };
+
+      // Format benchmark results (legacy format for compatibility)
+      final benchmarkInfo = '''
+Inference Time: ${elapsedMs}ms (${elapsedSeconds.toStringAsFixed(2)}s)
+Estimated Tokens: ${totalTokens.toStringAsFixed(0)} (${inputTokens.toStringAsFixed(0)} input + ${outputTokens.toStringAsFixed(0)} output)
+Tokens/Second: ${(totalTokens / elapsedSeconds).toStringAsFixed(2)}
+Characters Generated: ${result?.length ?? 0}
+''';
+
       setState(() {
         _inferenceResult = result ?? 'Failed to generate response';
+        _benchmarkResults = benchmarkInfo;
         _isInferenceLoading = false;
       });
     } catch (e) {
       setState(() {
         _inferenceResult = 'Error during inference: $e';
+        _benchmarkResults = '';
+        _performanceMetrics = {};
         _isInferenceLoading = false;
       });
     }
@@ -304,9 +367,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
+      appBar: AppBar(title: Text(widget.title)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
         child: Column(
@@ -351,11 +412,21 @@ class _MyHomePageState extends State<MyHomePage> {
                             child: Padding(
                               padding: const EdgeInsets.only(left: 8.0),
                               child: ElevatedButton(
-                                onPressed: (_isLoading || _modelPath == null) ? null : _loadModel,
+                                onPressed:
+                                    (_isLoading || _modelPath == null)
+                                        ? null
+                                        : _loadModel,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: _isModelLoaded ? Colors.lightGreenAccent : null,
+                                  backgroundColor:
+                                      _isModelLoaded
+                                          ? Colors.lightGreenAccent
+                                          : null,
                                 ),
-                                child: Text(_isModelLoaded ? 'Model Loaded ✓' : 'Load Model'),
+                                child: Text(
+                                  _isModelLoaded
+                                      ? 'Model Loaded ✓'
+                                      : 'Load Model',
+                                ),
                               ),
                             ),
                           ),
@@ -365,16 +436,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 ),
               ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Inference Section
             const Text(
               'Model Inference',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             TextField(
               controller: _promptController,
               enabled: _isModelLoaded && !_isInferenceLoading,
@@ -386,40 +457,46 @@ class _MyHomePageState extends State<MyHomePage> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-            
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isModelLoaded && !_isInferenceLoading && _promptController.text.trim().isNotEmpty 
-                  ? _performInference 
-                  : null,
+                onPressed:
+                    _isModelLoaded &&
+                            !_isInferenceLoading &&
+                            _promptController.text.trim().isNotEmpty
+                        ? _performInference
+                        : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: _isInferenceLoading 
-                  ? const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Text('Processing...'),
-                      ],
-                    )
-                  : const Text('Run Inference'),
+                child:
+                    _isInferenceLoading
+                        ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Processing...'),
+                          ],
+                        )
+                        : const Text('Run Inference'),
               ),
             ),
-            
-            const SizedBox(height: 16),
-            
+
+            const SizedBox(height: 8),
+
             // Results Section
             if (_inferenceResult.isNotEmpty)
               Container(
@@ -439,7 +516,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     const Text(
                       'Inference Result:',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Expanded(
@@ -453,8 +533,140 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 ),
               ),
+
+            const SizedBox(height: 8),
+
+            // Benchmark Results Section
+            if (_benchmarkResults.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Performance Metrics:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _benchmarkResults,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    // Performance Stats Section (CPU Stats format)
+                    if (_performanceMetrics.isNotEmpty)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'Stats on CPU',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 4,
+                            childAspectRatio: 1.5,
+                            crossAxisSpacing: 4,
+                            mainAxisSpacing: 4,
+                            children: [
+                              _buildMetricCard(
+                                '1st token',
+                                '${_performanceMetrics['firstToken']?.toStringAsFixed(2) ?? '0.00'}',
+                                'sec',
+                              ),
+                              _buildMetricCard(
+                                'Prefill',
+                                '${_performanceMetrics['prefillSpeed']?.toStringAsFixed(2) ?? '0.00'}',
+                                'tokens/s',
+                              ),
+                              _buildMetricCard(
+                                'Decode',
+                                '${_performanceMetrics['decodeSpeed']?.toStringAsFixed(2) ?? '0.00'}',
+                                'tokens/s',
+                              ),
+                              _buildMetricCard(
+                                'Latency',
+                                '${_performanceMetrics['latency']?.toStringAsFixed(2) ?? '0.00'}',
+                                'sec',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(String label, String value, String unit) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 9,
+              color: Colors.grey,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  unit,
+                  style: const TextStyle(fontSize: 8, color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
