@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'llama_ffi.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,7 +36,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
   LlamaFFI? _llamaFFI;
   String _statusMessage = 'Ready to test Llama FFI';
   bool _isLoading = false;
@@ -252,16 +252,39 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
+      // Yield control to UI thread
+      await Future.delayed(Duration.zero);
+      
+      setState(() {
+        _statusMessage = 'Initializing model loader...';
+      });
+      
+      // Another yield to keep UI responsive
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      setState(() {
+        _statusMessage = 'Loading model file...';
+      });
+      
       final loadModelSuccess = _llamaFFI!.loadModel(_modelPath!);
+      
       if (loadModelSuccess) {
         _modelController.collapse();
+        
+        // Yield before creating context
+        await Future.delayed(const Duration(milliseconds: 50));
+        
+        setState(() {
+          _statusMessage = 'Creating inference context...';
+        });
+        
         final contextCreated = _llamaFFI!.createContext();
+        
         setState(() {
           _isModelLoaded = loadModelSuccess && contextCreated;
-          _statusMessage =
-              _isModelLoaded
-                  ? 'Model loaded successfully! Ready for inference.'
-                  : 'Model loaded but failed to create context.';
+          _statusMessage = _isModelLoaded
+              ? 'Model loaded successfully! Ready for inference.'
+              : 'Model loaded but failed to create context.';
           _isLoading = false;
         });
       } else {
@@ -280,7 +303,8 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> _performInference() async {
+  // Fallback method for progressive inference (if isolate approach fails)
+  Future<void> _performInferenceProgressive() async {
     if (_llamaFFI == null ||
         !_isModelLoaded ||
         _promptController.text.trim().isEmpty) {
@@ -294,59 +318,177 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
-      // Start timing
       final stopwatch = Stopwatch()..start();
       final prompt = _promptController.text.trim();
-      final maxTokens = 100;
+      const maxTokens = 100;
 
-      // Time first token (simulate - would need actual FFI support for real measurement)
-      final firstTokenStopwatch = Stopwatch()..start();
-
+      // Yield control to UI thread before heavy operation
+      await Future.delayed(Duration.zero);
+      
+      setState(() {
+        _inferenceResult = 'Tokenizing prompt...';
+      });
+      
+      // Another yield
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      setState(() {
+        _inferenceResult = 'Generating response...';
+      });
+      
       // Perform inference
       final result = _llamaFFI!.performInference(prompt, maxTokens: maxTokens);
-
-      // Stop timing
+      
       stopwatch.stop();
-      firstTokenStopwatch.stop();
 
-      // Calculate metrics
-      final elapsedMs = stopwatch.elapsedMilliseconds;
-      final elapsedSeconds = elapsedMs / 1000.0;
+      if (result != null) {
+        // Calculate metrics
+        final elapsedMs = stopwatch.elapsedMilliseconds;
+        final elapsedSeconds = elapsedMs / 1000.0;
 
-      // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-      final outputTokens = (result?.length ?? 0) / 4;
-      final inputTokens = prompt.length / 4;
-      final totalTokens = outputTokens + inputTokens;
+        // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+        final outputTokens = result.length / 4;
+        final inputTokens = prompt.length / 4;
+        final totalTokens = outputTokens + inputTokens;
 
-      // Calculate detailed performance metrics
-      final firstTokenTime = firstTokenStopwatch.elapsedMilliseconds / 1000.0;
-      final prefillSpeed =
-          inputTokens / (firstTokenTime > 0 ? firstTokenTime : 0.1);
-      final decodeTime = elapsedSeconds - firstTokenTime;
-      final decodeSpeed = outputTokens / (decodeTime > 0 ? decodeTime : 0.1);
-      final latency = elapsedSeconds;
+        // Calculate detailed performance metrics
+        final firstTokenTime = elapsedSeconds * 0.1; // Rough estimate
+        final prefillSpeed = inputTokens / (firstTokenTime > 0 ? firstTokenTime : 0.1);
+        final decodeTime = elapsedSeconds - firstTokenTime;
+        final decodeSpeed = outputTokens / (decodeTime > 0 ? decodeTime : 0.1);
 
-      // Store metrics for UI display
-      _performanceMetrics = {
-        'firstToken': firstTokenTime,
-        'prefillSpeed': prefillSpeed,
-        'decodeSpeed': decodeSpeed,
-        'latency': latency,
-      };
+        // Store metrics for UI display
+        _performanceMetrics = {
+          'firstToken': firstTokenTime,
+          'prefillSpeed': prefillSpeed,
+          'decodeSpeed': decodeSpeed,
+          'latency': elapsedSeconds,
+        };
 
-      // Format benchmark results (legacy format for compatibility)
-      final benchmarkInfo = '''
+        // Format benchmark results
+        final benchmarkInfo = '''
 Inference Time: ${elapsedMs}ms (${elapsedSeconds.toStringAsFixed(2)}s)
 Estimated Tokens: ${totalTokens.toStringAsFixed(0)} (${inputTokens.toStringAsFixed(0)} input + ${outputTokens.toStringAsFixed(0)} output)
 Tokens/Second: ${(totalTokens / elapsedSeconds).toStringAsFixed(2)}
-Characters Generated: ${result?.length ?? 0}
+Characters Generated: ${result.length}
 ''';
 
+        setState(() {
+          _inferenceResult = result;
+          _benchmarkResults = benchmarkInfo;
+          _isInferenceLoading = false;
+        });
+      } else {
+        setState(() {
+          _inferenceResult = 'Failed to generate response';
+          _benchmarkResults = '';
+          _performanceMetrics = {};
+          _isInferenceLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        _inferenceResult = result ?? 'Failed to generate response';
-        _benchmarkResults = benchmarkInfo;
+        _inferenceResult = 'Error during inference: $e';
+        _benchmarkResults = '';
+        _performanceMetrics = {};
         _isInferenceLoading = false;
       });
+    }
+  }
+
+  // Enhanced inference with fallback
+  Future<void> _performInferenceWithFallback() async {
+    try {
+      // Try isolate approach first for inference
+      await _performInference();
+    } catch (e) {
+      print('Isolate inference failed, falling back to progressive: $e');
+      setState(() {
+        _inferenceResult = 'Isolate failed, trying progressive approach...';
+      });
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _performInferenceProgressive();
+    }
+  }
+
+  Future<void> _performInference() async {
+    if (_modelPath == null ||
+        !_isModelLoaded ||
+        _promptController.text.trim().isEmpty) {
+      return;
+    }
+
+    final prompt = _promptController.text.trim();
+    const maxTokens = 100;
+
+    setState(() {
+      _isInferenceLoading = true;
+      _inferenceResult = 'Processing in background...';
+      _benchmarkResults = '';
+    });
+
+    try {
+      // Prepare inference parameters
+      final inferenceParams = InferenceParams(
+        modelPath: _modelPath!,
+        prompt: prompt,
+        maxTokens: maxTokens,
+      );
+
+      // Start timing
+      final stopwatch = Stopwatch()..start();
+      
+      // Run inference in background isolate
+      final result = await compute(_performInferenceInIsolate, inferenceParams);
+      
+      // Stop timing
+      stopwatch.stop();
+
+      if (result != null) {
+        // Calculate metrics
+        final elapsedMs = stopwatch.elapsedMilliseconds;
+        final elapsedSeconds = elapsedMs / 1000.0;
+
+        // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+        final outputTokens = result.length / 4;
+        final inputTokens = prompt.length / 4;
+        final totalTokens = outputTokens + inputTokens;
+
+        // Calculate detailed performance metrics
+        final firstTokenTime = elapsedSeconds * 0.1; // Rough estimate
+        final prefillSpeed = inputTokens / (firstTokenTime > 0 ? firstTokenTime : 0.1);
+        final decodeTime = elapsedSeconds - firstTokenTime;
+        final decodeSpeed = outputTokens / (decodeTime > 0 ? decodeTime : 0.1);
+
+        // Store metrics for UI display
+        _performanceMetrics = {
+          'firstToken': firstTokenTime,
+          'prefillSpeed': prefillSpeed,
+          'decodeSpeed': decodeSpeed,
+          'latency': elapsedSeconds,
+        };
+
+        // Format benchmark results
+        final benchmarkInfo = '''
+Inference Time: ${elapsedMs}ms (${elapsedSeconds.toStringAsFixed(2)}s)
+Estimated Tokens: ${totalTokens.toStringAsFixed(0)} (${inputTokens.toStringAsFixed(0)} input + ${outputTokens.toStringAsFixed(0)} output)
+Tokens/Second: ${(totalTokens / elapsedSeconds).toStringAsFixed(2)}
+Characters Generated: ${result.length}
+''';
+
+        setState(() {
+          _inferenceResult = result;
+          _benchmarkResults = benchmarkInfo;
+          _isInferenceLoading = false;
+        });
+      } else {
+        setState(() {
+          _inferenceResult = 'Failed to generate response';
+          _benchmarkResults = '';
+          _performanceMetrics = {};
+          _isInferenceLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _inferenceResult = 'Error during inference: $e';
@@ -465,7 +607,7 @@ Characters Generated: ${result?.length ?? 0}
                     _isModelLoaded &&
                             !_isInferenceLoading &&
                             _promptController.text.trim().isNotEmpty
-                        ? _performInference
+                        ? _performInferenceWithFallback
                         : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
@@ -669,5 +811,63 @@ Characters Generated: ${result?.length ?? 0}
         ],
       ),
     );
+  }
+}
+
+// Inference parameters class for isolate communication
+class InferenceParams {
+  final String modelPath;
+  final String prompt;
+  final int maxTokens;
+
+  InferenceParams({
+    required this.modelPath,
+    required this.prompt,
+    required this.maxTokens,
+  });
+}
+
+// Top-level functions for isolate execution
+
+// Inference isolate function - this works because it's a complete operation
+Future<String?> _performInferenceInIsolate(InferenceParams params) async {
+  try {
+    // Create a new FFI instance in this isolate
+    final llamaFFI = LlamaFFI();
+    
+    // Initialize backend
+    if (Platform.isWindows) {
+      llamaFFI.ggml_backend_load_all();
+    } else {
+      llamaFFI.initBackend();
+    }
+    
+    // Load the model
+    final modelLoaded = llamaFFI.loadModel(params.modelPath);
+    if (!modelLoaded) {
+      llamaFFI.freeBackend();
+      return null;
+    }
+    
+    // Create context
+    final contextCreated = llamaFFI.createContext();
+    if (!contextCreated) {
+      llamaFFI.freeBackend();
+      return null;
+    }
+    
+    // Perform inference
+    final result = llamaFFI.performInference(
+      params.prompt,
+      maxTokens: params.maxTokens,
+    );
+    
+    // Clean up
+    llamaFFI.freeBackend();
+    
+    return result;
+  } catch (e) {
+    print('Error in inference isolate: $e');
+    return null;
   }
 }
