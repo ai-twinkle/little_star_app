@@ -129,6 +129,26 @@ function Build-Architecture {
         Write-Host "Error: Failed to copy library for $ABI" -ForegroundColor Red
         return $false
     }
+
+    $GGML_LIBS = Get-ChildItem -Path . -Name "libggml*.so" -Recurse | Select-Object -First 1
+    if (-not $GGML_LIBS) {
+        Write-Host "Error: No libggml*.so library found after build for $ABI" -ForegroundColor Red
+        Write-Host "Available files:" -ForegroundColor Yellow
+        Get-ChildItem -Path . -Name "*.so" -Recurse | ForEach-Object { Write-Host "  $_" }
+        return $false
+    }
+
+    $DEST_FOLDER = Join-Path $OutputDir
+    Copy-Item $GGML_LIBS.FullName $DEST_FOLDER -Force
+
+    if (Test-Path $DEST_FOLDER) {
+        $size = (Get-Item $DEST_FOLDER).Length
+        Write-Host "Successfully built $ABI library (${size} bytes)" -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "Error: Failed to copy library for $ABI" -ForegroundColor Red
+        return $false
+    }
 }
 
 # Check if make is available
