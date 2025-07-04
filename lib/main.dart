@@ -43,6 +43,7 @@ class _MyHomePageState extends State<MyHomePage> {
   // Model-related state
   final ExpansibleController _modelController = ExpansibleController();
   String? _modelPath;
+  String? _selectedModelName;
   bool _isModelLoaded = false;
 
   // Inference-related state
@@ -194,6 +195,151 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+
+
+  // Method to browse and list available GGUF files in common directories
+  Future<void> _browseGGUFFiles() async {
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Browsing for GGUF files...';
+    });
+
+    try {
+      // Check and request permissions first
+      if (Platform.isAndroid) {
+        final hasPermission = await _requestPermissions();
+        if (!hasPermission) {
+          setState(() {
+            _statusMessage = 'Storage permission denied. Cannot browse files.';
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      List<String> ggufFiles = [];
+      
+      if (Platform.isAndroid) {
+        // Common directories to search on Android
+        final searchPaths = [
+          '/storage/emulated/0/Download',
+          '/storage/emulated/0/Documents',
+          '/sdcard/Download',
+          '/sdcard/Documents',
+        ];
+
+        for (final searchPath in searchPaths) {
+          try {
+            final dir = Directory(searchPath);
+            if (await dir.exists()) {
+              final files = dir.listSync(recursive: false);
+              for (final file in files) {
+                if (file is File && file.path.toLowerCase().endsWith('.gguf')) {
+                  ggufFiles.add(file.path);
+                }
+              }
+            }
+          } catch (e) {
+            print('Error searching in $searchPath: $e');
+          }
+        }
+      } else {
+        // For desktop platforms, search in current directory
+        final currentDir = Directory.current;
+        final files = currentDir.listSync(recursive: false);
+        for (final file in files) {
+          if (file is File && file.path.toLowerCase().endsWith('.gguf')) {
+            ggufFiles.add(file.path);
+          }
+        }
+      }
+
+      if (ggufFiles.isNotEmpty) {
+        // Show a dialog to select from found files
+        _showGGUFFilesDialog(ggufFiles);
+      } else {
+        setState(() {
+          _statusMessage = 'No GGUF files found in common directories.\nPlease place GGUF files in Downloads or Documents folder.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _statusMessage = 'Error browsing files: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Combined method to browse GGUF files and load model
+  Future<void> _browseAndLoadModel() async {
+    // If no model is selected, browse for GGUF files first
+    if (_modelPath == null) {
+      await _browseGGUFFiles();
+      // Note: The dialog now automatically loads the model after selection
+    } else {
+      // If a model is already selected, just load it
+      await _loadModel();
+    }
+  }
+
+  // Show dialog with found GGUF files
+  void _showGGUFFilesDialog(List<String> ggufFiles) {
+    setState(() {
+      _isLoading = false;
+    });
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select GGUF Model'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: ggufFiles.length,
+              itemBuilder: (context, index) {
+                final filePath = ggufFiles[index];
+                final fileName = path.basename(filePath);
+                final file = File(filePath);
+                
+                return ListTile(
+                  title: Text(
+                    fileName,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Size: ${(file.lengthSync() / (1024 * 1024)).toStringAsFixed(1)} MB\nPath: $filePath',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _modelPath = filePath;
+                      _selectedModelName = fileName;
+                      _isModelLoaded = false;
+                      _isLoading = true;
+                      _statusMessage = 'Model file selected: $fileName\nLoading model...';
+                    });
+                    // Automatically load the selected model
+                    await _loadModel();
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _initializeLlama() async {
     setState(() {
       _isLoading = true;
@@ -246,40 +392,14 @@ class _MyHomePageState extends State<MyHomePage> {
       print('Platform: ${Platform.operatingSystem}');
       print('Current directory: ${Directory.current.path}');
 
-      // Find the model file
-      setState(() {
-        _statusMessage = 'Looking for model file...';
-      });
-
-      final modelPath = await findModelFile();
-      final modelExists = modelPath != null;
-      _modelPath = modelPath;
-
-      if (Platform.isAndroid && !modelExists) {
-        // Try to list Downloads directory for debugging
-        try {
-          final downloadsDir = Directory('/storage/emulated/0/Download');
-          if (downloadsDir.existsSync()) {
-            final files = downloadsDir.listSync();
-            print(
-              'Files in Downloads: ${files.map((f) => path.basename(f.path)).toList()}',
-            );
-          } else {
-            print('Downloads directory does not exist or is not accessible');
-          }
-        } catch (e) {
-          print('Error accessing Downloads directory: $e');
-        }
-      }
-
       // List available functions
       _llamaFFI!.listAvailableFunctions();
 
       setState(() {
         _statusMessage =
             testResult
-                ? 'Llama FFI initialized successfully!\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}'
-                : 'Llama FFI loaded but test failed\nModel file exists: $modelExists${modelPath != null ? '\nModel path: $modelPath' : '\nModel file not found in Downloads'}';
+                ? 'Llama FFI initialized successfully!\nReady to load model. Please select a GGUF model file.'
+                : 'Llama FFI loaded but test failed\nPlease check your setup and try again.';
         _isLoading = false;
       });
     } catch (e) {
@@ -372,7 +492,7 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       final stopwatch = Stopwatch()..start();
       final prompt = _promptController.text.trim();
-      const maxTokens = 1024;
+      const maxTokens = 512;
 
       // Yield control to UI thread before heavy operation
       await Future.delayed(Duration.zero);
@@ -471,7 +591,7 @@ Characters Generated: ${result.length}
     }
 
     final prompt = _promptController.text.trim();
-    const maxTokens = 1024;
+    const maxTokens = 512;
 
     setState(() {
       _isInferenceLoading = true;
@@ -590,55 +710,106 @@ Characters Generated: ${result.length}
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      child: Column(
                         children: [
-                          // Show permission request button if permissions are denied
-                          if (_statusMessage.contains('Storage permission denied') || _statusMessage.contains('Storage permissions are required'))
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8.0),
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _requestPermissionsManually,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange,
-                                    foregroundColor: Colors.white,
+                          // Model File Selection Section
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Model File Selection',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  child: const Text('Grant Permissions'),
                                 ),
-                              ),
-                            )
-                          else
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8.0),
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _initializeLlama,
-                                  child: const Text('Reinitialize FFI'),
+                                const SizedBox(height: 8),
+                                if (_selectedModelName != null)
+                                  Text(
+                                    'Selected: $_selectedModelName',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  )
+                                else
+                                  const Text(
+                                    'No model file selected',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isLoading ? null : _browseAndLoadModel,
+                                    icon: _isLoading 
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : Icon(
+                                          _isModelLoaded 
+                                            ? Icons.check_circle 
+                                            : (_modelPath == null ? Icons.search : Icons.play_arrow),
+                                          size: 18,
+                                        ),
+                                    label: Text(
+                                      _isLoading 
+                                        ? 'Loading...' 
+                                        : (_isModelLoaded 
+                                            ? 'Model Loaded ✓' 
+                                            : (_modelPath == null ? 'Browse & Load GGUF' : 'Load Model')),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _isLoading 
+                                        ? Colors.grey 
+                                        : (_isModelLoaded 
+                                            ? Colors.lightGreen 
+                                            : (_modelPath == null ? Colors.blue : Colors.orange)),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 8.0),
-                              child: ElevatedButton(
-                                onPressed:
-                                    (_isLoading || _modelPath == null)
-                                        ? null
-                                        : _loadModel,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                      _isModelLoaded
-                                          ? Colors.lightGreenAccent
-                                          : null,
-                                ),
-                                child: Text(
-                                  _isModelLoaded
-                                      ? 'Model Loaded ✓'
-                                      : 'Load Model',
-                                ),
-                              ),
-                            ),
+                          ),
+                          
+                          // Action Buttons Section
+                          SizedBox(
+                            width: double.infinity,
+                            child: 
+                              // Show permission request button if permissions are denied
+                              (_statusMessage.contains('Storage permission denied') || _statusMessage.contains('Storage permissions are required'))
+                                ? ElevatedButton(
+                                    onPressed: _isLoading ? null : _requestPermissionsManually,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('Grant Permissions'),
+                                  )
+                                : ElevatedButton(
+                                    onPressed: _isLoading ? null : _initializeLlama,
+                                    child: const Text('Reinitialize FFI'),
+                                  ),
                           ),
                         ],
                       ),
