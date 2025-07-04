@@ -492,7 +492,7 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       final stopwatch = Stopwatch()..start();
       final prompt = _promptController.text.trim();
-      const maxTokens = 512;
+      const maxTokens = 256;
 
       // Yield control to UI thread before heavy operation
       await Future.delayed(Duration.zero);
@@ -591,7 +591,7 @@ Characters Generated: ${result.length}
     }
 
     final prompt = _promptController.text.trim();
-    const maxTokens = 512;
+    const maxTokens = 256;
 
     setState(() {
       _isInferenceLoading = true;

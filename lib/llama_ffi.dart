@@ -1,5 +1,6 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:convert';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 
@@ -694,8 +695,8 @@ class LlamaFFI {
       // Prepare initial batch
       var batch = llama_batch_get_one(tokens, nPrompt);
 
-      // Initialize response string
-      final responseBuffer = StringBuffer();
+      // Initialize response string - collect all bytes first
+      final responseBytes = <int>[];
 
       // Main generation loop
       int nDecode = 0;
@@ -729,9 +730,9 @@ class LlamaFFI {
           break;
         }
 
-        // Convert to Dart string and add to response
-        String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
-        responseBuffer.write(piece);
+        // Collect bytes without decoding individual pieces
+        final bytes = buf.cast<ffi.Uint8>().asTypedList(n);
+        responseBytes.addAll(bytes);
         malloc.free(buf);
 
         // Prepare next batch with the new token
@@ -747,8 +748,17 @@ class LlamaFFI {
       malloc.free(tokenPtr);
       llama_sampler_free(smpl);
 
-      final response = responseBuffer.toString();
-      print("Generated response: $response, length: ${response.length}");
+      // Decode all collected bytes as UTF-8 at once
+      String response;
+      try {
+        response = utf8.decode(responseBytes);
+      } catch (e) {
+        print("UTF-8 decode error: $e, falling back to latin1");
+        // Fallback to latin1 decoding if UTF-8 fails
+        response = String.fromCharCodes(responseBytes);
+      }
+      
+      print("Generated response: $response");
       return response;
     } catch (e) {
       print('Error during inference: $e');
