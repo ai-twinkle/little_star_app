@@ -57,14 +57,14 @@ cd "$LLAMA_DIR"
 build_architecture() {
     local ABI=$1
     local OUTPUT_DIR=$2
-
+    
     echo -e "${YELLOW}Building for $ABI...${NC}"
-
+    
     local BUILD_DIR="build-android-$ABI"
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-
+    
     # Configure cmake
     cmake .. \
         -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
@@ -81,21 +81,21 @@ build_architecture() {
         -DGGML_OPENMP=OFF \
         -DCMAKE_C_FLAGS="-D__ANDROID_API__=23" \
         -DCMAKE_CXX_FLAGS="-D__ANDROID_API__=23"
-
+    
     # Build
     make -j4
-
+    
     # Find and copy the library
     LIBLLAMA=$(find . -name "libllama.so" | head -1)
     if [ -z "$LIBLLAMA" ]; then
         echo -e "${RED}Error: libllama.so not found after build for $ABI${NC}"
         return 1
     fi
-
+    
     DEST_FILE="$OUTPUT_DIR/libllama.so"
     echo -e "${CYAN}Copying $LIBLLAMA to $DEST_FILE${NC}"
     cp "$LIBLLAMA" "$DEST_FILE"
-
+    
     if [ -f "$DEST_FILE" ]; then
         local SIZE=$(stat -c%s "$DEST_FILE" 2>/dev/null || stat -f%z "$DEST_FILE" 2>/dev/null || echo "unknown")
         echo -e "${GREEN}Successfully built $ABI library ($SIZE bytes)${NC}"
@@ -112,12 +112,12 @@ build_architecture() {
         return 1
     fi
 
-    DEST_FILE="$OUTPUT_DIR/libggml.so"
-    echo -e "${CYAN}Copying $GGML_LIBS to $DEST_FILE${NC}"
-    cp "$GGML_LIBS" "$DEST_FILE"
+    DEST_FOLDER="$OUTPUT_DIR"
+    echo -e "${CYAN}Copying $GGML_LIBS to $DEST_FOLDER${NC}"
+    cp "$GGML_LIBS" "$DEST_FOLDER"
 
-    if [ -f "$DEST_FILE" ]; then
-        local SIZE=$(stat -c%s "$DEST_FILE" 2>/dev/null || stat -f%z "$DEST_FILE" 2>/dev/null || echo "unknown")
+    if [ -f "$DEST_FOLDER" ]; then
+        local SIZE=$(stat -c%s "$DEST_FOLDER" 2>/dev/null || stat -f%z "$DEST_FOLDER" 2>/dev/null || echo "unknown")
         echo -e "${GREEN}Successfully built $ABI library ($SIZE bytes)${NC}"
         return 0
     else
@@ -188,4 +188,4 @@ else
     exit 1
 fi
 
-cd "$PROJECT_ROOT"
+cd "$PROJECT_ROOT" 

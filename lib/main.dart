@@ -67,19 +67,70 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<bool> _requestPermissions() async {
     if (!Platform.isAndroid) return true;
 
-    // Request storage permission
-    final status = await Permission.storage.request();
-    if (status.isGranted) {
-      return true;
+    // Check Android version and handle permissions accordingly
+    if (Platform.isAndroid) {
+      // For Android 11+ (API level 30+), we need MANAGE_EXTERNAL_STORAGE
+      // For Android 13+ (API level 33+), we need READ_MEDIA_* permissions
+      
+      // First, try the basic storage permission
+      var storageStatus = await Permission.storage.status;
+      if (storageStatus.isDenied) {
+        storageStatus = await Permission.storage.request();
+      }
+      
+      // If basic storage permission is granted, return true
+      if (storageStatus.isGranted) {
+        return true;
+      }
+      
+      // If basic storage permission is denied, try MANAGE_EXTERNAL_STORAGE
+      var manageStatus = await Permission.manageExternalStorage.status;
+      if (manageStatus.isDenied) {
+        // Show a dialog explaining why we need this permission
+        setState(() {
+          _statusMessage = 'This app needs access to Downloads folder to load AI models. Please grant "All files access" permission in the next screen.';
+        });
+        
+        // Wait a bit for user to read the message
+        await Future.delayed(const Duration(seconds: 2));
+        
+        manageStatus = await Permission.manageExternalStorage.request();
+      }
+      
+      // If MANAGE_EXTERNAL_STORAGE is granted, return true
+      if (manageStatus.isGranted) {
+        return true;
+      }
+      
+      // If all permissions are denied, show error message
+      setState(() {
+        _statusMessage = 'Storage permissions are required to access model files. Please grant permissions in Settings > Apps > Little Star App > Permissions.';
+      });
+      
+      return false;
     }
 
-    // For Android 11+, try manage external storage permission
-    if (await Permission.manageExternalStorage.isDenied) {
-      final manageStatus = await Permission.manageExternalStorage.request();
-      return manageStatus.isGranted;
-    }
+    return true;
+  }
 
-    return status.isGranted;
+  // Manual permission request method for the button
+  Future<void> _requestPermissionsManually() async {
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Requesting permissions...';
+    });
+
+    final hasPermission = await _requestPermissions();
+    
+    if (hasPermission) {
+      // If permissions are granted, reinitialize the app
+      await _initializeLlama();
+    } else {
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'Storage permissions are still required. Please grant permissions in Settings > Apps > Little Star App > Permissions, then tap "Grant Permissions" again.';
+      });
+    }
   }
 
   // Get the correct path for the model file based on platform
@@ -118,7 +169,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // Check multiple possible locations for the model file
   Future<String?> findModelFile() async {
-    const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_S.gguf';
+    // const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_S.gguf';
+    const modelFileName = 'Llama-3.2-3B-F1-Reasoning-Instruct-Q8_0.gguf';
 
     if (Platform.isAndroid) {
       final possiblePaths = [
@@ -320,7 +372,7 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       final stopwatch = Stopwatch()..start();
       final prompt = _promptController.text.trim();
-      const maxTokens = 100;
+      const maxTokens = 1024;
 
       // Yield control to UI thread before heavy operation
       await Future.delayed(Duration.zero);
@@ -419,7 +471,7 @@ Characters Generated: ${result.length}
     }
 
     final prompt = _promptController.text.trim();
-    const maxTokens = 100;
+    const maxTokens = 1024;
 
     setState(() {
       _isInferenceLoading = true;
@@ -541,15 +593,31 @@ Characters Generated: ${result.length}
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: ElevatedButton(
-                                onPressed: _isLoading ? null : _initializeLlama,
-                                child: const Text('Reinitialize FFI'),
+                          // Show permission request button if permissions are denied
+                          if (_statusMessage.contains('Storage permission denied') || _statusMessage.contains('Storage permissions are required'))
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _requestPermissionsManually,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Grant Permissions'),
+                                ),
+                              ),
+                            )
+                          else
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _initializeLlama,
+                                  child: const Text('Reinitialize FFI'),
+                                ),
                               ),
                             ),
-                          ),
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.only(left: 8.0),
