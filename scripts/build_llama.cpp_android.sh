@@ -106,7 +106,7 @@ build_architecture() {
     fi
 }
 
-# Build for both architectures
+# Build for all architectures
 SUCCESS=true
 
 echo -e "\n${CYAN}Building ARM64 (arm64-v8a)...${NC}"
@@ -127,6 +127,15 @@ else
 fi
 cd "$LLAMA_DIR"
 
+echo -e "\n${CYAN}Building x86-64 (x86_64)...${NC}"
+if build_architecture "x86_64" "$ANDROID_LIBS_DIR/x86_64"; then
+    X86_64_RESULT="SUCCESS"
+else
+    X86_64_RESULT="FAILED"
+    SUCCESS=false
+fi
+cd "$LLAMA_DIR"
+
 # Summary
 echo -e "\n${CYAN}=================== BUILD SUMMARY ===================${NC}"
 if [ "$ARM64_RESULT" = "SUCCESS" ]; then
@@ -139,6 +148,12 @@ if [ "$ARM32_RESULT" = "SUCCESS" ]; then
     echo -e "${GREEN}✓ ARM32 (armeabi-v7a): SUCCESS${NC}"
 else
     echo -e "${RED}✗ ARM32 (armeabi-v7a): FAILED${NC}"
+fi
+
+if [ "$X86_64_RESULT" = "SUCCESS" ]; then
+    echo -e "${GREEN}✓ x86-64 (x86_64): SUCCESS${NC}"
+else
+    echo -e "${RED}✗ x86-64 (x86_64): FAILED${NC}"
 fi
 
 if [ "$SUCCESS" = true ]; then

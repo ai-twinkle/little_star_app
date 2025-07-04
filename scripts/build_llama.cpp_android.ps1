@@ -139,7 +139,7 @@ if (-not (Test-Path $MAKE_PATH)) {
     exit 1
 }
 
-# Build for both architectures
+# Build for all architectures
 $success = $true
 
 Write-Host "`nBuilding ARM64 (arm64-v8a)..." -ForegroundColor Cyan
@@ -147,10 +147,15 @@ $arm64_result = Build-Architecture -ABI "arm64-v8a" -OutputDir (Join-Path $ANDRO
 Set-Location $LLAMA_DIR
 $success = $success -and $arm64_result
 
-# Write-Host "`nBuilding ARM32 (armeabi-v7a)..." -ForegroundColor Cyan
-# $arm32_result = Build-Architecture -ABI "armeabi-v7a" -OutputDir (Join-Path $ANDROID_LIBS_DIR "armeabi-v7a")
-# Set-Location $LLAMA_DIR
-# $success = $success -and $arm32_result
+Write-Host "`nBuilding ARM32 (armeabi-v7a)..." -ForegroundColor Cyan
+$arm32_result = Build-Architecture -ABI "armeabi-v7a" -OutputDir (Join-Path $ANDROID_LIBS_DIR "armeabi-v7a")
+Set-Location $LLAMA_DIR
+$success = $success -and $arm32_result
+
+Write-Host "`nBuilding x86-64 (x86_64)..." -ForegroundColor Cyan
+$x86_64_result = Build-Architecture -ABI "x86_64" -OutputDir (Join-Path $ANDROID_LIBS_DIR "x86_64")
+Set-Location $LLAMA_DIR
+$success = $success -and $x86_64_result
 
 # Summary
 Write-Host "`n=================== BUILD SUMMARY ===================" -ForegroundColor Cyan
@@ -160,11 +165,17 @@ if ($arm64_result) {
     Write-Host "✗ ARM64 (arm64-v8a): FAILED" -ForegroundColor Red
 }
 
-# if ($arm32_result) {
-#     Write-Host "✓ ARM32 (armeabi-v7a): SUCCESS" -ForegroundColor Green
-# } else {
-#     Write-Host "✗ ARM32 (armeabi-v7a): FAILED" -ForegroundColor Red
-# }
+if ($arm32_result) {
+    Write-Host "✓ ARM32 (armeabi-v7a): SUCCESS" -ForegroundColor Green
+} else {
+    Write-Host "✗ ARM32 (armeabi-v7a): FAILED" -ForegroundColor Red
+}
+
+if ($x86_64_result) {
+    Write-Host "✓ x86-64 (x86_64): SUCCESS" -ForegroundColor Green
+} else {
+    Write-Host "✗ x86-64 (x86_64): FAILED" -ForegroundColor Red
+}
 
 if ($success) {
     Write-Host "`nAll builds completed successfully!" -ForegroundColor Green
@@ -173,17 +184,23 @@ if ($success) {
     # Verify the libraries
     Write-Host "`nVerifying libraries:" -ForegroundColor Cyan
     $arm64lib = Join-Path $ANDROID_LIBS_DIR "arm64-v8a\libllama.so"
-    # $arm32lib = Join-Path $ANDROID_LIBS_DIR "armeabi-v7a\libllama.so"
+    $arm32lib = Join-Path $ANDROID_LIBS_DIR "armeabi-v7a\libllama.so"
+    $x86_64lib = Join-Path $ANDROID_LIBS_DIR "x86_64\libllama.so"
     
     if (Test-Path $arm64lib) {
         $size = (Get-Item $arm64lib).Length / 1MB
         Write-Host "  ✓ ARM64: $([math]::Round($size, 1)) MB" -ForegroundColor Green
     }
     
-    # if (Test-Path $arm32lib) {
-    #     $size = (Get-Item $arm32lib).Length / 1MB
-    #     Write-Host "  ✓ ARM32: $([math]::Round($size, 1)) MB" -ForegroundColor Green
-    # }
+    if (Test-Path $arm32lib) {
+        $size = (Get-Item $arm32lib).Length / 1MB
+        Write-Host "  ✓ ARM32: $([math]::Round($size, 1)) MB" -ForegroundColor Green
+    }
+    
+    if (Test-Path $x86_64lib) {
+        $size = (Get-Item $x86_64lib).Length / 1MB
+        Write-Host "  ✓ x86-64: $([math]::Round($size, 1)) MB" -ForegroundColor Green
+    }
     
     Write-Host "`nNext steps:" -ForegroundColor Cyan
     Write-Host "1. Run: flutter clean" -ForegroundColor White
