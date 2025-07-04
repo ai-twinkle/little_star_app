@@ -1,15 +1,19 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:ffi/ffi.dart';
 import '../../lib/llama_ffi.dart';
 
 void main() {
   // Initialize settings
-  String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_M.gguf";
-  String prompt = "Why is the sky blue?";
+  // String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_M.gguf";
+  String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q3_K_M.gguf";
+  // String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q8_0.gguf";
+  // String prompt = "Why is the sky blue?";
+  String prompt = "台灣國中升高中";
   int ngl = 0;
-  int nPredict = 100;
+  int nPredict = 512;
 
   final LlamaFFI llamaFFI = LlamaFFI();
   if (!llamaFFI.modelFileExists(modelPath)) {
@@ -113,7 +117,7 @@ void main() {
       malloc.free(tokens);
       return;
     }
-    String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
+    String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
     stdout.write(piece);
     malloc.free(buf);
   }
@@ -162,7 +166,7 @@ void main() {
       return;
     }
 
-    String piece = String.fromCharCodes(buf.cast<ffi.Uint8>().asTypedList(n));
+    String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
     stderr.write(piece);
     malloc.free(buf);
 
