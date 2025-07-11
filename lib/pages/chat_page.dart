@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/chat_message.dart';
 import '../services/llama_service.dart';
 import '../llama_ffi.dart';
+import 'dart:async';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -24,6 +25,8 @@ class _ChatPageState extends State<ChatPage> {
   bool _isResponding = false;
   String? _modelPath;
   String? _selectedModelName;
+  Timer? _streamingTimer;
+  int _currentStreamingMessageIndex = -1;
 
   @override
   void initState() {
@@ -36,6 +39,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    _streamingTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     _llamaService.removeListener(_onServiceStateChanged);
@@ -262,7 +266,7 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  // Send message and get AI response
+  // Send message and get AI response with real streaming
   Future<void> _sendMessage() async {
     final messageText = _messageController.text.trim();
     if (messageText.isEmpty || !_llamaService.isModelLoaded || _isResponding) {
@@ -281,46 +285,66 @@ class _ChatPageState extends State<ChatPage> {
     _messageController.clear();
     _scrollToBottom();
 
+    // Add empty AI message placeholder for streaming
+    final aiMessageIndex = _messages.length;
+    setState(() {
+      _messages.add(ChatMessage(
+        content: '',
+        isUser: false,
+        modelName: _llamaService.selectedModelName,
+      ));
+      _currentStreamingMessageIndex = aiMessageIndex;
+    });
+    _scrollToBottom();
+
     try {
       // Build conversation context
       final conversationContext = _buildConversationContext();
       
-      // Get AI response using isolate
-      final inferenceParams = ChatInferenceParams(
-        modelPath: _llamaService.modelPath!,
-        prompt: conversationContext,
-        maxTokens: 512,
-      );
-
-      final response = await compute(_performChatInferenceInIsolate, inferenceParams);
+      // Start real streaming inference
+      String accumulatedContent = '';
       
-      if (response != null && response.isNotEmpty) {
+      await for (final tokenText in _llamaService.performStreamingInference(
+        conversationContext,
+        maxTokens: 512,
+      )) {
+        // Check if we should still be streaming
+        if (_currentStreamingMessageIndex != aiMessageIndex || !mounted) {
+          break;
+        }
+        
+        // Accumulate the token text
+        accumulatedContent += tokenText;
+        
+        // Update the message content in real-time
         setState(() {
-          _messages.add(ChatMessage(
-            content: response,
-            isUser: false,
-            modelName: _llamaService.selectedModelName,
-          ));
-          _isResponding = false;
+          if (aiMessageIndex < _messages.length) {
+            _messages[aiMessageIndex] = _messages[aiMessageIndex].copyWith(
+              content: accumulatedContent,
+            );
+          }
         });
-      } else {
-        setState(() {
-          _messages.add(ChatMessage(
-            content: 'Sorry, I couldn\'t generate a response. Please try again.',
-            isUser: false,
-            modelName: _llamaService.selectedModelName,
-          ));
-          _isResponding = false;
-        });
+        
+        // Auto scroll to keep latest content visible
+        _scrollToBottom();
       }
-    } catch (e) {
+      
+      // Streaming complete
       setState(() {
-        _messages.add(ChatMessage(
-          content: 'Error: $e',
-          isUser: false,
-          modelName: _llamaService.selectedModelName,
-        ));
         _isResponding = false;
+        _currentStreamingMessageIndex = -1;
+      });
+      
+    } catch (e) {
+      // Handle error case
+      setState(() {
+        if (aiMessageIndex < _messages.length) {
+          _messages[aiMessageIndex] = _messages[aiMessageIndex].copyWith(
+            content: 'Error during streaming: $e',
+          );
+        }
+        _isResponding = false;
+        _currentStreamingMessageIndex = -1;
       });
     }
 
@@ -372,6 +396,47 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+
+  // 新的流式显示方法
+  Future<void> _streamResponse(String fullResponse, int messageIndex) async {
+    // Split response into words for streaming effect
+    final words = fullResponse.split(' ');
+    String currentContent = '';
+    
+    // Cancel any existing timer
+    _streamingTimer?.cancel();
+    
+    for (int i = 0; i < words.length; i++) {
+      // Check if we should still be streaming
+      if (_currentStreamingMessageIndex != messageIndex || !mounted) {
+        break;
+      }
+      
+      // Add next word
+      currentContent += (i == 0 ? '' : ' ') + words[i];
+      
+      // Update the message content
+      setState(() {
+        if (messageIndex < _messages.length) {
+          _messages[messageIndex] = _messages[messageIndex].copyWith(
+            content: currentContent,
+          );
+        }
+      });
+      
+      // Scroll to bottom to keep the latest content visible
+      _scrollToBottom();
+      
+      // Wait before showing next word (adjust speed here)
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    
+    // Streaming complete
+    setState(() {
+      _isResponding = false;
+      _currentStreamingMessageIndex = -1;
+    });
   }
 
   @override

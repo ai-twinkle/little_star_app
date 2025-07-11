@@ -132,6 +132,20 @@ class LlamaService extends ChangeNotifier {
     }
   }
 
+  // Streaming inference method
+  Stream<String> performStreamingInference(String prompt, {int maxTokens = 512}) {
+    if (_llamaFFI == null || !_isModelLoaded) {
+      return Stream.empty();
+    }
+
+    try {
+      return _llamaFFI!.performStreamingInference(prompt, maxTokens: maxTokens);
+    } catch (e) {
+      debugPrint('Error during streaming inference: $e');
+      return Stream.empty();
+    }
+  }
+
   // Reset model (unload current model)
   void resetModel() {
     _modelPath = null;
