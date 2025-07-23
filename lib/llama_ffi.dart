@@ -415,6 +415,17 @@ class LlamaFFI {
     if (Platform.isAndroid) {
       llamaLibraryPath = 'libllama.so';
       ggmlLibraryPath = 'libggml.so';
+    } else if (Platform.isIOS) {
+      // On iOS, libraries are statically linked into the app bundle
+      // Use DynamicLibrary.process() to access the current process
+      try {
+        _lib = ffi.DynamicLibrary.process();
+        _ggmlLib = ffi.DynamicLibrary.process();
+        print('Successfully loaded llama.cpp libraries from iOS app bundle');
+        return;
+      } catch (e) {
+        throw Exception('Failed to load libraries from iOS app bundle: $e');
+      }
     } else if (Platform.isWindows) {
       llamaLibraryPath = path.join(Directory.current.path, 'llama.dll');
       ggmlLibraryPath = path.join(Directory.current.path, 'ggml.dll');

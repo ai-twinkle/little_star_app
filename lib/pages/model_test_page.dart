@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/llama_service.dart';
+import '../services/ios_directory_service.dart';
 import '../llama_ffi.dart';
 
 class ExpansibleController extends ChangeNotifier {
@@ -142,6 +143,35 @@ class _ModelTestPageState extends State<ModelTestPage> {
         }
       }
       return null;
+    } else if (Platform.isIOS) {
+      // For iOS, check Documents and Downloads directories
+      try {
+        // Check Documents directory
+        final documentsDir = await getApplicationDocumentsDirectory();
+        final documentsPath = path.join(documentsDir.path, modelFileName);
+        if (File(documentsPath).existsSync()) {
+          return documentsPath;
+        }
+
+        // Check Downloads directory if available
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          final downloadsPath = path.join(downloadsDir.path, modelFileName);
+          if (File(downloadsPath).existsSync()) {
+            return downloadsPath;
+          }
+        }
+
+        // Check Temporary directory as fallback
+        final tempDir = await getTemporaryDirectory();
+        final tempPath = path.join(tempDir.path, modelFileName);
+        if (File(tempPath).existsSync()) {
+          return tempPath;
+        }
+      } catch (e) {
+        print('Error accessing iOS directories: $e');
+      }
+      return null;
     } else {
       final currentDir = Directory.current;
       final modelPath = path.join(currentDir.path, modelFileName);
@@ -191,7 +221,11 @@ class _ModelTestPageState extends State<ModelTestPage> {
             print('Error searching in $searchPath: $e');
           }
         }
+      } else if (Platform.isIOS) {
+        // For iOS, use the IOSDirectoryService
+        ggufFiles = await IOSDirectoryService.findGGUFFiles();
       } else {
+        // For other platforms (macOS, Windows, Linux)
         final currentDir = Directory.current;
         final files = currentDir.listSync(recursive: false);
         for (final file in files) {
@@ -209,10 +243,17 @@ class _ModelTestPageState extends State<ModelTestPage> {
         _showGGUFFilesDialog(ggufFiles);
       } else {
         if (mounted) {
+          String message;
+          if (Platform.isIOS) {
+            message = 'No GGUF files found in iOS directories.\n'
+                     'Please place GGUF files in the app\'s Documents folder or use the Files app to copy them.';
+          } else {
+            message = 'No GGUF files found in common directories.\n'
+                     'Please place GGUF files in Downloads or Documents folder.';
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No GGUF files found in common directories.\nPlease place GGUF files in Downloads or Documents folder.'),
-            ),
+            SnackBar(content: Text(message)),
           );
         }
       }
@@ -284,6 +325,22 @@ class _ModelTestPageState extends State<ModelTestPage> {
       await _browseGGUFFiles();
     } else {
       await _loadModel();
+    }
+  }
+
+  // Debug iOS directories function
+  Future<void> _debugIOSDirectories() async {
+    if (Platform.isIOS) {
+      await IOSDirectoryService.printDirectoryReport();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('iOS directory report printed to console. Check your debug output.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -536,18 +593,35 @@ Characters Generated: ${result.length}
                                 ),
                               ),
                               
-                              // Action Buttons Section
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : () async {
-                                    setState(() => _isLoading = true);
-                                    await _llamaService.initializeLlama();
-                                    setState(() => _isLoading = false);
-                                  },
-                                  child: const Text('Reinitialize FFI'),
-                                ),
-                              ),
+                                            // Action Buttons Section
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : () async {
+                    setState(() => _isLoading = true);
+                    await _llamaService.initializeLlama();
+                    setState(() => _isLoading = false);
+                  },
+                  child: const Text('Reinitialize FFI'),
+                ),
+              ),
+
+              // Debug iOS Directories Button (only on iOS)
+              if (Platform.isIOS) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _debugIOSDirectories,
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Debug iOS Directories'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
                             ],
                           ),
                         ),

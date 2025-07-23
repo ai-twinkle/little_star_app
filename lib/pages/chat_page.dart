@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 import '../models/chat_message.dart';
 import '../services/llama_service.dart';
+import '../services/ios_directory_service.dart';
 import '../llama_ffi.dart';
 import 'dart:async';
 
@@ -148,7 +149,11 @@ class _ChatPageState extends State<ChatPage> {
             print('Error searching in $searchPath: $e');
           }
         }
+      } else if (Platform.isIOS) {
+        // For iOS, use the IOSDirectoryService
+        ggufFiles = await IOSDirectoryService.findGGUFFiles();
       } else {
+        // For other platforms (macOS, Windows, Linux)
         final currentDir = Directory.current;
         final files = currentDir.listSync(recursive: false);
         for (final file in files) {
@@ -166,10 +171,17 @@ class _ChatPageState extends State<ChatPage> {
         _showGGUFFilesDialog(ggufFiles);
       } else {
         if (mounted) {
+          String message;
+          if (Platform.isIOS) {
+            message = 'No GGUF files found in iOS directories.\n'
+                     'Please place GGUF files in the app\'s Documents folder or use the Files app to copy them.';
+          } else {
+            message = 'No GGUF files found in common directories.\n'
+                     'Please place GGUF files in Downloads or Documents folder.';
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No GGUF files found in common directories.\nPlease place GGUF files in Downloads or Documents folder.'),
-            ),
+            SnackBar(content: Text(message)),
           );
         }
       }
