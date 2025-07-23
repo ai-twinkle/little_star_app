@@ -344,6 +344,83 @@ class _ModelTestPageState extends State<ModelTestPage> {
     }
   }
 
+  // Show debug menu
+  void _showDebugMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bug_report, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Debug Tools',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Advanced debugging and diagnostic tools',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              
+              // Reinitialize FFI Button
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : () async {
+                  Navigator.of(context).pop(); // Close bottom sheet
+                  setState(() => _isLoading = true);
+                  await _llamaService.initializeLlama();
+                  setState(() => _isLoading = false);
+                },
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reinitialize FFI'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[600],
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              
+              // Debug iOS Directories Button (only on iOS)
+              if (Platform.isIOS) ...[
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(context).pop(); // Close bottom sheet
+                    await _debugIOSDirectories();
+                  },
+                  icon: const Icon(Icons.folder_open, size: 18),
+                  label: const Text('Debug iOS Directories'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[600],
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // Load model using service
   Future<void> _loadModel() async {
     if (_modelPath == null || _selectedModelName == null) return;
@@ -454,6 +531,13 @@ Characters Generated: ${result.length}
       appBar: AppBar(
         title: const Text('Model Testing'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Debug Tools',
+            onPressed: _showDebugMenu,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
@@ -592,36 +676,6 @@ Characters Generated: ${result.length}
                                   ],
                                 ),
                               ),
-                              
-                                            // Action Buttons Section
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : () async {
-                    setState(() => _isLoading = true);
-                    await _llamaService.initializeLlama();
-                    setState(() => _isLoading = false);
-                  },
-                  child: const Text('Reinitialize FFI'),
-                ),
-              ),
-
-              // Debug iOS Directories Button (only on iOS)
-              if (Platform.isIOS) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _debugIOSDirectories,
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text('Debug iOS Directories'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
                             ],
                           ),
                         ),
