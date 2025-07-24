@@ -63,6 +63,13 @@ class _ModelTestPageState extends State<ModelTestPage> {
   int _nThreads = 2;
   int _nThreadsBatch = 1;
 
+  // Sampling parameters state
+  bool _useCustomSamplingParams = false;
+  int _maxTokens = 512;
+  double _temperature = 0.8;
+  int _topK = 40;
+  double _topP = 0.9;
+
   @override
   void initState() {
     super.initState();
@@ -714,6 +721,222 @@ class _ModelTestPageState extends State<ModelTestPage> {
                               ),
                             ),
                           ],
+
+                          // Sampling Parameters Toggle
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.purple[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.purple[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Checkbox(
+                                      value: _useCustomSamplingParams,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _useCustomSamplingParams = value ?? false;
+                                        });
+                                        setModalState(() {
+                                          _useCustomSamplingParams = value ?? false;
+                                        });
+                                      },
+                                    ),
+                                    const Expanded(
+                                      child: Text(
+                                        'Use Custom Sampling Parameters',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _useCustomSamplingParams
+                                    ? 'Custom sampling parameters will control text generation behavior'
+                                    : 'Default llama.cpp sampling parameters will be used',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Sampling Parameters Configuration (only shown when custom is enabled)
+                          if (_useCustomSamplingParams) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.purple[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.purple[200]!),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Sampling Parameters Configuration',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  
+                                  // Max Tokens
+                                  _buildSliderSetting(
+                                    'Max Tokens', 
+                                    _maxTokens.toDouble(), 
+                                    50, 
+                                    2048, 
+                                    39,
+                                    (value) {
+                                      setState(() => _maxTokens = value.round());
+                                      setModalState(() => _maxTokens = value.round());
+                                    },
+                                    'Maximum number of tokens to generate'
+                                  ),
+                                  
+                                  // Temperature
+                                  _buildSliderSetting(
+                                    'Temperature', 
+                                    _temperature, 
+                                    0.0, 
+                                    2.0, 
+                                    20,
+                                    (value) {
+                                      setState(() => _temperature = value);
+                                      setModalState(() => _temperature = value);
+                                    },
+                                    'Controls randomness (0.0 = deterministic, 1.0 = creative)'
+                                  ),
+                                  
+                                  // Top-K
+                                  _buildSliderSetting(
+                                    'Top-K', 
+                                    _topK.toDouble(), 
+                                    1, 
+                                    100, 
+                                    99,
+                                    (value) {
+                                      setState(() => _topK = value.round());
+                                      setModalState(() => _topK = value.round());
+                                    },
+                                    'Limits vocabulary to top K most likely tokens'
+                                  ),
+                                  
+                                  // Top-P
+                                  _buildSliderSetting(
+                                    'Top-P', 
+                                    _topP, 
+                                    0.1, 
+                                    1.0, 
+                                    9,
+                                    (value) {
+                                      setState(() => _topP = value);
+                                      setModalState(() => _topP = value);
+                                    },
+                                    'Nucleus sampling: uses smallest set of tokens with cumulative probability >= P'
+                                  ),
+                                  
+                                  const SizedBox(height: 16),
+                                  
+                                  // Sampling presets
+                                  const Text(
+                                    'Sampling Presets:',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.3;
+                                              _topK = 20;
+                                              _topP = 0.8;
+                                            });
+                                            setModalState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.3;
+                                              _topK = 20;
+                                              _topP = 0.8;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green[100],
+                                            foregroundColor: Colors.green[800],
+                                          ),
+                                          child: const Text('Conservative', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.8;
+                                              _topK = 40;
+                                              _topP = 0.9;
+                                            });
+                                            setModalState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.8;
+                                              _topK = 40;
+                                              _topP = 0.9;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue[100],
+                                            foregroundColor: Colors.blue[800],
+                                          ),
+                                          child: const Text('Balanced', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _maxTokens = 1024;
+                                              _temperature = 1.2;
+                                              _topK = 60;
+                                              _topP = 0.95;
+                                            });
+                                            setModalState(() {
+                                              _maxTokens = 1024;
+                                              _temperature = 1.2;
+                                              _topK = 60;
+                                              _topP = 0.95;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.orange[100],
+                                            foregroundColor: Colors.orange[800],
+                                          ),
+                                          child: const Text('Creative', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -756,7 +979,9 @@ class _ModelTestPageState extends State<ModelTestPage> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  value.round().toString(),
+                  (title == 'Temperature' || title == 'Top-P') 
+                    ? value.toStringAsFixed(1)
+                    : value.round().toString(),
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -773,7 +998,9 @@ class _ModelTestPageState extends State<ModelTestPage> {
             min: min,
             max: max,
             divisions: divisions,
-            label: value.round().toString(),
+            label: (title == 'Temperature' || title == 'Top-P') 
+              ? value.toStringAsFixed(1)
+              : value.round().toString(),
             onChanged: onChanged,
           ),
         ],
@@ -809,7 +1036,7 @@ class _ModelTestPageState extends State<ModelTestPage> {
     }
 
     final prompt = _promptController.text.trim();
-    const maxTokens = 512;
+    final maxTokens = _useCustomSamplingParams ? _maxTokens : 512;
 
     setState(() {
       _isInferenceLoading = true;
@@ -821,11 +1048,14 @@ class _ModelTestPageState extends State<ModelTestPage> {
     try {
       final stopwatch = Stopwatch()..start();
       
-      // Use isolate for inference
+      // Use isolate for inference with custom sampling parameters
       final inferenceParams = InferenceParams(
         modelPath: _llamaService.modelPath!,
         prompt: prompt,
         maxTokens: maxTokens,
+        temperature: _useCustomSamplingParams ? _temperature : null,
+        topK: _useCustomSamplingParams ? _topK : null,
+        topP: _useCustomSamplingParams ? _topP : null,
       );
 
       final result = await compute(_performInferenceInIsolate, inferenceParams);
@@ -1314,11 +1544,17 @@ class InferenceParams {
   final String modelPath;
   final String prompt;
   final int maxTokens;
+  final double? temperature;
+  final int? topK;
+  final double? topP;
 
   InferenceParams({
     required this.modelPath,
     required this.prompt,
     required this.maxTokens,
+    this.temperature,
+    this.topK,
+    this.topP,
   });
 }
 
@@ -1348,6 +1584,9 @@ Future<String?> _performInferenceInIsolate(InferenceParams params) async {
     final result = llamaFFI.performInference(
       params.prompt,
       maxTokens: params.maxTokens,
+      temperature: params.temperature,
+      topK: params.topK,
+      topP: params.topP,
     );
     
     llamaFFI.freeBackend();
