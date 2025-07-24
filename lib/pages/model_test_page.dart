@@ -1048,6 +1048,14 @@ class _ModelTestPageState extends State<ModelTestPage> {
     try {
       final stopwatch = Stopwatch()..start();
       
+      // Log custom parameter usage
+      if (_useCustomContextParams) {
+        print('Using custom context parameters: nCtx=$_nCtx, nBatch=$_nBatch, nUbatch=$_nUbatch, nSeqMax=$_nSeqMax, nThreads=$_nThreads, nThreadsBatch=$_nThreadsBatch');
+      }
+      if (_useCustomSamplingParams) {
+        print('Using custom sampling parameters: maxTokens=$_maxTokens, temperature=$_temperature, topK=$_topK, topP=$_topP');
+      }
+      
       // Use isolate for inference with custom sampling parameters
       final inferenceParams = InferenceParams(
         modelPath: _llamaService.modelPath!,
@@ -1056,6 +1064,12 @@ class _ModelTestPageState extends State<ModelTestPage> {
         temperature: _useCustomSamplingParams ? _temperature : null,
         topK: _useCustomSamplingParams ? _topK : null,
         topP: _useCustomSamplingParams ? _topP : null,
+        nCtx: _useCustomContextParams ? _nCtx : null,
+        nBatch: _useCustomContextParams ? _nBatch : null,
+        nUbatch: _useCustomContextParams ? _nUbatch : null,
+        nSeqMax: _useCustomContextParams ? _nSeqMax : null,
+        nThreads: _useCustomContextParams ? _nThreads : null,
+        nThreadsBatch: _useCustomContextParams ? _nThreadsBatch : null,
       );
 
       final result = await compute(_performInferenceInIsolate, inferenceParams);
@@ -1287,6 +1301,37 @@ Characters Generated: ${result.length}
               'Model Inference',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            
+            // Custom Parameters Status Indicator
+            if (_useCustomContextParams || _useCustomSamplingParams) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, size: 16, color: Colors.orange[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Using custom ${_useCustomContextParams && _useCustomSamplingParams ? 'context & sampling' : _useCustomContextParams ? 'context' : 'sampling'} parameters',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[800],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            
             const SizedBox(height: 16),
 
             TextField(
@@ -1547,6 +1592,14 @@ class InferenceParams {
   final double? temperature;
   final int? topK;
   final double? topP;
+  
+  // Context parameters
+  final int? nCtx;
+  final int? nBatch;
+  final int? nUbatch;
+  final int? nSeqMax;
+  final int? nThreads;
+  final int? nThreadsBatch;
 
   InferenceParams({
     required this.modelPath,
@@ -1555,6 +1608,12 @@ class InferenceParams {
     this.temperature,
     this.topK,
     this.topP,
+    this.nCtx,
+    this.nBatch,
+    this.nUbatch,
+    this.nSeqMax,
+    this.nThreads,
+    this.nThreadsBatch,
   });
 }
 
@@ -1575,7 +1634,14 @@ Future<String?> _performInferenceInIsolate(InferenceParams params) async {
       return null;
     }
     
-    final contextCreated = llamaFFI.createContext();
+    final contextCreated = llamaFFI.createContext(
+      nCtx: params.nCtx,
+      nBatch: params.nBatch,
+      nUbatch: params.nUbatch,
+      nSeqMax: params.nSeqMax,
+      nThreads: params.nThreads,
+      nThreadsBatch: params.nThreadsBatch,
+    );
     if (!contextCreated) {
       llamaFFI.freeBackend();
       return null;

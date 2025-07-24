@@ -671,8 +671,15 @@ class LlamaFFI {
   }
 
   // Create context for inference
-  bool createContext() {
-    print('createContext:');
+  bool createContext({
+    int? nCtx,
+    int? nBatch,
+    int? nUbatch,
+    int? nSeqMax,
+    int? nThreads,
+    int? nThreadsBatch,
+  }) {
+    print('createContext: nCtx=$nCtx, nBatch=$nBatch, nUbatch=$nUbatch, nSeqMax=$nSeqMax, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
     try {
       if (_model == null || _model == ffi.nullptr) {
         print('No model loaded');
@@ -683,15 +690,42 @@ class LlamaFFI {
         freeContext();
       }
 
-      // For now, use null for context params (default parameters)
-      _context = llama_new_context_with_model(_model!, llama_context_default_params());
+      // Get default context parameters and apply custom values if provided
+      final contextParams = llama_context_default_params();
+      
+      if (nCtx != null) {
+        contextParams.n_ctx = nCtx;
+        print('Applied custom n_ctx: $nCtx');
+      }
+      if (nBatch != null) {
+        contextParams.n_batch = nBatch;
+        print('Applied custom n_batch: $nBatch');
+      }
+      if (nUbatch != null) {
+        contextParams.n_ubatch = nUbatch;
+        print('Applied custom n_ubatch: $nUbatch');
+      }
+      if (nSeqMax != null) {
+        contextParams.n_seq_max = nSeqMax;
+        print('Applied custom n_seq_max: $nSeqMax');
+      }
+      if (nThreads != null) {
+        contextParams.n_threads = nThreads;
+        print('Applied custom n_threads: $nThreads');
+      }
+      if (nThreadsBatch != null) {
+        contextParams.n_threads_batch = nThreadsBatch;
+        print('Applied custom n_threads_batch: $nThreadsBatch');
+      }
+
+      _context = llama_new_context_with_model(_model!, contextParams);
 
       if (_context == ffi.nullptr) {
         print('Failed to create context');
         return false;
       }
 
-      print('Context created successfully');
+      print('Context created successfully with custom parameters');
       return true;
     } catch (e) {
       print('Error creating context: $e');
