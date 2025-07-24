@@ -160,7 +160,7 @@ class _HomePageState extends State<HomePage> {
                 // Chat Card
                 _buildNavigationCard(
                   context: context,
-                  title: 'AI Chat',
+                  title: 'AI Chat (Experimental)',
                   subtitle: 'Have conversations with AI models in a chat interface',
                   icon: Icons.chat,
                   color: Colors.green,
@@ -213,7 +213,7 @@ class _HomePageState extends State<HomePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(

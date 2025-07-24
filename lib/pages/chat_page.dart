@@ -410,7 +410,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  // 新的流式显示方法
+  // Stream response
   Future<void> _streamResponse(String fullResponse, int messageIndex) async {
     // Split response into words for streaming effect
     final words = fullResponse.split(' ');
@@ -461,7 +461,7 @@ class _ChatPageState extends State<ChatPage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('AI Chat'),
+                const Text('AI Chat (Experimental)'),
                 if (_llamaService.selectedModelName != null)
                   Text(
                     _llamaService.selectedModelName!,
