@@ -324,6 +324,18 @@ typedef LlamaSamplerChainAdd = void Function(ffi.Pointer<llama_sampler> chain, f
 typedef LlamaSamplerInitGreedyNative = ffi.Pointer<llama_sampler> Function();
 typedef LlamaSamplerInitGreedy = ffi.Pointer<llama_sampler> Function();
 
+typedef LlamaSamplerInitTopKNative = ffi.Pointer<llama_sampler> Function(ffi.Int32 k);
+typedef LlamaSamplerInitTopK = ffi.Pointer<llama_sampler> Function(int k);
+
+typedef LlamaSamplerInitTopPNative = ffi.Pointer<llama_sampler> Function(ffi.Float p, ffi.Size minKeep);
+typedef LlamaSamplerInitTopP = ffi.Pointer<llama_sampler> Function(double p, int minKeep);
+
+typedef LlamaSamplerInitTempNative = ffi.Pointer<llama_sampler> Function(ffi.Float t);
+typedef LlamaSamplerInitTemp = ffi.Pointer<llama_sampler> Function(double t);
+
+typedef LlamaSamplerInitDistNative = ffi.Pointer<llama_sampler> Function(ffi.Uint32 seed);
+typedef LlamaSamplerInitDist = ffi.Pointer<llama_sampler> Function(int seed);
+
 typedef LlamaSamplerSampleNative = ffi.Int32 Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, ffi.Int32 idx);
 typedef LlamaSamplerSample = int Function(ffi.Pointer<llama_sampler> sampler, ffi.Pointer<llama_context> ctx, int idx);
 
@@ -384,6 +396,10 @@ class LlamaFFI {
   late LlamaSamplerChainInit llama_sampler_chain_init;
   late LlamaSamplerChainAdd llama_sampler_chain_add;
   late LlamaSamplerInitGreedy llama_sampler_init_greedy;
+  late LlamaSamplerInitTopK llama_sampler_init_top_k;
+  late LlamaSamplerInitTopP llama_sampler_init_top_p;
+  late LlamaSamplerInitTemp llama_sampler_init_temp;
+  late LlamaSamplerInitDist llama_sampler_init_dist;
   late LlamaSamplerSample llama_sampler_sample;
   //
   late LlamaBatchGetOne llama_batch_get_one;
@@ -415,25 +431,52 @@ class LlamaFFI {
     if (Platform.isAndroid) {
       llamaLibraryPath = 'libllama.so';
       ggmlLibraryPath = 'libggml.so';
+      print('Android platform detected - using library names: $llamaLibraryPath, $ggmlLibraryPath');
+    } else if (Platform.isIOS) {
+      // On iOS, libraries are statically linked into the app bundle
+      // Use DynamicLibrary.process() to access the current process
+      try {
+        _lib = ffi.DynamicLibrary.process();
+        _ggmlLib = ffi.DynamicLibrary.process();
+        print('Successfully loaded llama.cpp libraries from iOS app bundle');
+        return;
+      } catch (e) {
+        throw Exception('Failed to load libraries from iOS app bundle: $e');
+      }
     } else if (Platform.isWindows) {
       llamaLibraryPath = path.join(Directory.current.path, 'llama.dll');
       ggmlLibraryPath = path.join(Directory.current.path, 'ggml.dll');
+      print('Windows platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else if (Platform.isLinux) {
       llamaLibraryPath = path.join(Directory.current.path, 'libllama.so');
       ggmlLibraryPath = path.join(Directory.current.path, 'libggml.so');
+      print('Linux platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else if (Platform.isMacOS) {
       llamaLibraryPath = path.join(Directory.current.path, 'libllama.dylib');
       ggmlLibraryPath = path.join(Directory.current.path, 'libggml.dylib');
+      print('macOS platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else {
       throw UnsupportedError('Platform not supported');
     }
 
     try {
+      // Print the exact absolute paths being used
+      final llamaAbsolutePath = path.absolute(llamaLibraryPath);
+      final ggmlAbsolutePath = path.absolute(ggmlLibraryPath);
+      
+      print('=== Library Loading Information ===');
+      print('Platform: ${Platform.operatingSystem}');
+      print('Current working directory: ${Directory.current.path}');
+      print('_lib will be loaded from: $llamaAbsolutePath');
+      print('_ggmlLib will be loaded from: $ggmlAbsolutePath');
+      
       _lib = ffi.DynamicLibrary.open(llamaLibraryPath);
-      print('Successfully loaded llama.cpp library: $llamaLibraryPath');
+      print('✅ Successfully loaded llama.cpp library: $llamaAbsolutePath');
+      print('  _lib handle: ${_lib.toString()}');
 
       _ggmlLib = ffi.DynamicLibrary.open(ggmlLibraryPath);
-      print('Successfully loaded GGML library: $ggmlLibraryPath');
+      print('✅ Successfully loaded GGML library: $ggmlAbsolutePath');
+      print('  _ggmlLib handle: ${_ggmlLib.toString()}');
     } catch (e) {
       throw Exception('Failed to load libraries: $e');
     }
@@ -506,6 +549,22 @@ class LlamaFFI {
       llama_sampler_init_greedy = _lib
           .lookup<ffi.NativeFunction<LlamaSamplerInitGreedyNative>>('llama_sampler_init_greedy')
           .asFunction<LlamaSamplerInitGreedy>();
+
+      llama_sampler_init_top_k = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerInitTopKNative>>('llama_sampler_init_top_k')
+          .asFunction<LlamaSamplerInitTopK>();
+
+      llama_sampler_init_top_p = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerInitTopPNative>>('llama_sampler_init_top_p')
+          .asFunction<LlamaSamplerInitTopP>();
+
+      llama_sampler_init_temp = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerInitTempNative>>('llama_sampler_init_temp')
+          .asFunction<LlamaSamplerInitTemp>();
+
+      llama_sampler_init_dist = _lib
+          .lookup<ffi.NativeFunction<LlamaSamplerInitDistNative>>('llama_sampler_init_dist')
+          .asFunction<LlamaSamplerInitDist>();
 
       llama_sampler_sample = _lib
           .lookup<ffi.NativeFunction<LlamaSamplerSampleNative>>('llama_sampler_sample')
@@ -612,8 +671,15 @@ class LlamaFFI {
   }
 
   // Create context for inference
-  bool createContext() {
-    print('createContext:');
+  bool createContext({
+    int? nCtx,
+    int? nBatch,
+    int? nUbatch,
+    int? nSeqMax,
+    int? nThreads,
+    int? nThreadsBatch,
+  }) {
+    print('createContext: nCtx=$nCtx, nBatch=$nBatch, nUbatch=$nUbatch, nSeqMax=$nSeqMax, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
     try {
       if (_model == null || _model == ffi.nullptr) {
         print('No model loaded');
@@ -624,15 +690,42 @@ class LlamaFFI {
         freeContext();
       }
 
-      // For now, use null for context params (default parameters)
-      _context = llama_new_context_with_model(_model!, llama_context_default_params());
+      // Get default context parameters and apply custom values if provided
+      final contextParams = llama_context_default_params();
+      
+      if (nCtx != null) {
+        contextParams.n_ctx = nCtx;
+        print('Applied custom n_ctx: $nCtx');
+      }
+      if (nBatch != null) {
+        contextParams.n_batch = nBatch;
+        print('Applied custom n_batch: $nBatch');
+      }
+      if (nUbatch != null) {
+        contextParams.n_ubatch = nUbatch;
+        print('Applied custom n_ubatch: $nUbatch');
+      }
+      if (nSeqMax != null) {
+        contextParams.n_seq_max = nSeqMax;
+        print('Applied custom n_seq_max: $nSeqMax');
+      }
+      if (nThreads != null) {
+        contextParams.n_threads = nThreads;
+        print('Applied custom n_threads: $nThreads');
+      }
+      if (nThreadsBatch != null) {
+        contextParams.n_threads_batch = nThreadsBatch;
+        print('Applied custom n_threads_batch: $nThreadsBatch');
+      }
+
+      _context = llama_new_context_with_model(_model!, contextParams);
 
       if (_context == ffi.nullptr) {
         print('Failed to create context');
         return false;
       }
 
-      print('Context created successfully');
+      print('Context created successfully with custom parameters');
       return true;
     } catch (e) {
       print('Error creating context: $e');
@@ -641,8 +734,15 @@ class LlamaFFI {
   }
 
   // Simple inference function
-  String? performInference(String prompt, {int maxTokens = 50}) {
-    print('performInference(prompt: "$prompt", maxTokens: $maxTokens)');
+  String? performInference(String prompt, {
+    int maxTokens = 256,
+    double? temperature,
+    int? topK,
+    double? topP,
+    List<String>? stopSequences,
+  }) {
+    print(
+        'performInference(prompt: "$prompt", maxTokens: $maxTokens, temp: $temperature, topK: $topK, topP: $topP, stop: $stopSequences)');
 
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
@@ -690,7 +790,24 @@ class LlamaFFI {
       final sparams = llama_sampler_chain_default_params();
       sparams.no_perf = false;
       final smpl = llama_sampler_chain_init(sparams);
-      llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+
+      // Add samplers based on parameters
+      if (topK != null && topK > 0) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_top_k(topK));
+      }
+      if (topP != null && topP < 1.0) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_top_p(topP, 1));
+      }
+      if (temperature != null && temperature >= 0.0) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
+      }
+      
+      // Default to greedy if no other samplers, otherwise use distribution
+      if (topK == null && topP == null && temperature == null) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+      } else {
+        llama_sampler_chain_add(smpl, llama_sampler_init_dist(0)); // 0 for random seed
+      }
 
       // Prepare initial batch
       var batch = llama_batch_get_one(tokens, nPrompt);
@@ -702,6 +819,7 @@ class LlamaFFI {
       int nDecode = 0;
       int newTokenId;
       final tokenPtr = malloc<llama_token>();
+      String decodedText = '';
 
       for (int nPos = 0; nPos + batch.n_tokens < nPrompt + maxTokens;) {
         // Decode the batch
@@ -735,6 +853,20 @@ class LlamaFFI {
         responseBytes.addAll(bytes);
         malloc.free(buf);
 
+        // Check for stop sequences
+        if (stopSequences != null && stopSequences.isNotEmpty) {
+          decodedText = utf8.decode(responseBytes, allowMalformed: true);
+          bool stopped = false;
+          for (final stopSeq in stopSequences) {
+            if (decodedText.endsWith(stopSeq)) {
+              print('Stop sequence "$stopSeq" detected');
+              stopped = true;
+              break;
+            }
+          }
+          if (stopped) break;
+        }
+
         // Prepare next batch with the new token
         tokenPtr.value = newTokenId;
         batch = llama_batch_get_one(tokenPtr, 1);
@@ -767,8 +899,15 @@ class LlamaFFI {
   }
 
   // Streaming inference function that yields tokens as they are generated
-  Stream<String> performStreamingInference(String prompt, {int maxTokens = 512}) async* {
-    print('performStreamingInference(prompt: "$prompt", maxTokens: $maxTokens)');
+  Stream<String> performStreamingInference(String prompt, {
+    int maxTokens = 512,
+    double? temperature,
+    int? topK,
+    double? topP,
+    List<String>? stopSequences,
+  }) async* {
+    print(
+        'performStreamingInference(prompt: "$prompt", maxTokens: $maxTokens, temp: $temperature, topK: $topK, topP: $topP, stop: $stopSequences)');
 
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
@@ -816,13 +955,31 @@ class LlamaFFI {
       final sparams = llama_sampler_chain_default_params();
       sparams.no_perf = false;
       final smpl = llama_sampler_chain_init(sparams);
-      llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+
+      // Add samplers based on parameters
+      if (topK != null && topK > 0) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_top_k(topK));
+      }
+      if (topP != null && topP < 1.0) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_top_p(topP, 1));
+      }
+      if (temperature != null && temperature >= 0.0) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
+      }
+      
+      // Default to greedy if no other samplers, otherwise use distribution
+      if (topK == null && topP == null && temperature == null) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+      } else {
+        llama_sampler_chain_add(smpl, llama_sampler_init_dist(0)); // 0 for random seed
+      }
 
       // Prepare initial batch
       var batch = llama_batch_get_one(tokens, nPrompt);
 
       // Buffer for accumulating bytes to handle UTF-8 properly
       final byteBuffer = <int>[];
+      String fullResponse = '';
       
       // Main generation loop
       int nDecode = 0;
@@ -866,7 +1023,21 @@ class LlamaFFI {
           final text = utf8.decode(byteBuffer);
           if (text.isNotEmpty) {
             yield text;
+            fullResponse += text;
             byteBuffer.clear(); // Clear buffer after successful decode
+
+            // Check for stop sequences
+            if (stopSequences != null && stopSequences.isNotEmpty) {
+              bool stopped = false;
+              for (final stopSeq in stopSequences) {
+                if (fullResponse.endsWith(stopSeq)) {
+                  print('Stop sequence "$stopSeq" detected');
+                  stopped = true;
+                  break;
+                }
+              }
+              if (stopped) break;
+            }
           }
         } catch (e) {
           // UTF-8 decode failed, might be incomplete multi-byte sequence
@@ -1039,6 +1210,64 @@ class LlamaFFI {
         print('✅ $funcName - available in GGML library');
       } catch (e) {
         print('❌ $funcName - not found in GGML library');
+      }
+    }
+  }
+
+  // iOS-specific method to check static library configuration
+  void checkIOSStaticLibraries() {
+    if (!Platform.isIOS) {
+      print('This method is only for iOS platform');
+      return;
+    }
+
+    print('=== iOS Static Library Configuration Check ===');
+    print('To verify which .a files are linked, check your iOS project:');
+    print('');
+    print('1. Open ios/Runner.xcworkspace in Xcode');
+    print('2. Select the Runner target');
+    print('3. Go to Build Phases > Link Binary With Libraries');
+    print('4. Look for these static libraries:');
+    print('   - libllama-arm64-device.a (2.9MB)');
+    print('   - libggml-arm64-device.a (34KB)');
+    print('   - libggml-metal-arm64-device.a (736KB)');
+    print('   - libggml-cpu-arm64-device.a (718KB)');
+    print('   - libggml-blas-arm64-device.a (20KB)');
+    print('   - libggml-base-arm64-device.a (757KB)');
+    print('');
+    print('5. Also check Build Settings > Other Linker Flags for:');
+    print('   - -lllama');
+    print('   - -lggml');
+    print('');
+    print('6. The .a files are located in:');
+    print('   - ios/Frameworks/ (confirmed location)');
+    print('   - Main libraries: libllama-arm64-device.a, libggml-arm64-device.a');
+    print('');
+    print('Current library handles:');
+    print('  _lib: ${_lib.toString()}');
+    print('  _ggmlLib: ${_ggmlLib.toString()}');
+    
+    // Try to get more specific information about what's loaded
+    print('');
+    print('=== Function Symbol Check ===');
+    final testFunctions = [
+      'llama_backend_init',
+      'llama_model_load_from_file',
+      'ggml_backend_load_all',
+      'llama_time_us',
+    ];
+    
+    for (final func in testFunctions) {
+      try {
+        _lib.lookup(func);
+        print('✅ Found $func in _lib');
+      } catch (e) {
+        try {
+          _ggmlLib.lookup(func);
+          print('✅ Found $func in _ggmlLib');
+        } catch (e2) {
+          print('❌ $func not found in either library');
+        }
       }
     }
   }

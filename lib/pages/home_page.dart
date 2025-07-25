@@ -40,33 +40,33 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         elevation: 0,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             
             // Welcome Section
             Card(
               elevation: 4,
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
                     Icon(
                       Icons.auto_awesome,
-                      size: 72,
+                      size: 64,
                       color: Theme.of(context).colorScheme.primary,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Text(
                       'Welcome to Little Star',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
                       'Choose how you want to interact with AI models',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -74,7 +74,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     
                     // Service Status
                     ListenableBuilder(
@@ -137,54 +137,55 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             
             // Navigation Cards
-            Expanded(
-              child: Column(
-                children: [
-                  // Model Test Card
-                  _buildNavigationCard(
-                    context: context,
-                    title: 'Model Testing',
-                    subtitle: 'Test models with single prompts and view performance metrics',
-                    icon: Icons.science,
-                    color: Colors.blue,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ModelTestPage()),
+            Column(
+              children: [
+                // Model Test Card
+                _buildNavigationCard(
+                  context: context,
+                  title: 'Model Testing',
+                  subtitle: 'Test models with single prompts and view performance metrics',
+                  icon: Icons.science,
+                  color: Colors.blue,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ModelTestPage()),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Chat Card
+                _buildNavigationCard(
+                  context: context,
+                  title: 'AI Chat (Experimental)',
+                  subtitle: 'Have conversations with AI models in a chat interface',
+                  icon: Icons.chat,
+                  color: Colors.green,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ChatPage()),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Reinitialize button
+                if (!_llamaService.isInitialized && !_isInitializing)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _initializeService,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reinitialize Service'),
                     ),
                   ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Chat Card
-                  _buildNavigationCard(
-                    context: context,
-                    title: 'AI Chat',
-                    subtitle: 'Have conversations with AI models in a chat interface',
-                    icon: Icons.chat,
-                    color: Colors.green,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ChatPage()),
-                    ),
-                  ),
-                  
-                  const Spacer(),
-                  
-                  // Reinitialize button
-                  if (!_llamaService.isInitialized && !_isInitializing)
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _initializeService,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reinitialize Service'),
-                      ),
-                    ),
-                ],
-              ),
+                
+                // Add some bottom padding to ensure content isn't cut off
+                const SizedBox(height: 20),
+              ],
             ),
           ],
         ),
@@ -212,7 +213,7 @@ class _HomePageState extends State<HomePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(

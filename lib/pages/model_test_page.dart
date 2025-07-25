@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/llama_service.dart';
+import '../services/ios_directory_service.dart';
 import '../llama_ffi.dart';
 
 class ExpansibleController extends ChangeNotifier {
@@ -52,6 +53,22 @@ class _ModelTestPageState extends State<ModelTestPage> {
   // Benchmark-related state
   String _benchmarkResults = '';
   Map<String, dynamic> _performanceMetrics = {};
+
+  // Context parameters state
+  bool _useCustomContextParams = false;
+  int _nCtx = 1024;
+  int _nBatch = 256;
+  int _nUbatch = 128;
+  int _nSeqMax = 1;
+  int _nThreads = 2;
+  int _nThreadsBatch = 1;
+
+  // Sampling parameters state
+  bool _useCustomSamplingParams = false;
+  int _maxTokens = 512;
+  double _temperature = 0.8;
+  int _topK = 40;
+  double _topP = 0.9;
 
   @override
   void initState() {
@@ -142,6 +159,35 @@ class _ModelTestPageState extends State<ModelTestPage> {
         }
       }
       return null;
+    } else if (Platform.isIOS) {
+      // For iOS, check Documents and Downloads directories
+      try {
+        // Check Documents directory
+        final documentsDir = await getApplicationDocumentsDirectory();
+        final documentsPath = path.join(documentsDir.path, modelFileName);
+        if (File(documentsPath).existsSync()) {
+          return documentsPath;
+        }
+
+        // Check Downloads directory if available
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          final downloadsPath = path.join(downloadsDir.path, modelFileName);
+          if (File(downloadsPath).existsSync()) {
+            return downloadsPath;
+          }
+        }
+
+        // Check Temporary directory as fallback
+        final tempDir = await getTemporaryDirectory();
+        final tempPath = path.join(tempDir.path, modelFileName);
+        if (File(tempPath).existsSync()) {
+          return tempPath;
+        }
+      } catch (e) {
+        print('Error accessing iOS directories: $e');
+      }
+      return null;
     } else {
       final currentDir = Directory.current;
       final modelPath = path.join(currentDir.path, modelFileName);
@@ -191,7 +237,11 @@ class _ModelTestPageState extends State<ModelTestPage> {
             print('Error searching in $searchPath: $e');
           }
         }
+      } else if (Platform.isIOS) {
+        // For iOS, use the IOSDirectoryService
+        ggufFiles = await IOSDirectoryService.findGGUFFiles();
       } else {
+        // For other platforms (macOS, Windows, Linux)
         final currentDir = Directory.current;
         final files = currentDir.listSync(recursive: false);
         for (final file in files) {
@@ -209,10 +259,17 @@ class _ModelTestPageState extends State<ModelTestPage> {
         _showGGUFFilesDialog(ggufFiles);
       } else {
         if (mounted) {
+          String message;
+          if (Platform.isIOS) {
+            message = 'No GGUF files found in iOS directories.\n'
+                     'Please place GGUF files in the app\'s Documents folder or use the Files app to copy them.';
+          } else {
+            message = 'No GGUF files found in common directories.\n'
+                     'Please place GGUF files in Downloads or Documents folder.';
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No GGUF files found in common directories.\nPlease place GGUF files in Downloads or Documents folder.'),
-            ),
+            SnackBar(content: Text(message)),
           );
         }
       }
@@ -287,6 +344,670 @@ class _ModelTestPageState extends State<ModelTestPage> {
     }
   }
 
+  // Debug iOS directories function
+  Future<void> _debugIOSDirectories() async {
+    if (Platform.isIOS) {
+      await IOSDirectoryService.printDirectoryReport();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('iOS directory report printed to console. Check your debug output.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // Show debug menu
+  void _showDebugMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bug_report, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Debug Tools',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Diagnostic and debugging tools for troubleshooting',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              
+              // Debug iOS Directories Button (only on iOS)
+              if (Platform.isIOS) ...[
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(context).pop(); // Close bottom sheet
+                    await _debugIOSDirectories();
+                  },
+                  icon: const Icon(Icons.folder_open, size: 18),
+                  label: const Text('Debug iOS Directories'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[600],
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // FFI Library Test Button
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : () async {
+                  Navigator.of(context).pop(); // Close bottom sheet
+                  setState(() => _isLoading = true);
+                  
+                  try {
+                    final success = _llamaService.llamaFFI?.testLibrary() ?? false;
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            success 
+                              ? 'FFI library test passed ✓'
+                              : 'FFI library test failed ✗'
+                          ),
+                          backgroundColor: success ? Colors.green : Colors.red,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('FFI test error: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                  
+                  setState(() => _isLoading = false);
+                },
+                icon: const Icon(Icons.check_circle, size: 18),
+                label: const Text('Test FFI Library'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[600],
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Show settings menu
+  void _showSettingsMenu() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      const Icon(Icons.settings, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Advanced Settings',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Configure context parameters and advanced options',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Enable Custom Parameters Toggle
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Checkbox(
+                                      value: _useCustomContextParams,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _useCustomContextParams = value ?? false;
+                                        });
+                                        setModalState(() {
+                                          _useCustomContextParams = value ?? false;
+                                        });
+                                      },
+                                    ),
+                                    const Expanded(
+                                      child: Text(
+                                        'Use Custom Context Parameters',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _useCustomContextParams
+                                    ? 'Custom parameters will override automatic optimizations'
+                                    : Platform.isIOS 
+                                      ? 'iOS optimizations will be applied automatically'
+                                      : 'Default llama.cpp parameters will be used',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Context Parameters Configuration (only shown when custom is enabled)
+                          if (_useCustomContextParams) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue[200]!),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Context Parameters Configuration',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  
+                                  // Context Size
+                                  _buildSliderSetting(
+                                    'Context Size', 
+                                    _nCtx.toDouble(), 
+                                    512, 
+                                    4096, 
+                                    7,
+                                    (value) {
+                                      setState(() => _nCtx = value.round());
+                                      setModalState(() => _nCtx = value.round());
+                                    },
+                                    'Controls the maximum context length for the model'
+                                  ),
+                                  
+                                  // Batch Size
+                                  _buildSliderSetting(
+                                    'Batch Size', 
+                                    _nBatch.toDouble(), 
+                                    32, 
+                                    1024, 
+                                    31,
+                                    (value) {
+                                      setState(() => _nBatch = value.round());
+                                      setModalState(() => _nBatch = value.round());
+                                    },
+                                    'Logical maximum batch size for processing'
+                                  ),
+                                  
+                                  // Micro-batch Size
+                                  _buildSliderSetting(
+                                    'Micro-batch Size', 
+                                    _nUbatch.toDouble(), 
+                                    32, 
+                                    512, 
+                                    15,
+                                    (value) {
+                                      setState(() => _nUbatch = value.round());
+                                      setModalState(() => _nUbatch = value.round());
+                                    },
+                                    'Physical maximum batch size for processing'
+                                  ),
+                                  
+                                  // Threads
+                                  _buildSliderSetting(
+                                    'Threads', 
+                                    _nThreads.toDouble(), 
+                                    1, 
+                                    8, 
+                                    7,
+                                    (value) {
+                                      setState(() => _nThreads = value.round());
+                                      setModalState(() => _nThreads = value.round());
+                                    },
+                                    'Number of threads for generation'
+                                  ),
+                                  
+                                  // Batch Threads
+                                  _buildSliderSetting(
+                                    'Batch Threads', 
+                                    _nThreadsBatch.toDouble(), 
+                                    1, 
+                                    4, 
+                                    3,
+                                    (value) {
+                                      setState(() => _nThreadsBatch = value.round());
+                                      setModalState(() => _nThreadsBatch = value.round());
+                                    },
+                                    'Number of threads for batch processing'
+                                  ),
+                                  
+                                  const SizedBox(height: 16),
+                                  
+                                  // Quick presets
+                                  const Text(
+                                    'Quick Presets:',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _nCtx = 1024;
+                                              _nBatch = 256;
+                                              _nUbatch = 128;
+                                              _nThreads = 2;
+                                              _nThreadsBatch = 1;
+                                              _nSeqMax = 1;
+                                            });
+                                            setModalState(() {
+                                              _nCtx = 1024;
+                                              _nBatch = 256;
+                                              _nUbatch = 128;
+                                              _nThreads = 2;
+                                              _nThreadsBatch = 1;
+                                              _nSeqMax = 1;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green[100],
+                                            foregroundColor: Colors.green[800],
+                                          ),
+                                          child: const Text('iOS Optimized', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _nCtx = 2048;
+                                              _nBatch = 512;
+                                              _nUbatch = 256;
+                                              _nThreads = 4;
+                                              _nThreadsBatch = 2;
+                                              _nSeqMax = 1;
+                                            });
+                                            setModalState(() {
+                                              _nCtx = 2048;
+                                              _nBatch = 512;
+                                              _nUbatch = 256;
+                                              _nThreads = 4;
+                                              _nThreadsBatch = 2;
+                                              _nSeqMax = 1;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue[100],
+                                            foregroundColor: Colors.blue[800],
+                                          ),
+                                          child: const Text('Balanced', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          // Sampling Parameters Toggle
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.purple[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.purple[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Checkbox(
+                                      value: _useCustomSamplingParams,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _useCustomSamplingParams = value ?? false;
+                                        });
+                                        setModalState(() {
+                                          _useCustomSamplingParams = value ?? false;
+                                        });
+                                      },
+                                    ),
+                                    const Expanded(
+                                      child: Text(
+                                        'Use Custom Sampling Parameters',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _useCustomSamplingParams
+                                    ? 'Custom sampling parameters will control text generation behavior'
+                                    : 'Default llama.cpp sampling parameters will be used',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Sampling Parameters Configuration (only shown when custom is enabled)
+                          if (_useCustomSamplingParams) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.purple[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.purple[200]!),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Sampling Parameters Configuration',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  
+                                  // Max Tokens
+                                  _buildSliderSetting(
+                                    'Max Tokens', 
+                                    _maxTokens.toDouble(), 
+                                    50, 
+                                    2048, 
+                                    39,
+                                    (value) {
+                                      setState(() => _maxTokens = value.round());
+                                      setModalState(() => _maxTokens = value.round());
+                                    },
+                                    'Maximum number of tokens to generate'
+                                  ),
+                                  
+                                  // Temperature
+                                  _buildSliderSetting(
+                                    'Temperature', 
+                                    _temperature, 
+                                    0.0, 
+                                    2.0, 
+                                    20,
+                                    (value) {
+                                      setState(() => _temperature = value);
+                                      setModalState(() => _temperature = value);
+                                    },
+                                    'Controls randomness (0.0 = deterministic, 1.0 = creative)'
+                                  ),
+                                  
+                                  // Top-K
+                                  _buildSliderSetting(
+                                    'Top-K', 
+                                    _topK.toDouble(), 
+                                    1, 
+                                    100, 
+                                    99,
+                                    (value) {
+                                      setState(() => _topK = value.round());
+                                      setModalState(() => _topK = value.round());
+                                    },
+                                    'Limits vocabulary to top K most likely tokens'
+                                  ),
+                                  
+                                  // Top-P
+                                  _buildSliderSetting(
+                                    'Top-P', 
+                                    _topP, 
+                                    0.1, 
+                                    1.0, 
+                                    9,
+                                    (value) {
+                                      setState(() => _topP = value);
+                                      setModalState(() => _topP = value);
+                                    },
+                                    'Nucleus sampling: uses smallest set of tokens with cumulative probability >= P'
+                                  ),
+                                  
+                                  const SizedBox(height: 16),
+                                  
+                                  // Sampling presets
+                                  const Text(
+                                    'Sampling Presets:',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.3;
+                                              _topK = 20;
+                                              _topP = 0.8;
+                                            });
+                                            setModalState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.3;
+                                              _topK = 20;
+                                              _topP = 0.8;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green[100],
+                                            foregroundColor: Colors.green[800],
+                                          ),
+                                          child: const Text('Conservative', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.8;
+                                              _topK = 40;
+                                              _topP = 0.9;
+                                            });
+                                            setModalState(() {
+                                              _maxTokens = 512;
+                                              _temperature = 0.8;
+                                              _topK = 40;
+                                              _topP = 0.9;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue[100],
+                                            foregroundColor: Colors.blue[800],
+                                          ),
+                                          child: const Text('Balanced', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _maxTokens = 1024;
+                                              _temperature = 1.2;
+                                              _topK = 60;
+                                              _topP = 0.95;
+                                            });
+                                            setModalState(() {
+                                              _maxTokens = 1024;
+                                              _temperature = 1.2;
+                                              _topK = 60;
+                                              _topP = 0.95;
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.orange[100],
+                                            foregroundColor: Colors.orange[800],
+                                          ),
+                                          child: const Text('Creative', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Helper method to build slider settings
+  Widget _buildSliderSetting(
+    String title,
+    double value,
+    double min,
+    double max,
+    int divisions,
+    Function(double) onChanged,
+    String description,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  (title == 'Temperature' || title == 'Top-P') 
+                    ? value.toStringAsFixed(1)
+                    : value.round().toString(),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: (title == 'Temperature' || title == 'Top-P') 
+              ? value.toStringAsFixed(1)
+              : value.round().toString(),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
   // Load model using service
   Future<void> _loadModel() async {
     if (_modelPath == null || _selectedModelName == null) return;
@@ -315,7 +1036,7 @@ class _ModelTestPageState extends State<ModelTestPage> {
     }
 
     final prompt = _promptController.text.trim();
-    const maxTokens = 512;
+    final maxTokens = _useCustomSamplingParams ? _maxTokens : 512;
 
     setState(() {
       _isInferenceLoading = true;
@@ -327,11 +1048,28 @@ class _ModelTestPageState extends State<ModelTestPage> {
     try {
       final stopwatch = Stopwatch()..start();
       
-      // Use isolate for inference
+      // Log custom parameter usage
+      if (_useCustomContextParams) {
+        print('Using custom context parameters: nCtx=$_nCtx, nBatch=$_nBatch, nUbatch=$_nUbatch, nSeqMax=$_nSeqMax, nThreads=$_nThreads, nThreadsBatch=$_nThreadsBatch');
+      }
+      if (_useCustomSamplingParams) {
+        print('Using custom sampling parameters: maxTokens=$_maxTokens, temperature=$_temperature, topK=$_topK, topP=$_topP');
+      }
+      
+      // Use isolate for inference with custom sampling parameters
       final inferenceParams = InferenceParams(
         modelPath: _llamaService.modelPath!,
         prompt: prompt,
         maxTokens: maxTokens,
+        temperature: _useCustomSamplingParams ? _temperature : null,
+        topK: _useCustomSamplingParams ? _topK : null,
+        topP: _useCustomSamplingParams ? _topP : null,
+        nCtx: _useCustomContextParams ? _nCtx : null,
+        nBatch: _useCustomContextParams ? _nBatch : null,
+        nUbatch: _useCustomContextParams ? _nUbatch : null,
+        nSeqMax: _useCustomContextParams ? _nSeqMax : null,
+        nThreads: _useCustomContextParams ? _nThreads : null,
+        nThreadsBatch: _useCustomContextParams ? _nThreadsBatch : null,
       );
 
       final result = await compute(_performInferenceInIsolate, inferenceParams);
@@ -397,6 +1135,18 @@ Characters Generated: ${result.length}
       appBar: AppBar(
         title: const Text('Model Testing'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Debug Tools',
+            onPressed: _showDebugMenu,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: _showSettingsMenu,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
@@ -535,19 +1285,6 @@ Characters Generated: ${result.length}
                                   ],
                                 ),
                               ),
-                              
-                              // Action Buttons Section
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : () async {
-                                    setState(() => _isLoading = true);
-                                    await _llamaService.initializeLlama();
-                                    setState(() => _isLoading = false);
-                                  },
-                                  child: const Text('Reinitialize FFI'),
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -564,6 +1301,37 @@ Characters Generated: ${result.length}
               'Model Inference',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            
+            // Custom Parameters Status Indicator
+            if (_useCustomContextParams || _useCustomSamplingParams) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, size: 16, color: Colors.orange[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Using custom ${_useCustomContextParams && _useCustomSamplingParams ? 'context & sampling' : _useCustomContextParams ? 'context' : 'sampling'} parameters',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[800],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            
             const SizedBox(height: 16),
 
             TextField(
@@ -797,16 +1565,55 @@ Characters Generated: ${result.length}
   }
 }
 
+// Context parameters class for easy passing
+class ContextParams {
+  final int? nCtx;
+  final int? nBatch;
+  final int? nUbatch;
+  final int? nSeqMax;
+  final int? nThreads;
+  final int? nThreadsBatch;
+
+  ContextParams({
+    this.nCtx,
+    this.nBatch,
+    this.nUbatch,
+    this.nSeqMax,
+    this.nThreads,
+    this.nThreadsBatch,
+  });
+}
+
 // Inference parameters class for isolate communication
 class InferenceParams {
   final String modelPath;
   final String prompt;
   final int maxTokens;
+  final double? temperature;
+  final int? topK;
+  final double? topP;
+  
+  // Context parameters
+  final int? nCtx;
+  final int? nBatch;
+  final int? nUbatch;
+  final int? nSeqMax;
+  final int? nThreads;
+  final int? nThreadsBatch;
 
   InferenceParams({
     required this.modelPath,
     required this.prompt,
     required this.maxTokens,
+    this.temperature,
+    this.topK,
+    this.topP,
+    this.nCtx,
+    this.nBatch,
+    this.nUbatch,
+    this.nSeqMax,
+    this.nThreads,
+    this.nThreadsBatch,
   });
 }
 
@@ -827,7 +1634,14 @@ Future<String?> _performInferenceInIsolate(InferenceParams params) async {
       return null;
     }
     
-    final contextCreated = llamaFFI.createContext();
+    final contextCreated = llamaFFI.createContext(
+      nCtx: params.nCtx,
+      nBatch: params.nBatch,
+      nUbatch: params.nUbatch,
+      nSeqMax: params.nSeqMax,
+      nThreads: params.nThreads,
+      nThreadsBatch: params.nThreadsBatch,
+    );
     if (!contextCreated) {
       llamaFFI.freeBackend();
       return null;
@@ -836,6 +1650,9 @@ Future<String?> _performInferenceInIsolate(InferenceParams params) async {
     final result = llamaFFI.performInference(
       params.prompt,
       maxTokens: params.maxTokens,
+      temperature: params.temperature,
+      topK: params.topK,
+      topP: params.topP,
     );
     
     llamaFFI.freeBackend();
