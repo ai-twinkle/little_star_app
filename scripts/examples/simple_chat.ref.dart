@@ -16,12 +16,12 @@ class ChatMessage {
   final String content;
   
   ChatMessage(this.role, this.content);
-}
 
-// Special chat tokens commonly used by Gemma chat templates
-const String _tokBos = "<bos>";
-const String _tokStartOfTurn = "<start_of_turn>";
-const String _tokEndOfTurn = "<end_of_turn>";
+  @override
+  String toString() {
+    return "ChatMessage(role: $role, content: $content)";
+  }
+}
 
 void main(List<String> args) {
   String modelPath = "";
@@ -260,76 +260,112 @@ void main(List<String> args) {
 
   // Chat loop
   final messages = <ChatMessage>[];
+  // Buffer to store formatted conversation
+  var formattedSize = nCtx;
+  ffi.Pointer<ffi.Char> formatted = calloc<ffi.Char>(formattedSize);
   final maxResponseTokens = 100; // Limit response length (increased for better Chinese support)
   var isFirstPrompt = true;
-  
+  int prevLen = 0; // Track previous conversation length
+
   print("Chat started. Type your message and press Enter. Empty line to exit.\n");
   
   while (true) {
     // Get user input
     stdout.write('\x1b[32m> \x1b[0m'); // Green prompt
     final userInput = stdin.readLineSync();
-    
+
+    print("userInput: ${userInput}\n");
+
     if (userInput == null || userInput.trim().isEmpty) {
       break;
     }
 
+    // Try to get model-provided chat template
+    final tmplPtr = llamaFFI.llama_model_chat_template(model, ffi.nullptr);
+    print("tmplPtr: ${tmplPtr}\n");
+
     // Add user message to history
     messages.add(ChatMessage("user", userInput));
 
-    // Keep only last few messages to prevent context overflow
-    while (messages.length > 6) { // Keep last 3 exchanges (6 messages)
-      messages.removeAt(0);
-    }
-    
-    // If we removed messages, we need to clear KV cache for a fresh start
-    // Note: This is a simplified approach. In a full implementation, 
-    // we would properly manage the KV cache to maintain context.
+    print("messages: ${messages}\n");
 
-    // Build prompt using Gemma-style chat turn tokens to match C++ example behavior
-    final promptBuffer = StringBuffer();
-    if (isFirstPrompt) {
-      promptBuffer.write(_tokBos);
+    // Build native llama_chat_message array
+    final messageData = malloc<llama_chat_message>(messages.length);
+    for (int i = 0; i < messages.length; i++) {
+      final m = messages[i];
+      final rolePtr = m.role.toNativeUtf8().cast<ffi.Char>();
+      final contentPtr = m.content.toNativeUtf8().cast<ffi.Char>();
+      messageData[i]
+        ..role = rolePtr
+        ..content = contentPtr;
     }
-    // Add conversation history (only recent messages)
-    for (final message in messages) {
-      if (message.role == "user") {
-        promptBuffer
-          ..write(_tokStartOfTurn)
-          ..write("user\n")
-          ..write(message.content)
-          ..write("\n")
-          ..write(_tokEndOfTurn)
-          ..write("\n");
-      } else {
-        // Gemma typically uses "model" for assistant turns
-        promptBuffer
-          ..write(_tokStartOfTurn)
-          ..write("model\n")
-          ..write(message.content)
-          ..write("\n")
-          ..write(_tokEndOfTurn)
-          ..write("\n");
-      }
-    }
-    // Now open a new assistant/model turn for generation
-    promptBuffer
-      ..write(_tokStartOfTurn)
-      ..write("model\n");
 
-    final prompt = promptBuffer.toString();
+    int newLen = llamaFFI.llama_chat_apply_template(tmplPtr, messageData, messages.length, true, ffi.nullptr, 0);
+    if (newLen > formattedSize) {
+      // Reallocate buffer if needed
+      malloc.free(formatted);
+      formattedSize = newLen;
+      formatted = calloc<ffi.Char>(formattedSize);
+      newLen = llamaFFI.llama_chat_apply_template(tmplPtr, messageData, messages.length, true, formatted, formattedSize);
+    } else {
+      newLen = llamaFFI.llama_chat_apply_template(tmplPtr, messageData, messages.length, true, formatted, formattedSize);
+    }
+    if (newLen < 0) {
+      stderr.writeln("error: failed to apply the chat template");
+      malloc.free(messageData);
+      exit(1);
+    }
+
+    // Extract only the new prompt (from prevLen to newLen), like C++ does
+    final promptBytes = formatted.cast<ffi.Uint8>().asTypedList(newLen).sublist(prevLen, newLen);
+    final prompt = utf8.decode(promptBytes);
 
     // Generate response
     stdout.write('\x1b[33m'); // Yellow text for assistant
     print("prompt: ${prompt}\n");
     final response = generate(prompt, maxResponseTokens);
     print("response: ${response}\n");
-    print('\n\x1b[0m'); // Reset color
+    stdout.write('\n\x1b[0m'); // Reset color
 
     // Add response to message history
     if (response.isNotEmpty) {
       messages.add(ChatMessage("assistant", response));
+
+      print("messages: ${messages}\n");
+      
+      // Update prevLen after adding assistant response (like C++ does)
+      // Rebuild message array to include the assistant response
+      final updatedMessageData = malloc<llama_chat_message>(messages.length);
+      for (int i = 0; i < messages.length; i++) {
+        final m = messages[i];
+        final rolePtr = m.role.toNativeUtf8().cast<ffi.Char>();
+        final contentPtr = m.content.toNativeUtf8().cast<ffi.Char>();
+        updatedMessageData[i]
+          ..role = rolePtr
+          ..content = contentPtr;
+      }
+
+      prevLen = llamaFFI.llama_chat_apply_template(tmplPtr, updatedMessageData, messages.length, false, ffi.nullptr, 0);
+      if (prevLen < 0) {
+        stderr.writeln("error: failed to apply the chat template for prevLen");
+        malloc.free(updatedMessageData);
+        exit(1);
+      }
+
+      // Free the updated message data
+      for (int i = 0; i < messages.length; i++) {
+        malloc.free(updatedMessageData[i].role);
+        malloc.free(updatedMessageData[i].content);
+      }
+      malloc.free(updatedMessageData);
     }
+
+    // Free the original message data
+    for (int i = 0; i < messages.length - (response.isNotEmpty ? 1 : 0); i++) {
+      malloc.free(messageData[i].role);
+      malloc.free(messageData[i].content);
+    }
+    malloc.free(messageData);
 
     // After the first generation, we should not prepend <bos> again
     if (isFirstPrompt) {
@@ -338,6 +374,7 @@ void main(List<String> args) {
   }
 
   // Free resources
+  malloc.free(formatted);
   llamaFFI.llama_sampler_free(smpl);
   llamaFFI.llama_free(ctx);
   llamaFFI.llama_model_free(model);

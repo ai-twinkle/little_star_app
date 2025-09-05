@@ -202,6 +202,12 @@ final class llama_token_data_array extends ffi.Struct {
   external bool sorted;
 }
 
+// used in chat template (struct llama_chat_message)
+final class llama_chat_message extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> role;
+  external ffi.Pointer<ffi.Char> content;
+}
+
 // Sampler structs & typedefs
 final class llama_sampler_chain_params extends ffi.Struct {
   @ffi.Bool()
@@ -311,6 +317,27 @@ typedef LlamaTokenize = int Function(ffi.Pointer<llama_vocab> vocab, ffi.Pointer
 typedef LlamaTokenToPieceNative = ffi.Int32 Function(ffi.Pointer<llama_vocab> vocab, ffi.Int32 token, ffi.Pointer<ffi.Char> buf, ffi.Int32 length, ffi.Int32 lstrip, ffi.Bool special);
 typedef LlamaTokenToPiece = int Function(ffi.Pointer<llama_vocab> vocab, int token, ffi.Pointer<ffi.Char> buf, int length, int lstrip, bool special);
 
+// Chat template functions
+typedef LlamaModelChatTemplateNative = ffi.Pointer<ffi.Char> Function(ffi.Pointer<llama_model> model, ffi.Pointer<ffi.Char> name);
+typedef LlamaModelChatTemplate = ffi.Pointer<ffi.Char> Function(ffi.Pointer<llama_model> model, ffi.Pointer<ffi.Char> name);
+
+typedef LlamaChatApplyTemplateNative = ffi.Int32 Function(
+  ffi.Pointer<ffi.Char> tmpl,
+  ffi.Pointer<llama_chat_message> chat,
+  ffi.Size nMsg,
+  ffi.Bool addAss,
+  ffi.Pointer<ffi.Char> buf,
+  ffi.Int32 length
+);
+typedef LlamaChatApplyTemplate = int Function(
+  ffi.Pointer<ffi.Char> tmpl,
+  ffi.Pointer<llama_chat_message> chat,
+  int nMsg,
+  bool addAss,
+  ffi.Pointer<ffi.Char> buf,
+  int length
+);
+
 // Sampler functions
 typedef LlamaSamplerChainDefaultParamsNative = llama_sampler_chain_params Function();
 typedef LlamaSamplerChainDefaultParams = llama_sampler_chain_params Function();
@@ -391,6 +418,9 @@ class LlamaFFI {
   //
   late LlamaTokenize llama_tokenize;
   late LlamaTokenToPiece llama_token_to_piece;
+  //
+  late LlamaModelChatTemplate llama_model_chat_template;
+  late LlamaChatApplyTemplate llama_chat_apply_template;
   //
   late LlamaSamplerChainDefaultParams llama_sampler_chain_default_params;
   late LlamaSamplerChainInit llama_sampler_chain_init;
@@ -532,6 +562,15 @@ class LlamaFFI {
       llama_token_to_piece = _lib
           .lookup<ffi.NativeFunction<LlamaTokenToPieceNative>>('llama_token_to_piece')
           .asFunction<LlamaTokenToPiece>();
+
+      // Chat template functions
+      llama_model_chat_template = _lib
+          .lookup<ffi.NativeFunction<LlamaModelChatTemplateNative>>('llama_model_chat_template')
+          .asFunction<LlamaModelChatTemplate>();
+
+      llama_chat_apply_template = _lib
+          .lookup<ffi.NativeFunction<LlamaChatApplyTemplateNative>>('llama_chat_apply_template')
+          .asFunction<LlamaChatApplyTemplate>();
 
       // Sampler functions
       llama_sampler_chain_default_params = _lib
@@ -1173,6 +1212,9 @@ class LlamaFFI {
       //
       'llama_tokenize',
       'llama_token_to_piece',
+      //
+      'llama_model_chat_template',
+      'llama_chat_apply_template',
       //
       'llama_sampler_chain_default_params',
       'llama_sampler_chain_init',
