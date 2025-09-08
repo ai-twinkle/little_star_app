@@ -28,13 +28,26 @@ class ChatMessage {
 }
 
 void main(List<String> args) {
-  // Logger.root.level = Level.INFO;
+  Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
-    print('${record.level.name}: ${record.time}: ${record.message}');
+    if (record.level == Level.SEVERE) {
+      print('\x1b[31m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
+    } else if (record.level == Level.WARNING) {
+      print('\x1b[33m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
+    } else if (record.level == Level.INFO) {
+      print('\x1b[32m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
+    } else if (record.level == Level.FINE) {
+      print('\x1b[34m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
+    } else if (record.level == Level.FINER) {
+      print('\x1b[35m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
+    } else if (record.level == Level.FINEST) {
+      print('\x1b[36m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
+    }
   });
   // Ensure console I/O uses UTF-8 (helps on Windows terminals)
   stdout.encoding = utf8;
   stderr.encoding = utf8;
+
   String modelPath = "";
   int ngl = 99;
   int nCtx = 2048;
@@ -77,38 +90,37 @@ void main(List<String> args) {
       exit(1);
     }
   }
-
   if (modelPath.isEmpty) {
     printUsage(args);
     exit(1);
   }
 
+  // Initialize llamaFFI instance
   final LlamaFFI llamaFFI = LlamaFFI();
   if (!llamaFFI.modelFileExists(modelPath)) {
-    stderr.writeln("error: model file not found");
+    log.severe("error: model file not found");
     exit(1);
   }
 
   // Load dynamic backends
-  print("Loading backends...");
+  log.fine("Loading backends...");
   llamaFFI.ggml_backend_load_all();
 
   // Initialize the model
   final modelParams = llamaFFI.llama_model_default_params();
   modelParams.n_gpu_layers = ngl;
 
-  final pathPtr = modelPath.toNativeUtf8().cast<ffi.Char>();
+  final pathPtr = modelPath.toNativeUtf8().cast<ffi.Char>(); // Cast Dart String to Native String and get pointer
   final model = llamaFFI.llama_model_load_from_file(pathPtr, modelParams);
   malloc.free(pathPtr);
-
   if (model.address == 0) {
-    stderr.writeln("error: unable to load model");
+    log.severe("error: unable to load model");
     exit(1);
   }
 
   final vocab = llamaFFI.llama_model_get_vocab(model);
   if (vocab.address == 0) {
-    stderr.writeln("error: failed to get vocabulary from model");
+    log.severe("error: failed to get vocabulary from model");
     llamaFFI.llama_model_free(model);
     exit(1);
   }
@@ -120,7 +132,7 @@ void main(List<String> args) {
 
   final ctx = llamaFFI.llama_init_from_model(model, ctxParams);
   if (ctx.address == 0) {
-    stderr.writeln("error: failed to create the llama_context");
+    log.severe("error: failed to create the llama_context");
     llamaFFI.llama_model_free(model);
     exit(1);
   }
@@ -154,7 +166,7 @@ void main(List<String> args) {
     final nPromptRequired = llamaFFI.llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, addBos, true);
     
     if (nPromptRequired >= 0) {
-      stderr.writeln("error: unexpected positive return from tokenize call");
+      log.severe("error: unexpected positive return from tokenize call");
       malloc.free(promptUtf8);
       return "";
     }
@@ -163,7 +175,7 @@ void main(List<String> args) {
     
     // Check if prompt is too long for context
     if (nPrompt >= nCtx - 10) { // Leave some room for generation
-      stderr.writeln("error: prompt too long for context size ($nPrompt tokens >= ${nCtx - 10})");
+      log.severe("error: prompt too long for context size ($nPrompt tokens >= ${nCtx - 10})");
       malloc.free(promptUtf8);
       return "";
     }
@@ -176,7 +188,7 @@ void main(List<String> args) {
     malloc.free(promptUtf8);
         
     if (actualTokens < 0) {
-      stderr.writeln("error: failed to tokenize the prompt");
+      log.severe("error: failed to tokenize the prompt");
       malloc.free(tokens);
       return "";
     }
@@ -190,13 +202,13 @@ void main(List<String> args) {
       while (generatedTokens < maxTokens) {
         // Check if we have enough space in the context
         if (nPrompt + generatedTokens >= nCtx - 1) {
-          print("\nContext limit reached");
+          log.warning("\nContext limit reached");
           break;
         }
 
         // Decode the batch
         if (llamaFFI.llama_decode(ctx, batch) != 0) {
-          print("\nDecode failed");
+          log.warning("\nDecode failed");
           break;
         }
 
@@ -212,7 +224,7 @@ void main(List<String> args) {
         final buf = malloc<ffi.Char>(256);
         final n = llamaFFI.llama_token_to_piece(vocab, newTokenId, buf, 256, 0, true);
         if (n < 0) {
-          stderr.writeln("error: failed to convert token to piece");
+          log.severe("error: failed to convert token to piece");
           malloc.free(buf);
           break;
         }
@@ -262,7 +274,7 @@ void main(List<String> args) {
   var isFirstPrompt = true;
   int prevLen = 0; // Track previous conversation length
 
-  print("Chat started. Type your message and press Enter. Empty line to exit.\n");
+  log.fine("Chat started. Type your message and press Enter. Empty line to exit.\n");
   
   while (true) {
     // Get user input
@@ -374,5 +386,5 @@ void main(List<String> args) {
   llamaFFI.llama_free(ctx);
   llamaFFI.llama_model_free(model);
 
-  print("Chat ended.");
+  log.fine("Chat ended.");
 }
