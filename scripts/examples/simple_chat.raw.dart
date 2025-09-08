@@ -118,6 +118,7 @@ void main(List<String> args) {
     exit(1);
   }
 
+  // Get vocabulary from model
   final vocab = llamaFFI.llama_model_get_vocab(model);
   if (vocab.address == 0) {
     log.severe("error: failed to get vocabulary from model");
@@ -140,14 +141,11 @@ void main(List<String> args) {
   // Initialize the sampler
   final sparams = llamaFFI.llama_sampler_chain_default_params();
   final smpl = llamaFFI.llama_sampler_chain_init(sparams);
-  
-  // Add sampler components (simplified compared to C++ version)
-  // Align behavior closer to C++ example: temperature + top-p + random dist
-  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_temp(0.8));
-  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_top_p(0.95, 1));
-  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_dist(0));
+  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_temp(0.8)); // Temperature
+  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_top_p(0.95, 1)); // Top-p
+  llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_dist(0)); // Random distribution
 
-  // Helper function to generate response
+  // Helper function to evaluate a prompt and generate a response
   String generate(String prompt, int maxTokens, {required bool addBos}) {
     final responseBytes = <int>[];
     int _lastPrintedLength = 0; // Track how much text we've already printed
