@@ -125,7 +125,7 @@ void main(List<String> args) {
   llamaFFI.llama_sampler_chain_add(smpl, llamaFFI.llama_sampler_init_dist(0));
 
   // Helper function to generate response
-  String generate(String prompt, int maxTokens) {
+  String generate(String prompt, int maxTokens, {required bool addBos}) {
     final responseBytes = <int>[];
     int _lastPrintedLength = 0; // Track how much text we've already printed
 
@@ -135,7 +135,7 @@ void main(List<String> args) {
     final promptByteLength = promptUtf8.length;
 
     // Get required token count
-    final nPromptRequired = llamaFFI.llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, false, true);
+    final nPromptRequired = llamaFFI.llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, addBos, true);
     
     if (nPromptRequired >= 0) {
       stderr.writeln("error: unexpected positive return from tokenize call");
@@ -155,7 +155,7 @@ void main(List<String> args) {
     // Allocate space for tokens and tokenize
     final tokens = malloc<llama_token>(nPrompt);
     final actualTokens = llamaFFI.llama_tokenize(
-        vocab, promptPtr, promptByteLength, tokens, nPrompt, false, true);
+        vocab, promptPtr, promptByteLength, tokens, nPrompt, addBos, true);
         
     malloc.free(promptUtf8);
         
@@ -323,7 +323,7 @@ void main(List<String> args) {
     // Generate response
     stdout.write('\x1b[33m'); // Yellow text for assistant
     print("prompt: ${prompt}\n");
-    final response = generate(prompt, maxResponseTokens);
+    final response = generate(prompt, maxResponseTokens, addBos: isFirstPrompt);
     print("response: ${response}\n");
     stdout.write('\n\x1b[0m'); // Reset color
 
