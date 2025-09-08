@@ -28,6 +28,10 @@ void main(List<String> args) {
   int ngl = 99;
   int nCtx = 2048;
 
+  // Ensure console I/O uses UTF-8 (helps on Windows terminals)
+  stdout.encoding = utf8;
+  stderr.encoding = utf8;
+
   // Parse command line arguments
   for (int i = 0; i < args.length; i++) {
     try {
@@ -129,6 +133,11 @@ void main(List<String> args) {
     final responseBytes = <int>[];
     int _lastPrintedLength = 0; // Track how much text we've already printed
 
+    // Incremental UTF-8 decoder for streaming output
+    final stringBuffer = StringBuffer();
+    final stringSink = StringConversionSink.fromStringSink(stringBuffer);
+    final byteSink = utf8.decoder.startChunkedConversion(stringSink);
+
     // Convert prompt to UTF-8 and tokenize
     final promptUtf8 = prompt.toNativeUtf8();
     final promptPtr = promptUtf8.cast<ffi.Char>();
@@ -205,24 +214,14 @@ void main(List<String> args) {
         final bytes = buf.cast<ffi.Uint8>().asTypedList(n);
         responseBytes.addAll(bytes);
         
-        // Try to decode and print incrementally for streaming effect
-        // This handles multi-byte UTF-8 characters properly
-        try {
-          // Try to decode the accumulated bytes
-          final text = utf8.decode(responseBytes, allowMalformed: false);
-          // If successful, we can print the new part
-          final currentLength = text.length;
-          print("text: ${text}, _lastPrintedLength: ${_lastPrintedLength}, currentLength: ${currentLength}\n");
-          if (currentLength > _lastPrintedLength) {
-            final newText = text.substring(_lastPrintedLength);
-            print("newText: ${newText}\n");
-            stdout.write("${newText}\n");
-            _lastPrintedLength = currentLength;
-          }
-        } catch (e) {
-          // If UTF-8 decode fails, it means we have incomplete UTF-8 sequence
-          // Don't print anything yet, wait for more bytes
-          print("error: ${e}\n");
+        // Stream UTF-8 decode safely without throwing on incomplete sequences
+        byteSink.add(bytes);
+        final text = stringBuffer.toString();
+        final currentLength = text.length;
+        if (currentLength > _lastPrintedLength) {
+          final newText = text.substring(_lastPrintedLength);
+          stdout.write(newText);
+          _lastPrintedLength = currentLength;
         }
         
         malloc.free(buf);
@@ -237,25 +236,14 @@ void main(List<String> args) {
       malloc.free(tokenPtr);
     }
 
-    // Print any remaining text that wasn't printed during streaming
-    try {
-      final finalText = utf8.decode(responseBytes, allowMalformed: true);
-      print("finalText: ${finalText}, _lastPrintedLength: ${_lastPrintedLength}\n");
-      if (finalText.length > _lastPrintedLength) {
-        final remainingText = finalText.substring(_lastPrintedLength);
-        stdout.write(remainingText);
-      }
-      return finalText;
-    } catch (e) {
-      // Fallback if UTF-8 decoding completely fails
-      final fallbackText = String.fromCharCodes(responseBytes);
-      print("fallbackText: ${fallbackText}, _lastPrintedLength: ${_lastPrintedLength}\n");
-      if (fallbackText.length > _lastPrintedLength) {
-        final remainingText = fallbackText.substring(_lastPrintedLength);
-        stdout.write(remainingText);
-      }
-      return fallbackText;
+    // Flush remaining decoded text and return
+    byteSink.close();
+    final finalText = stringBuffer.toString();
+    if (finalText.length > _lastPrintedLength) {
+      final remainingText = finalText.substring(_lastPrintedLength);
+      stdout.write(remainingText);
     }
+    return finalText;
   }
 
   // Chat loop
@@ -268,7 +256,7 @@ void main(List<String> args) {
   while (true) {
     // Get user input
     stdout.write('\x1b[32m> \x1b[0m'); // Green prompt
-    final userInput = stdin.readLineSync();
+    final userInput = stdin.readLineSync(encoding: utf8);
     
     if (userInput == null || userInput.trim().isEmpty) {
       break;
