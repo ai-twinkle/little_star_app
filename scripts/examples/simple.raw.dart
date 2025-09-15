@@ -7,8 +7,9 @@ import '../../lib/llama_ffi.dart';
 
 void main() {
   // Initialize settings
-  // String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q4_K_M.gguf";
-  String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q3_K_M.gguf";
+  // String modelPath = "R:\\model_gguf\\gemma-3-270m-it-qat-UD-Q8_K_XL.gguf";
+  String modelPath = "R:\\model_gguf\\Gemma-3-Taiwan-270M-it-F16.gguf";
+  // String modelPath = "R:\\model_gguf\\Llama-3.2-3B-F1-Reasoning-Instruct-Q3_K_M.gguf";
   // String modelPath = "Llama-3.2-3B-F1-Reasoning-Instruct-Q8_0.gguf";
   // String prompt = "Why is the sky blue?";
   String prompt = "台灣國中升高中";
