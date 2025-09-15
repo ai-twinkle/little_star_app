@@ -288,6 +288,14 @@ typedef LlamaBackendFree = void Function();
 typedef LlamaProgressCallbackNative = ffi.Bool Function(ffi.Float progress, ffi.Pointer<ffi.Void> userData);
 typedef LlamaProgressCallback = bool Function(double progress, ffi.Pointer<ffi.Void> userData);
 
+// Logging callback typedefs
+typedef LlamaLogCallbackNative = ffi.Void Function(ffi.Int32 level, ffi.Pointer<ffi.Char> text, ffi.Pointer<ffi.Void> userData);
+typedef LlamaLogCallback = void Function(int level, ffi.Pointer<ffi.Char> text, ffi.Pointer<ffi.Void> userData);
+
+// Logging functions
+typedef LlamaLogSetNative = ffi.Void Function(ffi.Pointer<ffi.NativeFunction<LlamaLogCallbackNative>> logCallback, ffi.Pointer<ffi.Void> userData);
+typedef LlamaLogSet = void Function(ffi.Pointer<ffi.NativeFunction<LlamaLogCallbackNative>> logCallback, ffi.Pointer<ffi.Void> userData);
+
 // Model loading functions
 typedef LlamaModelDefaultParamsNative = llama_model_params Function();
 typedef LlamaModelDefaultParams = llama_model_params Function();
@@ -408,6 +416,8 @@ class LlamaFFI {
   late LlamaInitBackend llama_backend_init;
   late LlamaBackendFree llama_backend_free;
   //
+  late LlamaLogSet llama_log_set;
+  //
   late LlamaModelDefaultParams llama_model_default_params;
   late LlamaModelLoadFromFile llama_model_load_from_file;
   late LlamaModelGetVocab llama_model_get_vocab;
@@ -452,6 +462,7 @@ class LlamaFFI {
   ffi.Pointer<llama_context>? _context;
   ffi.Pointer<llama_sampler>? _sampler;
   llama_batch? _batch;
+  bool logVerbose = false;
   
   ffi.Pointer<llama_model>? get model => _model;
   ffi.Pointer<llama_context>? get context => _context;
@@ -540,6 +551,11 @@ class LlamaFFI {
       llama_backend_free = _lib
           .lookup<ffi.NativeFunction<LlamaBackendFreeNative>>('llama_backend_free')
           .asFunction<LlamaBackendFree>();
+
+      // Load logging functions
+      llama_log_set = _lib
+          .lookup<ffi.NativeFunction<LlamaLogSetNative>>('llama_log_set')
+          .asFunction<LlamaLogSet>();
 
       // Load model functions
       llama_model_default_params = _lib
@@ -673,9 +689,20 @@ class LlamaFFI {
     }
   }
 
+  static void llamaLogCallbackNull(int level, ffi.Pointer<ffi.Char> text, ffi.Pointer<ffi.Void> userData) {}
+
+  void setLogCallback() {
+    if (logVerbose == false) {
+      final nullCallbackPointer =
+          ffi.Pointer.fromFunction<LlamaLogCallbackNative>(llamaLogCallbackNull);
+      llama_log_set(nullCallbackPointer, ffi.nullptr);
+    }
+  }
+
   // Initialize the llama backend
   void initBackend() {
     try {
+      setLogCallback();
       llama_backend_init();
       print('Llama backend initialized successfully');
     } catch (e) {
@@ -685,7 +712,7 @@ class LlamaFFI {
 
   // Load model from file
   bool loadModel(String modelPath) {
-    print('loadModel(modelPath: $modelPath)');
+    print('\n\nloadModel(modelPath: $modelPath)');
     try {
       if (_model != null) {
         freeModel();
@@ -720,7 +747,7 @@ class LlamaFFI {
       final promptUtf8 = prompt.toNativeUtf8();
       final promptPtr = promptUtf8.cast<ffi.Char>();
       final promptByteLength = promptUtf8.length; // This gives actual byte length
-      print("prompt: $prompt, promptPtr: ${promptPtr.address}, byteLength: $promptByteLength");
+      print("\n\ntokenizePrompt prompt: $prompt, promptPtr: ${promptPtr.address}, byteLength: $promptByteLength");
 
       // First call to get required token count (negative return value)
       final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
@@ -762,7 +789,7 @@ class LlamaFFI {
     int? nThreads,
     int? nThreadsBatch,
   }) {
-    print('createContext: nCtx=$nCtx, nBatch=$nBatch, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
+    print('\n\ncreateContext: nCtx=$nCtx, nBatch=$nBatch, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
     try {
       if (_model == null || _model == ffi.nullptr) {
         print('No model loaded');
@@ -778,20 +805,16 @@ class LlamaFFI {
       
       if (nCtx != null) {
         contextParams.n_ctx = nCtx;
-        print('Applied custom n_ctx: $nCtx');
       }
       if (nBatch != null) {
         contextParams.n_batch = nBatch;
-        print('Applied custom n_batch: $nBatch');
       }
       
       if (nThreads != null) {
         contextParams.n_threads = nThreads;
-        print('Applied custom n_threads: $nThreads');
       }
       if (nThreadsBatch != null) {
         contextParams.n_threads_batch = nThreadsBatch;
-        print('Applied custom n_threads_batch: $nThreadsBatch');
       }
 
       _context = llama_new_context_with_model(_model!, contextParams);
@@ -801,7 +824,6 @@ class LlamaFFI {
         return false;
       }
 
-      print('Context created successfully with custom parameters');
       return true;
     } catch (e) {
       print('Error creating context: $e');
@@ -810,7 +832,7 @@ class LlamaFFI {
   }
 
   bool createSampler({bool useGreedy = false, int? topK, double? topP, double? temp}) {
-    print('createSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
+    print('\n\ncreateSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
     try {
       if (_context == null || _context == ffi.nullptr) {
         print('Context not initialized');
@@ -849,7 +871,7 @@ class LlamaFFI {
   }
 
   void generate(int nPrompt, {int maxTokens = 256}) {
-    print('generate()');
+    print('\n\ngenerate(nPrompt: $nPrompt, maxTokens: $maxTokens)');
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
         print('Model or context not initialized');
@@ -894,7 +916,6 @@ class LlamaFFI {
       }
 
       // Main generation loop
-      int nDecode = 0;
       int newTokenId;
       final tokenPtr = malloc<llama_token>();
 
@@ -908,14 +929,13 @@ class LlamaFFI {
 
         // Sample next token
         newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
-        
+
         // Check if end of generation
         if (llama_vocab_is_eog(vocab, newTokenId)) {
           print("End of generation reached");
           break;
         }
-        
-        
+
         // Convert token to text piece
         final buf = malloc<ffi.Char>(128);
         int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
@@ -932,8 +952,6 @@ class LlamaFFI {
         // Prepare next batch
         tokenPtr.value = newTokenId;
         _batch = llama_batch_get_one(tokenPtr, 1);
-
-        nDecode++;
       }
 
     } catch (e) {
@@ -1199,6 +1217,7 @@ class LlamaFFI {
     final commonFunctions = [
       'llama_backend_init',
       'llama_backend_free',
+      'llama_log_set',
       //
       'llama_model_default_params',
       'llama_model_load_from_file',
@@ -1294,6 +1313,7 @@ class LlamaFFI {
     print('=== Function Symbol Check ===');
     final testFunctions = [
       'llama_backend_init',
+      'llama_log_set',
       'llama_model_load_from_file',
       'ggml_backend_load_all',
       'llama_time_us',

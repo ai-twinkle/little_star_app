@@ -64,21 +64,21 @@ class UnifiedLM {
   ContextParams _contextParams = ContextParams();
   SamplerParams _samplerParams = SamplerParams();
 
-  factory UnifiedLM(String modelPath) {
+  factory UnifiedLM(String modelPath, {bool verbose = false}) {
     final lm = UnifiedLM._internal();
     lm._modelParams = ModelParams(modelPath: modelPath);
     lm._contextParams = ContextParams();
     lm._samplerParams = SamplerParams();
-    lm.init();
+    lm.init(verbose: verbose);
     return lm;
   }
 
-  factory UnifiedLM.withParams(ModelParams modelParams, ContextParams contextParams, SamplerParams samplerParams) {
+  factory UnifiedLM.withParams(ModelParams modelParams, ContextParams contextParams, SamplerParams samplerParams, {bool verbose = false}) {
     final lm = UnifiedLM._internal();
     lm._modelParams = modelParams;
     lm._contextParams = contextParams;
     lm._samplerParams = samplerParams;
-    lm.init();
+    lm.init(verbose: verbose);
     return lm;
   }
 
@@ -87,18 +87,21 @@ class UnifiedLM {
   bool _initBackend() {
     try {
       if (Platform.isWindows) {
+        _llamaFFI!.setLogCallback();
         _llamaFFI!.ggml_backend_load_all();
       } else {
         _llamaFFI!.initBackend();
       }
+
       return true;
     } catch (e) {
       throw Exception('Failed to initialize backend: $e');
     }
   }
 
-  void init() {
+  void init({bool verbose = false}) {
     _llamaFFI = LlamaFFI();
+    _llamaFFI!.logVerbose = verbose;
 
     _initBackend();
 
