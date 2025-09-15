@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
+// Removed flutter/foundation.dart import to allow standalone Dart execution
+// Using print instead of print for standalone compatibility
 
 // Union for kv override values
 final class LlamaModelKvOverrideValue extends ffi.Union {
@@ -448,6 +450,22 @@ class LlamaFFI {
 
   ffi.Pointer<llama_model>? _model;
   ffi.Pointer<llama_context>? _context;
+  ffi.Pointer<llama_sampler>? _sampler;
+  llama_batch? _batch;
+  
+  ffi.Pointer<llama_model>? get model => _model;
+  ffi.Pointer<llama_context>? get context => _context;
+  ffi.Pointer<llama_sampler>? get sampler => _sampler;
+  llama_batch? get batch => _batch;
+  
+  // Check if model is loaded
+  bool get isModelLoaded => _model != null && _model != ffi.nullptr;
+
+  // Check if context is created
+  bool get isContextCreated => _context != null && _context != ffi.nullptr;
+
+  // Check if sampler is created
+  bool get isSamplerCreated => _sampler != null && _sampler != ffi.nullptr;
 
   LlamaFFI() {
     _loadLibrary();
@@ -695,17 +713,45 @@ class LlamaFFI {
     }
   }
 
-  bool tokenizePrompt(String prompt) {
-    print('tokenizePrompt(prompt: $prompt)');
+  int tokenizePrompt(String prompt) {
     try {
       final vocab = llama_model_get_vocab(_model!);
-      final promptPtr = prompt.toNativeUtf8().cast<ffi.Char>();
-      final tokens = llama_tokenize(vocab, promptPtr, prompt.length, ffi.nullptr, 0, true, true);
-      print('tokens: $tokens');
-      return true;
+      // Convert prompt to UTF-8 and get proper byte length
+      final promptUtf8 = prompt.toNativeUtf8();
+      final promptPtr = promptUtf8.cast<ffi.Char>();
+      final promptByteLength = promptUtf8.length; // This gives actual byte length
+      print("prompt: $prompt, promptPtr: ${promptPtr.address}, byteLength: $promptByteLength");
+
+      // First call to get required token count (negative return value)
+      final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
+      if (nPromptRequired >= 0) {
+        print("Error: unexpected positive return from tokenize call");
+        malloc.free(promptUtf8);
+        return 0;
+      }
+      int nPrompt = -nPromptRequired;
+      print('nPrompt: $nPrompt');
+
+      // Allocate space for the tokens and tokenize the prompt
+      final tokens = malloc<llama_token>(nPrompt);
+      final tokensCount = llama_tokenize(vocab, promptPtr, promptByteLength, tokens, nPrompt, true, true);
+
+      if (tokensCount < 0) {
+        print("Error: failed to tokenize the prompt");
+        malloc.free(promptUtf8);
+        malloc.free(tokens);
+        return 0;
+      }
+      print("Prompt(tokenized): $tokensCount tokens");
+
+      // Free the prompt memory now that we're done with it
+      malloc.free(promptUtf8);
+
+      _batch = llama_batch_get_one(tokens, nPrompt);
+      return nPrompt;
     } catch (e) {
       print('Error tokenizing prompt: $e');
-      return false;
+      return 0;
     }
   }
 
@@ -713,12 +759,10 @@ class LlamaFFI {
   bool createContext({
     int? nCtx,
     int? nBatch,
-    int? nUbatch,
-    int? nSeqMax,
     int? nThreads,
     int? nThreadsBatch,
   }) {
-    print('createContext: nCtx=$nCtx, nBatch=$nBatch, nUbatch=$nUbatch, nSeqMax=$nSeqMax, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
+    print('createContext: nCtx=$nCtx, nBatch=$nBatch, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
     try {
       if (_model == null || _model == ffi.nullptr) {
         print('No model loaded');
@@ -740,14 +784,7 @@ class LlamaFFI {
         contextParams.n_batch = nBatch;
         print('Applied custom n_batch: $nBatch');
       }
-      if (nUbatch != null) {
-        contextParams.n_ubatch = nUbatch;
-        print('Applied custom n_ubatch: $nUbatch');
-      }
-      if (nSeqMax != null) {
-        contextParams.n_seq_max = nSeqMax;
-        print('Applied custom n_seq_max: $nSeqMax');
-      }
+      
       if (nThreads != null) {
         contextParams.n_threads = nThreads;
         print('Applied custom n_threads: $nThreads');
@@ -772,112 +809,113 @@ class LlamaFFI {
     }
   }
 
-  // Simple inference function
-  String? performInference(String prompt, {
-    int maxTokens = 256,
-    double? temperature,
-    int? topK,
-    double? topP,
-    List<String>? stopSequences,
-  }) {
-    print(
-        'performInference(prompt: "$prompt", maxTokens: $maxTokens, temp: $temperature, topK: $topK, topP: $topP, stop: $stopSequences)');
+  bool createSampler({bool useGreedy = false, int? topK, double? topP, double? temp}) {
+    print('createSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
+    try {
+      if (_context == null || _context == ffi.nullptr) {
+        print('Context not initialized');
+        return false;
+      }
 
+      final sparams = llama_sampler_chain_default_params();
+      sparams.no_perf = false;
+      _sampler = llama_sampler_chain_init(sparams);
+
+      if (_sampler == ffi.nullptr) {
+        print('Failed to create sampler');
+        return false;
+      }
+
+      if (useGreedy) {
+        llama_sampler_chain_add(_sampler!, llama_sampler_init_greedy());
+      } else {
+        if (topK != null && topK > 0) {
+          llama_sampler_chain_add(_sampler!, llama_sampler_init_top_k(topK));
+        }
+        if (topP != null && topP < 1.0) {
+          llama_sampler_chain_add(_sampler!, llama_sampler_init_top_p(topP, 1));
+        }
+        if (temp != null && temp >= 0.0) {
+          llama_sampler_chain_add(_sampler!, llama_sampler_init_temp(temp));
+        }
+        llama_sampler_chain_add(_sampler!, llama_sampler_init_dist(0)); // 0 for random seed
+      }
+
+      return true;
+    } catch (e) {
+      print('Error creating sampler: $e');
+      return false;
+    }
+  }
+
+  void generate(int nPrompt, {int maxTokens = 256}) {
+    print('generate()');
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
         print('Model or context not initialized');
-        return null;
+        return;
+      }
+
+      if (_batch == null || _batch == ffi.nullptr) {
+        print('Batch not initialized');
+        return;
+      }
+
+      if (_sampler == null || _sampler == ffi.nullptr) {
+        print('Sampler not initialized');
+        return;
+      }
+
+      if (_context == null || _context == ffi.nullptr) {
+        print('Context not initialized');
+        return;
       }
 
       // Get vocabulary from model
       final vocab = llama_model_get_vocab(_model!);
       if (vocab.address == 0) {
         print("Error: failed to get vocabulary from model");
-        return null;
+        return;
       }
 
-      // Convert prompt to UTF-8 and get proper byte length
-      final promptUtf8 = prompt.toNativeUtf8();
-      final promptPtr = promptUtf8.cast<ffi.Char>();
-      final promptByteLength = promptUtf8.length;
-
-      // First call to get required token count (negative return value)
-      final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
-      if (nPromptRequired >= 0) {
-        print("Error: unexpected positive return from tokenize call");
-        malloc.free(promptUtf8);
-        return null;
+      // Print prompt tokens
+      for (int i = 0; i < nPrompt; i++) {
+        final buf = malloc<ffi.Char>(128);
+        int n = llama_token_to_piece(vocab, _batch!.token[i], buf, 128, 0, true);
+        if (n < 0) {
+          print("error: failed to convert token to piece");
+          malloc.free(buf);
+          malloc.free(_batch!.token);
+          return;
+        }
+        String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
+        stdout.write(piece);
+        malloc.free(buf);
       }
-      final nPrompt = -nPromptRequired;
-
-      // Allocate space for the tokens and tokenize the prompt
-      final tokens = malloc<llama_token>(nPrompt);
-      final actualTokens = llama_tokenize(vocab, promptPtr, promptByteLength, tokens, nPrompt, true, true);
-
-      if (actualTokens < 0) {
-        print("Error: failed to tokenize the prompt");
-        malloc.free(promptUtf8);
-        malloc.free(tokens);
-        return null;
-      }
-      print("Prompt(tokenized): $actualTokens tokens");
-
-      // Free the prompt memory now that we're done with it
-      malloc.free(promptUtf8);
-
-      // Initialize sampler
-      final sparams = llama_sampler_chain_default_params();
-      sparams.no_perf = false;
-      final smpl = llama_sampler_chain_init(sparams);
-
-      // Add samplers based on parameters
-      if (topK != null && topK > 0) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_top_k(topK));
-      }
-      if (topP != null && topP < 1.0) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_top_p(topP, 1));
-      }
-      if (temperature != null && temperature >= 0.0) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
-      }
-      
-      // Default to greedy if no other samplers, otherwise use distribution
-      if (topK == null && topP == null && temperature == null) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
-      } else {
-        llama_sampler_chain_add(smpl, llama_sampler_init_dist(0)); // 0 for random seed
-      }
-
-      // Prepare initial batch
-      var batch = llama_batch_get_one(tokens, nPrompt);
-
-      // Initialize response string - collect all bytes first
-      final responseBytes = <int>[];
 
       // Main generation loop
       int nDecode = 0;
       int newTokenId;
       final tokenPtr = malloc<llama_token>();
-      String decodedText = '';
 
-      for (int nPos = 0; nPos + batch.n_tokens < nPrompt + maxTokens;) {
-        // Decode the batch
-        if (llama_decode(_context!, batch) != 0) {
+      for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
+        if (llama_decode(_context!, _batch!) != 0) {
           print("Error: failed to decode batch");
           break;
         }
 
-        nPos += batch.n_tokens;
+        nPos += _batch!.n_tokens;
 
         // Sample next token
-        newTokenId = llama_sampler_sample(smpl, _context!, -1);
-
+        newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
+        
         // Check if end of generation
         if (llama_vocab_is_eog(vocab, newTokenId)) {
           print("End of generation reached");
           break;
         }
-
+        
+        
         // Convert token to text piece
         final buf = malloc<ffi.Char>(128);
         int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
@@ -887,53 +925,19 @@ class LlamaFFI {
           break;
         }
 
-        // Collect bytes without decoding individual pieces
-        final bytes = buf.cast<ffi.Uint8>().asTypedList(n);
-        responseBytes.addAll(bytes);
+        String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
+        stderr.write(piece);
         malloc.free(buf);
 
-        // Check for stop sequences
-        if (stopSequences != null && stopSequences.isNotEmpty) {
-          decodedText = utf8.decode(responseBytes, allowMalformed: true);
-          bool stopped = false;
-          for (final stopSeq in stopSequences) {
-            if (decodedText.endsWith(stopSeq)) {
-              print('Stop sequence "$stopSeq" detected');
-              stopped = true;
-              break;
-            }
-          }
-          if (stopped) break;
-        }
-
-        // Prepare next batch with the new token
+        // Prepare next batch
         tokenPtr.value = newTokenId;
-        batch = llama_batch_get_one(tokenPtr, 1);
+        _batch = llama_batch_get_one(tokenPtr, 1);
 
         nDecode++;
       }
-      print("Sampled(decoded): $nDecode tokens");
 
-      // Clean up memory
-      malloc.free(tokens);
-      malloc.free(tokenPtr);
-      llama_sampler_free(smpl);
-
-      // Decode all collected bytes as UTF-8 at once
-      String response;
-      try {
-        response = utf8.decode(responseBytes);
-      } catch (e) {
-        print("UTF-8 decode error: $e, falling back to latin1");
-        // Fallback to latin1 decoding if UTF-8 fails
-        response = String.fromCharCodes(responseBytes);
-      }
-      
-      print("Generated response: $response");
-      return response;
     } catch (e) {
-      print('Error during inference: $e');
-      return null;
+      print('Error generating: $e');
     }
   }
 
@@ -1128,11 +1132,7 @@ class LlamaFFI {
     }
   }
 
-  // Check if model is loaded
-  bool get isModelLoaded => _model != null && _model != ffi.nullptr;
-
-  // Check if context is created
-  bool get isContextCreated => _context != null && _context != ffi.nullptr;
+  
 
   // Free model
   void freeModel() {
