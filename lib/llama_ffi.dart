@@ -3,8 +3,10 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
-// Removed flutter/foundation.dart import to allow standalone Dart execution
-// Using print instead of print for standalone compatibility
+
+import 'utils/logger.dart';
+
+final log = Logger('LlamaFFI');
 
 // Union for kv override values
 final class LlamaModelKvOverrideValue extends ffi.Union {
@@ -316,6 +318,28 @@ typedef LlamaContextDefaultParams = llama_context_params Function();
 typedef LlamaInitFromModelNative = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 typedef LlamaInitFromModel = ffi.Pointer<llama_context> Function(ffi.Pointer<llama_model> model, llama_context_params params);
 
+// Context getter functions
+typedef LlamaNCtxNative = ffi.Uint32 Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaNCtx = int Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaNBatchNative = ffi.Uint32 Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaNBatch = int Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaNUbatchNative = ffi.Uint32 Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaNUbatch = int Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaNSeqMaxNative = ffi.Uint32 Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaNSeqMax = int Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaGetModelNative = ffi.Pointer<llama_model> Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaGetModel = ffi.Pointer<llama_model> Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaNThreadsNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaNThreads = int Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaNThreadsBatchNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaNThreadsBatch = int Function(ffi.Pointer<llama_context> ctx);
+
 // Vocab functions
 typedef LlamaVocabIsEogNative = ffi.Bool Function(ffi.Pointer<llama_vocab> vocab, ffi.Int32 token);
 typedef LlamaVocabIsEog = bool Function(ffi.Pointer<llama_vocab> vocab, int token);
@@ -426,6 +450,14 @@ class LlamaFFI {
   late LlamaContextDefaultParams llama_context_default_params;
   late LlamaInitFromModel llama_init_from_model;
   //
+  late LlamaNCtx llama_n_ctx;
+  late LlamaNBatch llama_n_batch;
+  late LlamaNUbatch llama_n_ubatch;
+  late LlamaNSeqMax llama_n_seq_max;
+  late LlamaGetModel llama_get_model;
+  late LlamaNThreads llama_n_threads;
+  late LlamaNThreadsBatch llama_n_threads_batch;
+  //
   late LlamaVocabIsEog llama_vocab_is_eog;
   //
   late LlamaTokenize llama_tokenize;
@@ -490,14 +522,14 @@ class LlamaFFI {
     if (Platform.isAndroid) {
       llamaLibraryPath = 'libllama.so';
       ggmlLibraryPath = 'libggml.so';
-      print('Android platform detected - using library names: $llamaLibraryPath, $ggmlLibraryPath');
+      log.debug('Android platform detected - using library names: $llamaLibraryPath, $ggmlLibraryPath');
     } else if (Platform.isIOS) {
       // On iOS, libraries are statically linked into the app bundle
       // Use DynamicLibrary.process() to access the current process
       try {
         _lib = ffi.DynamicLibrary.process();
         _ggmlLib = ffi.DynamicLibrary.process();
-        print('Successfully loaded llama.cpp libraries from iOS app bundle');
+        log.debug('Successfully loaded llama.cpp libraries from iOS app bundle');
         return;
       } catch (e) {
         throw Exception('Failed to load libraries from iOS app bundle: $e');
@@ -505,15 +537,15 @@ class LlamaFFI {
     } else if (Platform.isWindows) {
       llamaLibraryPath = path.join(Directory.current.path, 'llama.dll');
       ggmlLibraryPath = path.join(Directory.current.path, 'ggml.dll');
-      print('Windows platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
+      log.debug('Windows platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else if (Platform.isLinux) {
       llamaLibraryPath = path.join(Directory.current.path, 'libllama.so');
       ggmlLibraryPath = path.join(Directory.current.path, 'libggml.so');
-      print('Linux platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
+      log.debug('Linux platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else if (Platform.isMacOS) {
       llamaLibraryPath = path.join(Directory.current.path, 'libllama.dylib');
       ggmlLibraryPath = path.join(Directory.current.path, 'libggml.dylib');
-      print('macOS platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
+      log.debug('macOS platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else {
       throw UnsupportedError('Platform not supported');
     }
@@ -523,19 +555,19 @@ class LlamaFFI {
       final llamaAbsolutePath = path.absolute(llamaLibraryPath);
       final ggmlAbsolutePath = path.absolute(ggmlLibraryPath);
       
-      print('=== Library Loading Information ===');
-      print('Platform: ${Platform.operatingSystem}');
-      print('Current working directory: ${Directory.current.path}');
-      print('_lib will be loaded from: $llamaAbsolutePath');
-      print('_ggmlLib will be loaded from: $ggmlAbsolutePath');
+      log.trace('=== Library Loading Information ===');
+      log.trace('Platform: ${Platform.operatingSystem}');
+      log.trace('Current working directory: ${Directory.current.path}');
+      log.trace('_lib will be loaded from: $llamaAbsolutePath');
+      log.trace('_ggmlLib will be loaded from: $ggmlAbsolutePath');
       
       _lib = ffi.DynamicLibrary.open(llamaLibraryPath);
-      print('✅ Successfully loaded llama.cpp library: $llamaAbsolutePath');
-      print('  _lib handle: ${_lib.toString()}');
+      log.trace('✅ Successfully loaded llama.cpp library: $llamaAbsolutePath');
+      log.trace('  _lib handle: ${_lib.toString()}');
 
       _ggmlLib = ffi.DynamicLibrary.open(ggmlLibraryPath);
-      print('✅ Successfully loaded GGML library: $ggmlAbsolutePath');
-      print('  _ggmlLib handle: ${_ggmlLib.toString()}');
+      log.trace('✅ Successfully loaded GGML library: $ggmlAbsolutePath');
+      log.trace('  _ggmlLib handle: ${_ggmlLib.toString()}');
     } catch (e) {
       throw Exception('Failed to load libraries: $e');
     }
@@ -582,6 +614,35 @@ class LlamaFFI {
       llama_init_from_model = _lib
           .lookup<ffi.NativeFunction<LlamaInitFromModelNative>>('llama_init_from_model')
           .asFunction<LlamaInitFromModel>();
+
+      // ontext getter functions
+      llama_n_ctx = _lib
+          .lookup<ffi.NativeFunction<LlamaNCtxNative>>('llama_n_ctx')
+          .asFunction<LlamaNCtx>();
+
+      llama_n_batch = _lib
+          .lookup<ffi.NativeFunction<LlamaNBatchNative>>('llama_n_batch')
+          .asFunction<LlamaNBatch>();
+
+      llama_n_ubatch = _lib
+          .lookup<ffi.NativeFunction<LlamaNUbatchNative>>('llama_n_ubatch')
+          .asFunction<LlamaNUbatch>();
+
+      llama_n_seq_max = _lib
+          .lookup<ffi.NativeFunction<LlamaNSeqMaxNative>>('llama_n_seq_max')
+          .asFunction<LlamaNSeqMax>();
+
+      llama_get_model = _lib
+          .lookup<ffi.NativeFunction<LlamaGetModelNative>>('llama_get_model')
+          .asFunction<LlamaGetModel>();
+
+      llama_n_threads = _lib
+          .lookup<ffi.NativeFunction<LlamaNThreadsNative>>('llama_n_threads')
+          .asFunction<LlamaNThreads>();
+
+      llama_n_threads_batch = _lib
+          .lookup<ffi.NativeFunction<LlamaNThreadsBatchNative>>('llama_n_threads_batch')
+          .asFunction<LlamaNThreadsBatch>();
 
       //
       llama_vocab_is_eog = _lib
@@ -683,7 +744,7 @@ class LlamaFFI {
           .lookup<ffi.NativeFunction<GgmlBackendLoadAllNative>>('ggml_backend_load_all')
           .asFunction<GgmlBackendLoadAll>();
 
-      print('Successfully loaded llama.cpp functions');
+      log.debug('Successfully loaded llama.cpp functions');
     } catch (e) {
       throw Exception('Failed to load llama.cpp functions: $e');
     }
@@ -704,7 +765,7 @@ class LlamaFFI {
     try {
       setLogCallback();
       llama_backend_init();
-      print('Llama backend initialized successfully');
+      log.debug('Llama backend initialized successfully');
     } catch (e) {
       throw Exception('Failed to initialize llama backend: $e');
     }
@@ -712,7 +773,7 @@ class LlamaFFI {
 
   // Load model from file
   bool loadModel(String modelPath) {
-    print('\n\nloadModel(modelPath: $modelPath)');
+    log.debug('\n\nloadModel(modelPath: $modelPath)');
     try {
       if (_model != null) {
         freeModel();
@@ -728,14 +789,14 @@ class LlamaFFI {
       malloc.free(pathPtr);
 
       if (_model == ffi.nullptr) {
-        print('Failed to load model from: $modelPath');
+        log.warn('Failed to load model from: $modelPath');
         return false;
       }
 
-      print('Model loaded successfully from: $modelPath');
+      log.info('Model loaded successfully from: $modelPath');
       return true;
     } catch (e) {
-      print('Error loading model: $e');
+      log.error('Error loading model: $e');
       return false;
     }
   }
@@ -747,29 +808,29 @@ class LlamaFFI {
       final promptUtf8 = prompt.toNativeUtf8();
       final promptPtr = promptUtf8.cast<ffi.Char>();
       final promptByteLength = promptUtf8.length; // This gives actual byte length
-      print("\n\ntokenizePrompt prompt: $prompt, promptPtr: ${promptPtr.address}, byteLength: $promptByteLength");
+      log.debug("\n\ntokenizePrompt prompt: $prompt, promptPtr: ${promptPtr.address}, byteLength: $promptByteLength");
 
       // First call to get required token count (negative return value)
       final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
       if (nPromptRequired >= 0) {
-        print("Error: unexpected positive return from tokenize call");
+        log.error("Error: unexpected positive return from tokenize call");
         malloc.free(promptUtf8);
         return 0;
       }
       int nPrompt = -nPromptRequired;
-      print('nPrompt: $nPrompt');
+      log.debug('nPrompt: $nPrompt');
 
       // Allocate space for the tokens and tokenize the prompt
       final tokens = malloc<llama_token>(nPrompt);
       final tokensCount = llama_tokenize(vocab, promptPtr, promptByteLength, tokens, nPrompt, true, true);
 
       if (tokensCount < 0) {
-        print("Error: failed to tokenize the prompt");
+        log.error("Error: failed to tokenize the prompt");
         malloc.free(promptUtf8);
         malloc.free(tokens);
         return 0;
       }
-      print("Prompt(tokenized): $tokensCount tokens");
+      log.debug("Prompt(tokenized): $tokensCount tokens");
 
       // Free the prompt memory now that we're done with it
       malloc.free(promptUtf8);
@@ -777,7 +838,7 @@ class LlamaFFI {
       _batch = llama_batch_get_one(tokens, nPrompt);
       return nPrompt;
     } catch (e) {
-      print('Error tokenizing prompt: $e');
+      log.error('Error tokenizing prompt: $e');
       return 0;
     }
   }
@@ -789,10 +850,10 @@ class LlamaFFI {
     int? nThreads,
     int? nThreadsBatch,
   }) {
-    print('\n\ncreateContext: nCtx=$nCtx, nBatch=$nBatch, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
+    log.debug('\n\ncreateContext: nCtx=$nCtx, nBatch=$nBatch, nThreads=$nThreads, nThreadsBatch=$nThreadsBatch');
     try {
       if (_model == null || _model == ffi.nullptr) {
-        print('No model loaded');
+        log.warn('No model loaded');
         return false;
       }
 
@@ -820,22 +881,22 @@ class LlamaFFI {
       _context = llama_new_context_with_model(_model!, contextParams);
 
       if (_context == ffi.nullptr) {
-        print('Failed to create context');
+        log.warn('Failed to create context');
         return false;
       }
 
       return true;
     } catch (e) {
-      print('Error creating context: $e');
+      log.error('Error creating context: $e');
       return false;
     }
   }
 
   bool createSampler({bool useGreedy = false, int? topK, double? topP, double? temp}) {
-    print('\n\ncreateSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
+    log.debug('\n\ncreateSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
     try {
       if (_context == null || _context == ffi.nullptr) {
-        print('Context not initialized');
+        log.warn('Context not initialized');
         return false;
       }
 
@@ -844,7 +905,7 @@ class LlamaFFI {
       _sampler = llama_sampler_chain_init(sparams);
 
       if (_sampler == ffi.nullptr) {
-        print('Failed to create sampler');
+        log.warn('Failed to create sampler');
         return false;
       }
 
@@ -865,38 +926,38 @@ class LlamaFFI {
 
       return true;
     } catch (e) {
-      print('Error creating sampler: $e');
+      log.error('Error creating sampler: $e');
       return false;
     }
   }
 
   void generate(int nPrompt, {int maxTokens = 256}) {
-    print('\n\ngenerate(nPrompt: $nPrompt, maxTokens: $maxTokens)');
+    log.debug('\n\ngenerate(nPrompt: $nPrompt, maxTokens: $maxTokens)');
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
-        print('Model or context not initialized');
+        log.warn('Model or context not initialized');
         return;
       }
 
       if (_batch == null || _batch == ffi.nullptr) {
-        print('Batch not initialized');
+        log.warn('Batch not initialized');
         return;
       }
 
       if (_sampler == null || _sampler == ffi.nullptr) {
-        print('Sampler not initialized');
+        log.warn('Sampler not initialized');
         return;
       }
 
       if (_context == null || _context == ffi.nullptr) {
-        print('Context not initialized');
+        log.warn('Context not initialized');
         return;
       }
 
       // Get vocabulary from model
       final vocab = llama_model_get_vocab(_model!);
       if (vocab.address == 0) {
-        print("Error: failed to get vocabulary from model");
+        log.error("Error: failed to get vocabulary from model");
         return;
       }
 
@@ -905,13 +966,13 @@ class LlamaFFI {
         final buf = malloc<ffi.Char>(128);
         int n = llama_token_to_piece(vocab, _batch!.token[i], buf, 128, 0, true);
         if (n < 0) {
-          print("error: failed to convert token to piece");
+          log.error("error: failed to convert token to piece");
           malloc.free(buf);
           malloc.free(_batch!.token);
           return;
         }
         String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
-        stdout.write(piece);
+        log.trace(piece);
         malloc.free(buf);
       }
 
@@ -921,7 +982,7 @@ class LlamaFFI {
 
       for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
         if (llama_decode(_context!, _batch!) != 0) {
-          print("Error: failed to decode batch");
+          log.error("Error: failed to decode batch");
           break;
         }
 
@@ -932,7 +993,7 @@ class LlamaFFI {
 
         // Check if end of generation
         if (llama_vocab_is_eog(vocab, newTokenId)) {
-          print("End of generation reached");
+          log.debug("End of generation reached");
           break;
         }
 
@@ -940,13 +1001,13 @@ class LlamaFFI {
         final buf = malloc<ffi.Char>(128);
         int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
         if (n < 0) {
-          print("Error: failed to convert token to piece");
+          log.error("Error: failed to convert token to piece");
           malloc.free(buf);
           break;
         }
 
         String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
-        stderr.write(piece);
+        stdout.write(piece);
         malloc.free(buf);
 
         // Prepare next batch
@@ -955,7 +1016,56 @@ class LlamaFFI {
       }
 
     } catch (e) {
-      print('Error generating: $e');
+      log.error('Error generating: $e');
+    }
+  }
+
+  String applyChatTemplate(List<Map<String, dynamic>> messageMaps) {
+    log.debug('\n\napplyChatTemplate(messages: $messageMaps)');
+    try {
+      if (_model == null || _model == ffi.nullptr) {
+        log.warn('Model not initialized');
+        throw Exception('Model not initialized');
+      }
+
+      final tmplPtr = llama_model_chat_template(_model!, ffi.nullptr);
+      log.trace('tmplPtr: $tmplPtr');
+
+      final messageData = malloc<llama_chat_message>(messageMaps.length);
+      for (int i = 0; i < messageMaps.length; i++) {
+        final m = messageMaps[i];
+        final rolePtr = (m['role'] as String).toNativeUtf8().cast<ffi.Char>();
+        final contentPtr = (m['content'] as String).toNativeUtf8().cast<ffi.Char>();
+        messageData[i]
+          ..role = rolePtr
+          ..content = contentPtr;
+      }
+
+      int newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, ffi.nullptr, 0);
+      int nCtx = llama_n_ctx(_context!);
+      ffi.Pointer<ffi.Char> formatted = calloc<ffi.Char>(nCtx);
+      if (newLen > nCtx) {
+        // Reallocate buffer if needed
+        malloc.free(formatted);
+        formatted = calloc<ffi.Char>(nCtx);
+        newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, formatted, nCtx);
+      } else {
+        newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, formatted, nCtx);
+      }
+      if (newLen < 0) {
+        log.error("error: failed to apply the chat template");
+        malloc.free(messageData);
+        throw Exception('Failed to apply the chat template');
+      }
+      malloc.free(messageData);
+
+      // Extract only the new prompt (from prevLen to newLen), like C++ does
+      final promptBytes = formatted.cast<ffi.Uint8>().asTypedList(newLen).sublist(0, newLen);
+      final prompt = utf8.decode(promptBytes);
+      return prompt;
+    } catch (e) {
+      log.error('Error applying chat template: $e');
+      throw Exception('Failed to apply the chat template: $e');
     }
   }
 
@@ -967,19 +1077,19 @@ class LlamaFFI {
     double? topP,
     List<String>? stopSequences,
   }) async* {
-    print(
+    log.debug(
         'performStreamingInference(prompt: "$prompt", maxTokens: $maxTokens, temp: $temperature, topK: $topK, topP: $topP, stop: $stopSequences)');
 
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
-        print('Model or context not initialized');
+        log.warn('Model or context not initialized');
         return;
       }
 
       // Get vocabulary from model
       final vocab = llama_model_get_vocab(_model!);
       if (vocab.address == 0) {
-        print("Error: failed to get vocabulary from model");
+        log.error("Error: failed to get vocabulary from model");
         return;
       }
 
@@ -991,7 +1101,7 @@ class LlamaFFI {
       // First call to get required token count (negative return value)
       final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
       if (nPromptRequired >= 0) {
-        print("Error: unexpected positive return from tokenize call");
+        log.error("Error: unexpected positive return from tokenize call");
         malloc.free(promptUtf8);
         return;
       }
@@ -1002,12 +1112,12 @@ class LlamaFFI {
       final actualTokens = llama_tokenize(vocab, promptPtr, promptByteLength, tokens, nPrompt, true, true);
 
       if (actualTokens < 0) {
-        print("Error: failed to tokenize the prompt");
+        log.error("Error: failed to tokenize the prompt");
         malloc.free(promptUtf8);
         malloc.free(tokens);
         return;
       }
-      print("Prompt(tokenized): $actualTokens tokens");
+      log.debug("Prompt(tokenized): $actualTokens tokens");
 
       // Free the prompt memory now that we're done with it
       malloc.free(promptUtf8);
@@ -1050,7 +1160,7 @@ class LlamaFFI {
       for (int nPos = 0; nPos + batch.n_tokens < nPrompt + maxTokens;) {
         // Decode the batch
         if (llama_decode(_context!, batch) != 0) {
-          print("Error: failed to decode batch");
+          log.error("Error: failed to decode batch");
           break;
         }
 
@@ -1061,7 +1171,7 @@ class LlamaFFI {
 
         // Check if end of generation
         if (llama_vocab_is_eog(vocab, newTokenId)) {
-          print("End of generation reached");
+          log.debug("End of generation reached");
           break;
         }
 
@@ -1069,7 +1179,7 @@ class LlamaFFI {
         final buf = malloc<ffi.Char>(128);
         int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
         if (n < 0) {
-          print("Error: failed to convert token to piece");
+          log.error("Error: failed to convert token to piece");
           malloc.free(buf);
           break;
         }
@@ -1092,7 +1202,7 @@ class LlamaFFI {
               bool stopped = false;
               for (final stopSeq in stopSequences) {
                 if (fullResponse.endsWith(stopSeq)) {
-                  print('Stop sequence "$stopSeq" detected');
+                  log.debug('Stop sequence "$stopSeq" detected');
                   stopped = true;
                   break;
                 }
@@ -1138,7 +1248,7 @@ class LlamaFFI {
         }
       }
 
-      print("Streaming completed. Sampled(decoded): $nDecode tokens");
+      log.debug("Streaming completed. Sampled(decoded): $nDecode tokens");
 
       // Clean up memory
       malloc.free(tokens);
@@ -1146,18 +1256,16 @@ class LlamaFFI {
       llama_sampler_free(smpl);
       
     } catch (e) {
-      print('Error during streaming inference: $e');
+      log.error('Error during streaming inference: $e');
     }
   }
-
-  
 
   // Free model
   void freeModel() {
     if (_model != null && _model != ffi.nullptr) {
       llama_model_free(_model!);
       _model = null;
-      print('Model freed');
+      log.debug('Model freed');
     }
   }
 
@@ -1166,7 +1274,7 @@ class LlamaFFI {
     if (_context != null && _context != ffi.nullptr) {
       llama_free(_context!);
       _context = null;
-      print('Context freed');
+      log.debug('Context freed');
     }
   }
 
@@ -1176,9 +1284,9 @@ class LlamaFFI {
       freeContext();
       freeModel();
       llama_backend_free();
-      print('Llama backend freed successfully');
+      log.debug('Llama backend freed successfully');
     } catch (e) {
-      print('Warning: Failed to free llama backend: $e');
+      log.warn('Warning: Failed to free llama backend: $e');
     }
   }
 
@@ -1191,10 +1299,10 @@ class LlamaFFI {
           .asFunction<LlamaTimeUs>();
 
       final time = timeFunc();
-      print('Llama library test successful. Current time: $time microseconds');
+      log.info('Llama library test successful. Current time: $time microseconds');
       return true;
     } catch (e) {
-      print('Llama library test failed: $e');
+      log.error('Llama library test failed: $e');
       return false;
     }
   }
@@ -1202,12 +1310,12 @@ class LlamaFFI {
   // Simple wrapper to check if model file exists
   bool modelFileExists(String modelPath) {
     final file = File(modelPath);
-    print('Checking if model file exists: ${file.parent} ${file.path}');
+    log.debug('Checking if model file exists: ${file.parent} ${file.path}');
     final exists = file.existsSync();
-    print('Model file $modelPath exists: $exists');
+    log.debug('Model file $modelPath exists: $exists');
     if (exists) {
       final size = file.lengthSync();
-      print('Model file size: ${(size / (1024 * 1024)).toStringAsFixed(2)} MB');
+      log.debug('Model file size: ${(size / (1024 * 1024)).toStringAsFixed(2)} MB');
     }
     return exists;
   }
@@ -1226,6 +1334,13 @@ class LlamaFFI {
       'llama_new_context_with_model',
       'llama_context_default_params',
       'llama_init_from_model',
+      'llama_n_ctx',
+      'llama_n_batch',
+      'llama_n_ubatch',
+      'llama_n_seq_max',
+      'llama_get_model',
+      'llama_n_threads',
+      'llama_n_threads_batch',
       //
       'llama_vocab_is_eog',
       //
@@ -1250,13 +1365,13 @@ class LlamaFFI {
       'llama_sampler_free',
     ];
 
-    print('Checking for common llama.cpp functions:');
+    log.debug('Checking for common llama.cpp functions:');
     for (final funcName in commonFunctions) {
       try {
         _lib.lookup(funcName);
-        print('✅ $funcName - available');
+        log.debug('✅ $funcName - available');
       } catch (e) {
-        print('❌ $funcName - not found');
+        log.debug('❌ $funcName - not found');
       }
     }
 
@@ -1264,72 +1379,13 @@ class LlamaFFI {
       'ggml_backend_load_all',
     ];
 
-    print('Checking for ggml backend functions:');
+    log.debug('Checking for ggml backend functions:');
     for (final funcName in ggmlFunctions) {
       try {
         _ggmlLib.lookup(funcName);
-        print('✅ $funcName - available in GGML library');
+        log.debug('✅ $funcName - available in GGML library');
       } catch (e) {
-        print('❌ $funcName - not found in GGML library');
-      }
-    }
-  }
-
-  // iOS-specific method to check static library configuration
-  void checkIOSStaticLibraries() {
-    if (!Platform.isIOS) {
-      print('This method is only for iOS platform');
-      return;
-    }
-
-    print('=== iOS Static Library Configuration Check ===');
-    print('To verify which .a files are linked, check your iOS project:');
-    print('');
-    print('1. Open ios/Runner.xcworkspace in Xcode');
-    print('2. Select the Runner target');
-    print('3. Go to Build Phases > Link Binary With Libraries');
-    print('4. Look for these static libraries:');
-    print('   - libllama-arm64-device.a (2.9MB)');
-    print('   - libggml-arm64-device.a (34KB)');
-    print('   - libggml-metal-arm64-device.a (736KB)');
-    print('   - libggml-cpu-arm64-device.a (718KB)');
-    print('   - libggml-blas-arm64-device.a (20KB)');
-    print('   - libggml-base-arm64-device.a (757KB)');
-    print('');
-    print('5. Also check Build Settings > Other Linker Flags for:');
-    print('   - -lllama');
-    print('   - -lggml');
-    print('');
-    print('6. The .a files are located in:');
-    print('   - ios/Frameworks/ (confirmed location)');
-    print('   - Main libraries: libllama-arm64-device.a, libggml-arm64-device.a');
-    print('');
-    print('Current library handles:');
-    print('  _lib: ${_lib.toString()}');
-    print('  _ggmlLib: ${_ggmlLib.toString()}');
-    
-    // Try to get more specific information about what's loaded
-    print('');
-    print('=== Function Symbol Check ===');
-    final testFunctions = [
-      'llama_backend_init',
-      'llama_log_set',
-      'llama_model_load_from_file',
-      'ggml_backend_load_all',
-      'llama_time_us',
-    ];
-    
-    for (final func in testFunctions) {
-      try {
-        _lib.lookup(func);
-        print('✅ Found $func in _lib');
-      } catch (e) {
-        try {
-          _ggmlLib.lookup(func);
-          print('✅ Found $func in _ggmlLib');
-        } catch (e2) {
-          print('❌ $func not found in either library');
-        }
+        log.debug('❌ $funcName - not found in GGML library');
       }
     }
   }

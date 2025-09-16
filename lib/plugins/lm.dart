@@ -1,7 +1,10 @@
 import 'dart:io';
 
-import '../llama_ffi.dart';
 import 'format/prompt_format.dart';
+import '../llama_ffi.dart';
+import '../utils/logger.dart';
+
+final log = Logger('UnifiedLM');
 
 
 class ModelParams {
@@ -57,6 +60,24 @@ class SamplerParams {
   bool get useGreedy => topK == null && topP == null && temp == null;
 }
 
+class ChatMessage {
+  final String role;
+  final String content;
+  
+  ChatMessage(this.role, this.content);
+
+  @override
+  String toString() {
+    return 'ChatMessage(role: $role, content: $content)';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'role': role,
+      'content': content,
+    };
+  }
+}
 
 class UnifiedLM {
   LlamaFFI? _llamaFFI;
@@ -124,6 +145,33 @@ class UnifiedLM {
       topP: _samplerParams.topP,
       temp: _samplerParams.temp,
     );
+
+    // Tokenize prompt
+    final nPrompt = _llamaFFI!.tokenizePrompt(prompt);
+
+    // Generate response
+    _llamaFFI!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+  }
+
+  chat(List<ChatMessage> messages) {
+    // Create context
+    _llamaFFI!.createContext(
+      nCtx: _contextParams.nCtx,
+      nBatch: _contextParams.nBatch,
+      nThreads: _contextParams.nThreads,
+      nThreadsBatch: _contextParams.nThreadsBatch,
+    );
+
+    // Create sampler
+    _llamaFFI!.createSampler(
+      useGreedy: _samplerParams.useGreedy,
+      topK: _samplerParams.topK,
+      topP: _samplerParams.topP,
+      temp: _samplerParams.temp,
+    );
+
+    // Apply chat template
+    final prompt = _llamaFFI!.applyChatTemplate(messages.map((e) => e.toJson()).toList());
 
     // Tokenize prompt
     final nPrompt = _llamaFFI!.tokenizePrompt(prompt);
