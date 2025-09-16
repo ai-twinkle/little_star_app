@@ -931,34 +931,34 @@ class LlamaCppFFI {
     }
   }
 
-  void generate(int nPrompt, {int maxTokens = 256}) {
+  String generate(int nPrompt, {int maxTokens = 256}) {
     log.debug('\n\ngenerate(nPrompt: $nPrompt, maxTokens: $maxTokens)');
     try {
       if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
         log.warn('Model or context not initialized');
-        return;
+        return '';
       }
 
       if (_batch == null || _batch == ffi.nullptr) {
         log.warn('Batch not initialized');
-        return;
+        return '';
       }
 
       if (_sampler == null || _sampler == ffi.nullptr) {
         log.warn('Sampler not initialized');
-        return;
+        return '';
       }
 
       if (_context == null || _context == ffi.nullptr) {
         log.warn('Context not initialized');
-        return;
+        return '';
       }
 
       // Get vocabulary from model
       final vocab = llama_model_get_vocab(_model!);
       if (vocab.address == 0) {
         log.error("Error: failed to get vocabulary from model");
-        return;
+        return '';
       }
 
       // Print prompt tokens
@@ -969,7 +969,7 @@ class LlamaCppFFI {
           log.error("error: failed to convert token to piece");
           malloc.free(buf);
           malloc.free(_batch!.token);
-          return;
+          return '';
         }
         String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
         log.trace(piece);
@@ -977,6 +977,7 @@ class LlamaCppFFI {
       }
 
       // Main generation loop
+      final sb = StringBuffer();
       int newTokenId;
       final tokenPtr = malloc<llama_token>();
 
@@ -1008,6 +1009,7 @@ class LlamaCppFFI {
 
         String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
         stdout.write(piece);
+        sb.write(piece);
         malloc.free(buf);
 
         // Prepare next batch
@@ -1015,8 +1017,12 @@ class LlamaCppFFI {
         _batch = llama_batch_get_one(tokenPtr, 1);
       }
 
+      malloc.free(tokenPtr);
+      return sb.toString();
+
     } catch (e) {
       log.error('Error generating: $e');
+      return '';
     }
   }
 

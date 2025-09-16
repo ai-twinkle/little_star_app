@@ -129,7 +129,7 @@ class UnifiedLM {
     _ffi!.loadModel(_modelParams.modelPath!);
   }
 
-  completion(String prompt) {
+  String completion(String prompt) {
     // Create context
     _ffi!.createContext(
       nCtx: _contextParams.nCtx,
@@ -150,10 +150,11 @@ class UnifiedLM {
     final nPrompt = _ffi!.tokenizePrompt(prompt);
 
     // Generate response
-    _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+    final result = _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+    return result;
   }
 
-  chat(List<ChatMessage> messages) {
+  String chat(List<ChatMessage> messages) {
     // Create context
     _ffi!.createContext(
       nCtx: _contextParams.nCtx,
@@ -177,7 +178,8 @@ class UnifiedLM {
     final nPrompt = _ffi!.tokenizePrompt(prompt);
 
     // Generate response
-    _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+    final result = _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+    return result;
   }
 
   bool dispose() {
