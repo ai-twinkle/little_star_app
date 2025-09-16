@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'format/prompt_format.dart';
-import '../llama_ffi.dart';
+import 'engine/llama_cpp/llama_cpp_ffi.dart';
 import '../utils/logger.dart';
 
 final log = Logger('UnifiedLM');
@@ -80,7 +80,7 @@ class ChatMessage {
 }
 
 class UnifiedLM {
-  LlamaFFI? _llamaFFI;
+  LlamaCppFFI? _ffi;
   ModelParams _modelParams = ModelParams();
   ContextParams _contextParams = ContextParams();
   SamplerParams _samplerParams = SamplerParams();
@@ -108,10 +108,10 @@ class UnifiedLM {
   bool _initBackend() {
     try {
       if (Platform.isWindows) {
-        _llamaFFI!.setLogCallback();
-        _llamaFFI!.ggml_backend_load_all();
+        _ffi!.setLogCallback();
+        _ffi!.ggml_backend_load_all();
       } else {
-        _llamaFFI!.initBackend();
+        _ffi!.initBackend();
       }
 
       return true;
@@ -121,17 +121,17 @@ class UnifiedLM {
   }
 
   void init({bool verbose = false}) {
-    _llamaFFI = LlamaFFI();
-    _llamaFFI!.logVerbose = verbose;
+    _ffi = LlamaCppFFI();
+    _ffi!.logVerbose = verbose;
 
     _initBackend();
 
-    _llamaFFI!.loadModel(_modelParams.modelPath!);
+    _ffi!.loadModel(_modelParams.modelPath!);
   }
 
   completion(String prompt) {
     // Create context
-    _llamaFFI!.createContext(
+    _ffi!.createContext(
       nCtx: _contextParams.nCtx,
       nBatch: _contextParams.nBatch,
       nThreads: _contextParams.nThreads,
@@ -139,7 +139,7 @@ class UnifiedLM {
     );
 
     // Create sampler
-    _llamaFFI!.createSampler(
+    _ffi!.createSampler(
       useGreedy: _samplerParams.useGreedy,
       topK: _samplerParams.topK,
       topP: _samplerParams.topP,
@@ -147,15 +147,15 @@ class UnifiedLM {
     );
 
     // Tokenize prompt
-    final nPrompt = _llamaFFI!.tokenizePrompt(prompt);
+    final nPrompt = _ffi!.tokenizePrompt(prompt);
 
     // Generate response
-    _llamaFFI!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+    _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
   }
 
   chat(List<ChatMessage> messages) {
     // Create context
-    _llamaFFI!.createContext(
+    _ffi!.createContext(
       nCtx: _contextParams.nCtx,
       nBatch: _contextParams.nBatch,
       nThreads: _contextParams.nThreads,
@@ -163,7 +163,7 @@ class UnifiedLM {
     );
 
     // Create sampler
-    _llamaFFI!.createSampler(
+    _ffi!.createSampler(
       useGreedy: _samplerParams.useGreedy,
       topK: _samplerParams.topK,
       topP: _samplerParams.topP,
@@ -171,17 +171,17 @@ class UnifiedLM {
     );
 
     // Apply chat template
-    final prompt = _llamaFFI!.applyChatTemplate(messages.map((e) => e.toJson()).toList());
+    final prompt = _ffi!.applyChatTemplate(messages.map((e) => e.toJson()).toList());
 
     // Tokenize prompt
-    final nPrompt = _llamaFFI!.tokenizePrompt(prompt);
+    final nPrompt = _ffi!.tokenizePrompt(prompt);
 
     // Generate response
-    _llamaFFI!.generate(nPrompt, maxTokens: _contextParams.nPredict);
+    _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
   }
 
   bool dispose() {
-    _llamaFFI!.freeBackend();
+    _ffi!.freeBackend();
     return true;
   }
 }

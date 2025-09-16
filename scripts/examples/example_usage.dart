@@ -1,4 +1,4 @@
-import '../../lib/llama_ffi.dart';
+import '../../lib/core/engine/llama_cpp/llama_cpp_ffi.dart';
 
 void main() {
   print('=== Llama.cpp FFI Integration Example ===');
@@ -6,7 +6,7 @@ void main() {
   try {
     // Initialize the FFI wrapper
     print('\n1. Initializing Llama FFI...');
-    final llamaFFI = LlamaFFI();
+    final llamaFFI = LlamaCppFFI();
     
     // Initialize the backend
     print('\n2. Initializing Llama backend...');

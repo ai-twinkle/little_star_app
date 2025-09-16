@@ -3,8 +3,8 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:ffi/ffi.dart';
-import '../../lib/llama_ffi.dart';
-import '../../lib/plugins/lm.dart';
+import '../../lib/core/engine/llama_cpp/llama_cpp_ffi.dart';
+import '../../lib/core/lm.dart';
 import '../../lib/utils/logger.dart';
 
 

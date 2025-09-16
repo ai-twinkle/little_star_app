@@ -1,4 +1,4 @@
-import '../../lib/plugins/lm.dart';
+import '../../lib/core/lm.dart';
 
 
 void main() {

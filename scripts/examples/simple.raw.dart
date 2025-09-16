@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:ffi/ffi.dart';
-import '../../lib/llama_ffi.dart';
+import '../../lib/core/engine/llama_cpp/llama_cpp_ffi.dart';
 
 void main() {
   // Initialize settings
@@ -16,7 +16,7 @@ void main() {
   int ngl = 0;
   int nPredict = 512;
 
-  final LlamaFFI llamaFFI = LlamaFFI();
+  final LlamaCppFFI llamaFFI = LlamaCppFFI();
   if (!llamaFFI.modelFileExists(modelPath)) {
     stderr.writeln("error: model file not found");
     return;

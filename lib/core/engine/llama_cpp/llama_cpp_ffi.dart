@@ -4,9 +4,9 @@ import 'dart:convert';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 
-import 'utils/logger.dart';
+import '../../../utils/logger.dart';
 
-final log = Logger('LlamaFFI');
+final log = Logger('LlamaCppFFI');
 
 // Union for kv override values
 final class LlamaModelKvOverrideValue extends ffi.Union {
@@ -433,7 +433,7 @@ typedef GgmlBackendLoadAllNative = ffi.Void Function();
 typedef GgmlBackendLoadAll = void Function();
 
 // Simplified FFI integration for llama.cpp
-class LlamaFFI {
+class LlamaCppFFI {
   late ffi.DynamicLibrary _lib;
   late ffi.DynamicLibrary _ggmlLib;
 
@@ -510,7 +510,7 @@ class LlamaFFI {
   // Check if sampler is created
   bool get isSamplerCreated => _sampler != null && _sampler != ffi.nullptr;
 
-  LlamaFFI() {
+  LlamaCppFFI() {
     _loadLibrary();
     _loadFunctions();
   }
