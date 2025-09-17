@@ -6,7 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/llama_service.dart';
 import '../services/ios_directory_service.dart';
-import '../llama_ffi.dart';
+import '../core/lm.dart';
 
 class ExpansibleController extends ChangeNotifier {
   bool _isExpanded = true;
@@ -1565,24 +1565,7 @@ Characters Generated: ${result.length}
   }
 }
 
-// Context parameters class for easy passing
-class ContextParams {
-  final int? nCtx;
-  final int? nBatch;
-  final int? nUbatch;
-  final int? nSeqMax;
-  final int? nThreads;
-  final int? nThreadsBatch;
-
-  ContextParams({
-    this.nCtx,
-    this.nBatch,
-    this.nUbatch,
-    this.nSeqMax,
-    this.nThreads,
-    this.nThreadsBatch,
-  });
-}
+// (Removed local ContextParams to use the one from core/lm.dart)
 
 // Inference parameters class for isolate communication
 class InferenceParams {
@@ -1620,42 +1603,28 @@ class InferenceParams {
 // Top-level function for isolate execution
 Future<String?> _performInferenceInIsolate(InferenceParams params) async {
   try {
-    final llamaFFI = LlamaFFI();
-    
-    if (Platform.isWindows) {
-      llamaFFI.ggml_backend_load_all();
-    } else {
-      llamaFFI.initBackend();
-    }
-    
-    final modelLoaded = llamaFFI.loadModel(params.modelPath);
-    if (!modelLoaded) {
-      llamaFFI.freeBackend();
-      return null;
-    }
-    
-    final contextCreated = llamaFFI.createContext(
-      nCtx: params.nCtx,
-      nBatch: params.nBatch,
-      nUbatch: params.nUbatch,
-      nSeqMax: params.nSeqMax,
-      nThreads: params.nThreads,
-      nThreadsBatch: params.nThreadsBatch,
+    final modelParams = ModelParams(modelPath: params.modelPath);
+
+    final contextParams = ContextParams();
+    if (params.nCtx != null) contextParams.nCtx = params.nCtx!;
+    if (params.nBatch != null) contextParams.nBatch = params.nBatch!;
+    if (params.nUbatch != null) contextParams.nUbatch = params.nUbatch!;
+    if (params.nSeqMax != null) contextParams.nSeqMax = params.nSeqMax!;
+    if (params.nThreads != null) contextParams.nThreads = params.nThreads!;
+    if (params.nThreadsBatch != null) contextParams.nThreadsBatch = params.nThreadsBatch!;
+
+    final samplerParams = SamplerParams();
+    samplerParams.temp = params.temperature;
+    samplerParams.topK = params.topK;
+    samplerParams.topP = params.topP;
+
+    final lm = UnifiedLM.withParams(
+      modelParams,
+      contextParams,
+      samplerParams,
     );
-    if (!contextCreated) {
-      llamaFFI.freeBackend();
-      return null;
-    }
-    
-    final result = llamaFFI.performInference(
-      params.prompt,
-      maxTokens: params.maxTokens,
-      temperature: params.temperature,
-      topK: params.topK,
-      topP: params.topP,
-    );
-    
-    llamaFFI.freeBackend();
+
+    final result = lm.completion(params.prompt);
     
     return result;
   } catch (e) {

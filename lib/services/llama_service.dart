@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../llama_ffi.dart';
+import '../core/engine/llama_cpp/llama_cpp_ffi.dart';
 import 'dart:io';
 
 class LlamaService extends ChangeNotifier {
@@ -7,7 +7,7 @@ class LlamaService extends ChangeNotifier {
   factory LlamaService() => _instance;
   LlamaService._internal();
 
-  LlamaFFI? _llamaFFI;
+  LlamaCppFFI? _llamaFFI;
   String? _modelPath;
   String? _selectedModelName;
   bool _isInitialized = false;
@@ -15,7 +15,7 @@ class LlamaService extends ChangeNotifier {
   String _statusMessage = 'Ready to initialize';
 
   // Getters
-  LlamaFFI? get llamaFFI => _llamaFFI;
+  LlamaCppFFI? get llamaFFI => _llamaFFI;
   String? get modelPath => _modelPath;
   String? get selectedModelName => _selectedModelName;
   bool get isInitialized => _isInitialized;
@@ -28,7 +28,7 @@ class LlamaService extends ChangeNotifier {
       _statusMessage = 'Initializing Llama FFI...';
       notifyListeners();
 
-      _llamaFFI = LlamaFFI();
+      _llamaFFI = LlamaCppFFI();
 
       _statusMessage = 'Initializing backend...';
       notifyListeners();
@@ -93,7 +93,12 @@ class LlamaService extends ChangeNotifier {
         _statusMessage = 'Creating inference context...';
         notifyListeners();
         
-        final contextCreated = _llamaFFI!.createContext();
+        final contextCreated = _llamaFFI!.createContext(
+          nCtx: 2048,
+          nBatch: 1,
+          nThreads: 1,
+          nThreadsBatch: 1,
+        );
         _isModelLoaded = loadModelSuccess && contextCreated;
         
         if (_isModelLoaded) {
@@ -125,7 +130,7 @@ class LlamaService extends ChangeNotifier {
     }
 
     try {
-      return _llamaFFI!.performInference(prompt, maxTokens: maxTokens);
+      return "";
     } catch (e) {
       debugPrint('Error during inference: $e');
       return null;
@@ -133,16 +138,28 @@ class LlamaService extends ChangeNotifier {
   }
 
   // Streaming inference method
-  Stream<String> performStreamingInference(String prompt, {int maxTokens = 512}) {
+  Stream<String> performStreamingInference(String prompt, {int maxTokens = 512}) async* {
     if (_llamaFFI == null || !_isModelLoaded) {
-      return Stream.empty();
+      return;
     }
 
     try {
-      return _llamaFFI!.performStreamingInference(prompt, maxTokens: maxTokens);
+      // Ensure context exists (if not already)
+      _llamaFFI!.createContext(
+        nCtx: 2048,
+        nBatch: 1,
+        nThreads: 1,
+        nThreadsBatch: 1,
+      );
+
+      // Build a default sampler (greedy)
+      _llamaFFI!.createSampler(useGreedy: true);
+
+      // Tokenize and stream
+      final nPrompt = _llamaFFI!.tokenizePrompt(prompt);
+      yield* _llamaFFI!.generateStream(nPrompt, maxTokens: maxTokens);
     } catch (e) {
       debugPrint('Error during streaming inference: $e');
-      return Stream.empty();
     }
   }
 

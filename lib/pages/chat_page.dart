@@ -6,7 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/chat_message.dart';
 import '../services/llama_service.dart';
 import '../services/ios_directory_service.dart';
-import '../llama_ffi.dart';
+import '../core/engine/llama_cpp/llama_cpp_ffi.dart';
 import 'dart:async';
 
 class ChatPage extends StatefulWidget {
@@ -753,40 +753,3 @@ class ChatInferenceParams {
     required this.maxTokens,
   });
 }
-
-// Top-level function for chat inference in isolate
-Future<String?> _performChatInferenceInIsolate(ChatInferenceParams params) async {
-  try {
-    final llamaFFI = LlamaFFI();
-    
-    if (Platform.isWindows) {
-      llamaFFI.ggml_backend_load_all();
-    } else {
-      llamaFFI.initBackend();
-    }
-    
-    final modelLoaded = llamaFFI.loadModel(params.modelPath);
-    if (!modelLoaded) {
-      llamaFFI.freeBackend();
-      return null;
-    }
-    
-    final contextCreated = llamaFFI.createContext();
-    if (!contextCreated) {
-      llamaFFI.freeBackend();
-      return null;
-    }
-    
-    final result = llamaFFI.performInference(
-      params.prompt,
-      maxTokens: params.maxTokens,
-    );
-    
-    llamaFFI.freeBackend();
-    
-    return result;
-  } catch (e) {
-    print('Error in chat inference isolate: $e');
-    return null;
-  }
-} 
