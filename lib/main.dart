@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'pages/home_page.dart';
+import 'package:little_star_app/pages/home_page.dart';
+// import 'package:little_star_app/ui/home/widgets/home_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const LittleStarApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class LittleStarApp extends StatelessWidget {
+  const LittleStarApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +18,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const HomePage(),
+      // home: const HomeScreen(),
     );
   }
 }
