@@ -129,6 +129,15 @@ class UnifiedLM {
     _ffi!.loadModel(_modelParams.modelPath!);
   }
 
+  /// Returns the number of tokens for a given prompt using the loaded model's vocab.
+  /// Note: This also prepares an internal batch in the FFI layer; use only for measurement.
+  int countPromptTokens(String prompt) {
+    if (_ffi == null) {
+      throw StateError('FFI not initialized');
+    }
+    return _ffi!.tokenizePrompt(prompt);
+  }
+
   String completion(String prompt) {
     // Create context
     _ffi!.createContext(
@@ -152,6 +161,43 @@ class UnifiedLM {
     // Generate response
     final result = _ffi!.generate(nPrompt, maxTokens: _contextParams.nPredict);
     return result;
+  }
+
+  /// Streaming completion that yields decoded text chunks as they are generated.
+  /// Ensures the context is created before delegating to the FFI streaming generator.
+  Stream<String> completionStream(
+    String prompt, {
+    int? maxTokens,
+    List<String>? stopSequences,
+  }) {
+    if (_ffi == null) {
+      throw StateError('FFI not initialized');
+    }
+
+    // Ensure context exists
+    _ffi!.createContext(
+      nCtx: _contextParams.nCtx,
+      nBatch: _contextParams.nBatch,
+      nThreads: _contextParams.nThreads,
+      nThreadsBatch: _contextParams.nThreadsBatch,
+    );
+
+    // Create sampler per configured params
+    _ffi!.createSampler(
+      useGreedy: _samplerParams.useGreedy,
+      topK: _samplerParams.topK,
+      topP: _samplerParams.topP,
+      temp: _samplerParams.temp,
+    );
+
+    // Tokenize prompt to set internal batch and get prompt token count
+    final nPrompt = _ffi!.tokenizePrompt(prompt);
+
+    // Stream using FFI generateStream
+    return _ffi!.generateStream(
+      nPrompt,
+      maxTokens: maxTokens ?? _contextParams.nPredict,
+    );
   }
 
   String chat(List<ChatMessage> messages) {

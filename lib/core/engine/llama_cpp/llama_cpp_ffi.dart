@@ -1026,6 +1026,114 @@ class LlamaCppFFI {
     }
   }
 
+  Stream<String> generateStream(int nPrompt, {int maxTokens = 256}) async* {
+    log.debug('\n\ngenerateStream(nPrompt: $nPrompt, maxTokens: $maxTokens)');
+    try {
+      if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
+        log.warn('Model or context not initialized');
+        return;
+      }
+
+      if (_batch == null || _batch == ffi.nullptr) {
+        log.warn('Batch not initialized');
+        return;
+      }
+
+      if (_sampler == null || _sampler == ffi.nullptr) {
+        log.warn('Sampler not initialized');
+        return;
+      }
+
+      // Get vocabulary from model
+      final vocab = llama_model_get_vocab(_model!);
+      if (vocab.address == 0) {
+        log.error("Error: failed to get vocabulary from model");
+        return;
+      }
+
+      final tokenPtr = malloc<llama_token>();
+      final byteBuffer = <int>[];
+
+      try {
+        int newTokenId;
+
+        for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
+          if (llama_decode(_context!, _batch!) != 0) {
+            log.error("Error: failed to decode batch");
+            break;
+          }
+
+          nPos += _batch!.n_tokens;
+
+          // Sample next token
+          newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
+
+          // Check if end of generation
+          if (llama_vocab_is_eog(vocab, newTokenId)) {
+            log.debug("End of generation reached");
+            break;
+          }
+
+          // Convert token to text piece
+          final buf = malloc<ffi.Char>(128);
+          int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
+          if (n < 0) {
+            log.error("Error: failed to convert token to piece");
+            malloc.free(buf);
+            break;
+          }
+
+          final tokenBytes = buf.cast<ffi.Uint8>().asTypedList(n);
+          byteBuffer.addAll(tokenBytes);
+          malloc.free(buf);
+
+          // Try to decode accumulated bytes and yield valid UTF-8 text
+          try {
+            final text = utf8.decode(byteBuffer);
+            if (text.isNotEmpty) {
+              yield text;
+              byteBuffer.clear();
+            }
+          } catch (_) {
+            if (byteBuffer.length > 4) {
+              final fallback = String.fromCharCodes(byteBuffer);
+              if (fallback.isNotEmpty) {
+                yield fallback;
+                byteBuffer.clear();
+              }
+            }
+          }
+
+          // Prepare next batch
+          tokenPtr.value = newTokenId;
+          _batch = llama_batch_get_one(tokenPtr, 1);
+
+          // Keep UI responsive
+          await Future.delayed(Duration.zero);
+        }
+
+        // Flush any remaining buffered bytes
+        if (byteBuffer.isNotEmpty) {
+          try {
+            final remaining = utf8.decode(byteBuffer);
+            if (remaining.isNotEmpty) {
+              yield remaining;
+            }
+          } catch (_) {
+            final remaining = String.fromCharCodes(byteBuffer);
+            if (remaining.isNotEmpty) {
+              yield remaining;
+            }
+          }
+        }
+      } finally {
+        malloc.free(tokenPtr);
+      }
+    } catch (e) {
+      log.error('Error generating stream: $e');
+    }
+  }
+
   String applyChatTemplate(List<Map<String, dynamic>> messageMaps) {
     log.debug('\n\napplyChatTemplate(messages: $messageMaps)');
     try {
@@ -1072,197 +1180,6 @@ class LlamaCppFFI {
     } catch (e) {
       log.error('Error applying chat template: $e');
       throw Exception('Failed to apply the chat template: $e');
-    }
-  }
-
-  // Streaming inference function that yields tokens as they are generated
-  Stream<String> performStreamingInference(String prompt, {
-    int maxTokens = 512,
-    double? temperature,
-    int? topK,
-    double? topP,
-    List<String>? stopSequences,
-  }) async* {
-    log.debug(
-        'performStreamingInference(prompt: "$prompt", maxTokens: $maxTokens, temp: $temperature, topK: $topK, topP: $topP, stop: $stopSequences)');
-
-    try {
-      if (_model == null || _context == null || _model == ffi.nullptr || _context == ffi.nullptr) {
-        log.warn('Model or context not initialized');
-        return;
-      }
-
-      // Get vocabulary from model
-      final vocab = llama_model_get_vocab(_model!);
-      if (vocab.address == 0) {
-        log.error("Error: failed to get vocabulary from model");
-        return;
-      }
-
-      // Convert prompt to UTF-8 and get proper byte length
-      final promptUtf8 = prompt.toNativeUtf8();
-      final promptPtr = promptUtf8.cast<ffi.Char>();
-      final promptByteLength = promptUtf8.length;
-
-      // First call to get required token count (negative return value)
-      final nPromptRequired = llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, true, true);
-      if (nPromptRequired >= 0) {
-        log.error("Error: unexpected positive return from tokenize call");
-        malloc.free(promptUtf8);
-        return;
-      }
-      final nPrompt = -nPromptRequired;
-
-      // Allocate space for the tokens and tokenize the prompt
-      final tokens = malloc<llama_token>(nPrompt);
-      final actualTokens = llama_tokenize(vocab, promptPtr, promptByteLength, tokens, nPrompt, true, true);
-
-      if (actualTokens < 0) {
-        log.error("Error: failed to tokenize the prompt");
-        malloc.free(promptUtf8);
-        malloc.free(tokens);
-        return;
-      }
-      log.debug("Prompt(tokenized): $actualTokens tokens");
-
-      // Free the prompt memory now that we're done with it
-      malloc.free(promptUtf8);
-
-      // Initialize sampler
-      final sparams = llama_sampler_chain_default_params();
-      sparams.no_perf = false;
-      final smpl = llama_sampler_chain_init(sparams);
-
-      // Add samplers based on parameters
-      if (topK != null && topK > 0) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_top_k(topK));
-      }
-      if (topP != null && topP < 1.0) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_top_p(topP, 1));
-      }
-      if (temperature != null && temperature >= 0.0) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
-      }
-      
-      // Default to greedy if no other samplers, otherwise use distribution
-      if (topK == null && topP == null && temperature == null) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
-      } else {
-        llama_sampler_chain_add(smpl, llama_sampler_init_dist(0)); // 0 for random seed
-      }
-
-      // Prepare initial batch
-      var batch = llama_batch_get_one(tokens, nPrompt);
-
-      // Buffer for accumulating bytes to handle UTF-8 properly
-      final byteBuffer = <int>[];
-      String fullResponse = '';
-      
-      // Main generation loop
-      int nDecode = 0;
-      int newTokenId;
-      final tokenPtr = malloc<llama_token>();
-
-      for (int nPos = 0; nPos + batch.n_tokens < nPrompt + maxTokens;) {
-        // Decode the batch
-        if (llama_decode(_context!, batch) != 0) {
-          log.error("Error: failed to decode batch");
-          break;
-        }
-
-        nPos += batch.n_tokens;
-
-        // Sample next token
-        newTokenId = llama_sampler_sample(smpl, _context!, -1);
-
-        // Check if end of generation
-        if (llama_vocab_is_eog(vocab, newTokenId)) {
-          log.debug("End of generation reached");
-          break;
-        }
-
-        // Convert token to text piece
-        final buf = malloc<ffi.Char>(128);
-        int n = llama_token_to_piece(vocab, newTokenId, buf, 128, 0, true);
-        if (n < 0) {
-          log.error("Error: failed to convert token to piece");
-          malloc.free(buf);
-          break;
-        }
-
-        // Get bytes for this token
-        final tokenBytes = buf.cast<ffi.Uint8>().asTypedList(n);
-        byteBuffer.addAll(tokenBytes);
-        malloc.free(buf);
-
-        // Try to decode accumulated bytes and yield valid UTF-8 text
-        try {
-          final text = utf8.decode(byteBuffer);
-          if (text.isNotEmpty) {
-            yield text;
-            fullResponse += text;
-            byteBuffer.clear(); // Clear buffer after successful decode
-
-            // Check for stop sequences
-            if (stopSequences != null && stopSequences.isNotEmpty) {
-              bool stopped = false;
-              for (final stopSeq in stopSequences) {
-                if (fullResponse.endsWith(stopSeq)) {
-                  log.debug('Stop sequence "$stopSeq" detected');
-                  stopped = true;
-                  break;
-                }
-              }
-              if (stopped) break;
-            }
-          }
-        } catch (e) {
-          // UTF-8 decode failed, might be incomplete multi-byte sequence
-          // Keep accumulating until we have valid UTF-8
-          if (byteBuffer.length > 4) {
-            // If buffer gets too large, try fallback decode
-            final fallbackText = String.fromCharCodes(byteBuffer);
-            if (fallbackText.isNotEmpty) {
-              yield fallbackText;
-              byteBuffer.clear();
-            }
-          }
-        }
-
-        // Prepare next batch with the new token
-        tokenPtr.value = newTokenId;
-        batch = llama_batch_get_one(tokenPtr, 1);
-
-        nDecode++;
-
-        // Brief yield to keep UI responsive
-        await Future.delayed(Duration.zero);
-      }
-
-      // Yield any remaining content in buffer
-      if (byteBuffer.isNotEmpty) {
-        try {
-          final remaining = utf8.decode(byteBuffer);
-          if (remaining.isNotEmpty) {
-            yield remaining;
-          }
-        } catch (e) {
-          final remaining = String.fromCharCodes(byteBuffer);
-          if (remaining.isNotEmpty) {
-            yield remaining;
-          }
-        }
-      }
-
-      log.debug("Streaming completed. Sampled(decoded): $nDecode tokens");
-
-      // Clean up memory
-      malloc.free(tokens);
-      malloc.free(tokenPtr);
-      llama_sampler_free(smpl);
-      
-    } catch (e) {
-      log.error('Error during streaming inference: $e');
     }
   }
 
