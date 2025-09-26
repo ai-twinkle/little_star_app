@@ -12,7 +12,7 @@ class CompletionScreen extends StatefulWidget {
 }
 
 class _CompletionScreenState extends State<CompletionScreen> {
-  final CompletionViewModel viewModel = CompletionViewModel(modelPath: 'models/llama-3.1-8b-instruct.gguf');
+  final CompletionViewModel viewModel = CompletionViewModel(modelPath: '/storage/emulated/0/Download/Llama-3.2-3B-F1-Reasoning-Instruct-Q3_K_M.gguf');
 
   final _promptController = TextEditingController();
   final _outputScroll = ScrollController();
@@ -30,7 +30,7 @@ class _CompletionScreenState extends State<CompletionScreen> {
     final ms = d.inMilliseconds;
     if (ms < 1000) return '${ms}ms';
     final s = (ms / 1000.0);
-    return s.toStringAsFixed(2) + 's';
+    return '${s.toStringAsFixed(2)}s';
   }
 
   String _fmtDouble(double? v, {int frac = 2}) {
@@ -75,24 +75,21 @@ class _CompletionScreenState extends State<CompletionScreen> {
                   children: [
                     ElevatedButton.icon(
                       onPressed: viewModel.isRunning
-                          ? null
+                          ? () {
+                            viewModel.cancel();
+                          }
                           : () {
                               FocusScope.of(context).unfocus();
                               final prompt = _promptController.text.trim();
                               if (prompt.isEmpty) return;
                               viewModel.startCompletion(prompt, maxTokens: 256);
                             },
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Run'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: viewModel.isRunning
-                          ? () {
-                              viewModel.cancel();
-                            }
-                          : null,
-                      icon: const Icon(Icons.stop),
-                      label: const Text('Cancel'),
+                      icon: !viewModel.isRunning
+                          ? const Icon(Icons.play_arrow)
+                          : const Icon(Icons.stop),
+                      label: !viewModel.isRunning
+                          ? const Text('Run')
+                          : const Text('Cancel'),
                     ),
                     TextButton.icon(
                       onPressed: () {
@@ -101,18 +98,18 @@ class _CompletionScreenState extends State<CompletionScreen> {
                       icon: const Icon(Icons.refresh),
                       label: const Text('Reset'),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final json = viewModel.exportMetricsJson();
-                        await Clipboard.setData(ClipboardData(text: json));
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Metrics JSON copied to clipboard')),
-                        );
-                      },
-                      icon: const Icon(Icons.file_download),
-                      label: const Text('Export JSON'),
-                    ),
+                    // OutlinedButton.icon(
+                    //   onPressed: () async {
+                    //     final json = viewModel.exportMetricsJson();
+                    //     await Clipboard.setData(ClipboardData(text: json));
+                    //     if (!mounted) return;
+                    //     ScaffoldMessenger.of(context).showSnackBar(
+                    //       const SnackBar(content: Text('Metrics JSON copied to clipboard')),
+                    //     );
+                    //   },
+                    //   icon: const Icon(Icons.file_download),
+                    //   label: const Text('Export JSON'),
+                    // ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -139,10 +136,10 @@ class _CompletionScreenState extends State<CompletionScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text('Stop reason: ${viewModel.stopReason ?? '-'}'),
-                        if (viewModel.isRunning) const Padding(
-                          padding: EdgeInsets.only(top: 8.0),
-                          child: LinearProgressIndicator(minHeight: 3),
-                        ),
+                        // if (viewModel.isRunning) const Padding(
+                        //   padding: EdgeInsets.only(top: 8.0),
+                        //   child: LinearProgressIndicator(minHeight: 3),
+                        // ),
                       ],
                     ),
                   ),
