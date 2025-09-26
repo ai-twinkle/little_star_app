@@ -6,7 +6,7 @@ import 'package:little_star_app/core/lm.dart';
 
 
 class CompletionViewModel extends ChangeNotifier {
-  final UnifiedLM _lm;
+  UnifiedLM _lm;
 
   // Run state
   bool _isRunning = false;
@@ -45,6 +45,10 @@ class CompletionViewModel extends ChangeNotifier {
   double? get prefillTokensPerSecond => _prefillTokensPerSecond;
   double? get decodeTokensPerSecond => _decodeTokensPerSecond;
   String? get stopReason => _stopReason;
+
+  Future<void> loadModel(String modelPath) async {
+    _lm = UnifiedLM(modelPath);
+  }
 
   Future<void> startCompletion(
     String prompt, {
