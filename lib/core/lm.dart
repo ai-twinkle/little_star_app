@@ -228,6 +228,30 @@ class UnifiedLM {
     return result;
   }
 
+  /// Updates the sampler parameters dynamically without rebuilding the entire engine
+  void updateSamplerParams({
+    double? temperature,
+    int? topK,
+    double? topP,
+  }) {
+    if (_ffi == null) {
+      throw StateError('FFI not initialized');
+    }
+
+    _samplerParams.temp = temperature ?? _samplerParams.temp;
+    _samplerParams.topK = topK ?? _samplerParams.topK;
+    _samplerParams.topP = topP ?? _samplerParams.topP;
+
+    // Recreate sampler with updated params
+    // Note: This assumes the FFI layer can recreate sampler without context rebuild
+    _ffi!.createSampler(
+      useGreedy: _samplerParams.useGreedy,
+      topK: _samplerParams.topK,
+      topP: _samplerParams.topP,
+      temp: _samplerParams.temp,
+    );
+  }
+
   bool dispose() {
     _ffi!.freeBackend();
     return true;

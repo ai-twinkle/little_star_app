@@ -31,9 +31,18 @@ class CompletionViewModel extends ChangeNotifier {
   // Stop information
   String? _stopReason; // length | stop_sequence | eog_or_stream_end | error | cancelled
 
+  // Settings (local state, not persisted)
+  int _maxTokens = 256;
+  List<String> _stopSequences = [];
+  double _temperature = 0.8;
+  int _topK = 40;
+  double _topP = 0.9;
+  String _systemPrompt = '';
+  String? _selectedModelPath;
+
   CompletionViewModel({
     required String modelPath,
-  }) : _lm = UnifiedLM(modelPath);
+  }) : _lm = UnifiedLM(modelPath), _selectedModelPath = modelPath;
 
   // Public getters for UI
   bool get isRunning => _isRunning;
@@ -46,15 +55,23 @@ class CompletionViewModel extends ChangeNotifier {
   double? get decodeTokensPerSecond => _decodeTokensPerSecond;
   String? get stopReason => _stopReason;
 
-  Future<void> loadModel(String modelPath) async {
+  // Settings getters
+  int get maxTokens => _maxTokens;
+  List<String> get stopSequences => _stopSequences;
+  double get temperature => _temperature;
+  int get topK => _topK;
+  double get topP => _topP;
+  String get systemPrompt => _systemPrompt;
+  String? get selectedModelPath => _selectedModelPath;
+  String get selectedModelName => _selectedModelPath != null ? _selectedModelPath!.split('/').last : 'No model selected';
+
+  Future<void> selectModel(String modelPath) async {
     _lm = UnifiedLM(modelPath);
+    _selectedModelPath = modelPath;
+    notifyListeners();
   }
 
-  Future<void> startCompletion(
-    String prompt, {
-    int? maxTokens,
-    List<String>? stopSequences,
-  }) async {
+  Future<void> startCompletion(String userPrompt) async {
     // Cancel any previous run
     await _subscription?.cancel();
 
@@ -62,19 +79,31 @@ class CompletionViewModel extends ChangeNotifier {
     _isRunning = true;
     _submittedAt = DateTime.now();
 
+    // Combine system prompt with user prompt if system prompt is not empty
+    final finalPrompt = _systemPrompt.isNotEmpty
+        ? '$_systemPrompt\n\n$userPrompt'
+        : userPrompt;
+
     // Count prompt tokens upfront (needed for prefill throughput estimation)
     try {
-      _promptTokenCount = _lm.countPromptTokens(prompt);
+      _promptTokenCount = _lm.countPromptTokens(finalPrompt);
     } catch (_) {
       _promptTokenCount = 0;
     }
     notifyListeners();
 
+    // Update sampler params in the LM before starting
+    _lm.updateSamplerParams(
+      temperature: _temperature,
+      topK: _topK,
+      topP: _topP,
+    );
+
     // Start streaming
     final stream = _lm.completionStream(
-      prompt,
-      maxTokens: maxTokens,
-      stopSequences: stopSequences,
+      finalPrompt,
+      maxTokens: _maxTokens,
+      stopSequences: _stopSequences,
     );
 
     _subscription = stream.listen(
@@ -101,7 +130,7 @@ class CompletionViewModel extends ChangeNotifier {
         );
 
         // Length-based stop (best-effort)
-        if (maxTokens != null && _generatedTokenCount >= maxTokens) {
+        if (_generatedTokenCount >= _maxTokens) {
           _stopReason ??= 'length';
         }
 
@@ -114,7 +143,7 @@ class CompletionViewModel extends ChangeNotifier {
         // Infer stop reason if not set by length
         _stopReason ??= _inferStopReason(
           output: _outputText,
-          stopSequences: stopSequences,
+          stopSequences: _stopSequences,
         );
 
         _isRunning = false;
@@ -139,6 +168,34 @@ class CompletionViewModel extends ChangeNotifier {
     _isRunning = false;
     _finishedAt = DateTime.now();
     _totalDuration = _submittedAt == null ? null : _finishedAt!.difference(_submittedAt!);
+    notifyListeners();
+  }
+
+  // Settings management
+  void updateSettings({
+    int? maxTokens,
+    List<String>? stopSequences,
+    double? temperature,
+    int? topK,
+    double? topP,
+    String? systemPrompt,
+  }) {
+    if (maxTokens != null) _maxTokens = maxTokens.clamp(16, 2048);
+    if (stopSequences != null) _stopSequences = stopSequences.where((s) => s.trim().isNotEmpty).toList();
+    if (temperature != null) _temperature = temperature.clamp(0.0, 2.0);
+    if (topK != null) _topK = topK.clamp(1, 100);
+    if (topP != null) _topP = topP.clamp(0.1, 1.0);
+    if (systemPrompt != null) _systemPrompt = systemPrompt;
+    notifyListeners();
+  }
+
+  void resetSettings() {
+    _maxTokens = 256;
+    _stopSequences = [];
+    _temperature = 0.8;
+    _topK = 40;
+    _topP = 0.9;
+    _systemPrompt = '';
     notifyListeners();
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:little_star_app/ui/completion/view_model/completion_viewmodel.dart';
+import 'package:little_star_app/ui/completion/widgets/advanced_settings_sheet.dart';
+import 'package:little_star_app/ui/completion/widgets/model_selection_dialog.dart';
 
 
 class CompletionScreen extends StatefulWidget {
@@ -38,11 +40,64 @@ class _CompletionScreenState extends State<CompletionScreen> {
     return v.toStringAsFixed(frac);
   }
 
+  void _showAdvancedSettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => AdvancedSettingsSheet(
+        maxTokens: viewModel.maxTokens,
+        stopSequences: viewModel.stopSequences,
+        temperature: viewModel.temperature,
+        topK: viewModel.topK,
+        topP: viewModel.topP,
+        systemPrompt: viewModel.systemPrompt,
+        onApply: viewModel.updateSettings,
+        onReset: viewModel.resetSettings,
+      ),
+    );
+  }
+
+  void _showModelSelection(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => ModelSelectionDialog(
+        onModelSelected: (modelPath) async {
+          try {
+            await viewModel.selectModel(modelPath);
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to load model: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Completion'),
+        actions: [
+          // 進階設定按鈕
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Advanced settings',
+            onPressed: () => _showAdvancedSettings(context),
+          ),
+          // 選擇模型按鈕
+          // IconButton(
+          //   icon: const Icon(Icons.inventory_2),
+          //   tooltip: '選擇模型',
+          //   onPressed: () => _showModelSelection(context),
+          // ),
+        ],
       ),
       body: AnimatedBuilder(
         animation: viewModel,
@@ -58,6 +113,49 @@ class _CompletionScreenState extends State<CompletionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 模型狀態卡片
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        // const Icon(Icons.model_training, color: Colors.blue),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Current model',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                viewModel.selectedModelName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showModelSelection(context),
+                          icon: const Icon(Icons.swap_horiz, size: 12),
+                          label: const Text('Select GGUF'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: _promptController,
                   minLines: 3,
@@ -82,7 +180,7 @@ class _CompletionScreenState extends State<CompletionScreen> {
                               FocusScope.of(context).unfocus();
                               final prompt = _promptController.text.trim();
                               if (prompt.isEmpty) return;
-                              viewModel.startCompletion(prompt, maxTokens: 256);
+                              viewModel.startCompletion(prompt);
                             },
                       icon: !viewModel.isRunning
                           ? const Icon(Icons.play_arrow)
