@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 
-import '../../../services/model_selection_service.dart';
+import '../../../data/repositories/gguf_repository.dart';
+import '../../../data/services/directory_service.dart';
+import '../../../models/gguf_model_info.dart';
 
 /// Dialog for selecting GGUF model files
 class ModelSelectionDialog extends StatefulWidget {
@@ -17,7 +19,8 @@ class ModelSelectionDialog extends StatefulWidget {
 }
 
 class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
-  final ModelSelectionService _modelService = ModelSelectionService();
+  late final DirectoryService _directoryService;
+  late final GGUFRepository _repository;
   List<GGUFModelInfo> _models = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -25,6 +28,15 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
   @override
   void initState() {
     super.initState();
+    // Initialize services based on platform
+    if (Platform.isAndroid) {
+      _directoryService = AndroidDirectoryService();
+    } else if (Platform.isIOS) {
+      _directoryService = IOSDirectoryService();
+    } else {
+      _directoryService = DesktopDirectoryService();
+    }
+    _repository = GGUFRepository(directoryService: _directoryService);
     _scanForModels();
   }
 
@@ -35,19 +47,17 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
     });
 
     try {
-      // Request permissions on Android if needed
-      if (Platform.isAndroid) {
-        final hasPermission = await _modelService.requestAndroidPermissions(context);
-        if (!hasPermission) {
-          setState(() {
-            _errorMessage = 'Storage permission required to access model files. Please grant permission and try again.';
-            _isLoading = false;
-          });
-          return;
-        }
+      // Request permissions if needed (Android only)
+      final hasPermission = await _repository.ensurePermissions(context);
+      if (!hasPermission) {
+        setState(() {
+          _errorMessage = 'Storage permission required to access model files. Please grant permission and try again.';
+          _isLoading = false;
+        });
+        return;
       }
 
-      final models = await _modelService.scanForGGUFFiles();
+      final models = await _repository.getGGUFModels();
       setState(() {
         _models = models;
         _isLoading = false;

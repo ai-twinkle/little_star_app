@@ -18,6 +18,8 @@ abstract class DirectoryService {
   Future<Map<String, List<String>>> listDirectories({required List<DirectoryType> directoryTypes});
 
   Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension});
+
+  Future<bool> requestPermissions({required BuildContext context});
 }
 
 class AndroidDirectoryService implements DirectoryService {
@@ -70,27 +72,52 @@ class AndroidDirectoryService implements DirectoryService {
       switch (directoryType) {
         case DirectoryType.documents:
           final documentsDir = await getApplicationDocumentsDirectory();
-          directoryContents[directoryType.name] = documentsDir.listSync(recursive: false).map((file) => file.path).toList();
+          directoryContents[directoryType.name] = documentsDir
+              .listSync(recursive: false)
+              .map((file) => file.path)
+              .toList();
           break;
         case DirectoryType.downloads:
+          // getDownloadsDirectory() is often null on Android; fallback to common path
           final downloadsDir = await getDownloadsDirectory();
-          directoryContents[directoryType.name] = downloadsDir?.listSync(recursive: false).map((file) => file.path).toList() ?? [];
+          final List<String> entries = [];
+          if (downloadsDir != null && downloadsDir.existsSync()) {
+            entries.addAll(downloadsDir.listSync(recursive: false).map((e) => e.path));
+          }
+          final fallback = Directory('/storage/emulated/0/Download');
+          if (fallback.existsSync()) {
+            entries.addAll(fallback.listSync(recursive: false).map((e) => e.path));
+          }
+          directoryContents[directoryType.name] = entries;
           break;
         case DirectoryType.temporary:
           final tempDir = await getTemporaryDirectory();
-          directoryContents[directoryType.name] = tempDir.listSync(recursive: false).map((file) => file.path).toList();
+          directoryContents[directoryType.name] = tempDir
+              .listSync(recursive: false)
+              .map((file) => file.path)
+              .toList();
           break;
         case DirectoryType.applicationSupport:
           final appSupportDir = await getApplicationSupportDirectory();
-          directoryContents[directoryType.name] = appSupportDir.listSync(recursive: false).map((file) => file.path).toList();
+          directoryContents[directoryType.name] = appSupportDir
+              .listSync(recursive: false)
+              .map((file) => file.path)
+              .toList();
           break;
         case DirectoryType.library:
           final libraryDir = await getLibraryDirectory();
-          directoryContents[directoryType.name] = libraryDir.listSync(recursive: false).map((file) => file.path).toList();
+          directoryContents[directoryType.name] = libraryDir
+              .listSync(recursive: false)
+              .map((file) => file.path)
+              .toList();
           break;
         case DirectoryType.external:
           final externalDir = await getExternalStorageDirectory();
-          directoryContents[directoryType.name] = externalDir?.listSync(recursive: false).map((file) => file.path).toList() ?? [];
+          directoryContents[directoryType.name] = externalDir
+                  ?.listSync(recursive: false)
+                  .map((file) => file.path)
+                  .toList() ??
+              [];
           break;
         default:
           break;
@@ -103,56 +130,132 @@ class AndroidDirectoryService implements DirectoryService {
   Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension}) async {
     final List<String> foundFiles = [];
 
-    listDirectories(directoryTypes: directoryTypes).then((directoryContents) {
-      for (var directoryType in directoryTypes) {
-        switch (directoryType) {
-          case DirectoryType.documents:
-            foundFiles.addAll(directoryContents[directoryType.name] ?? []);
-            break;
-          case DirectoryType.downloads:
-            foundFiles.addAll(directoryContents[directoryType.name] ?? []);
-            break;
-          case DirectoryType.temporary:
-            foundFiles.addAll(directoryContents[directoryType.name] ?? []);
-            break;
-          case DirectoryType.applicationSupport:
-            foundFiles.addAll(directoryContents[directoryType.name] ?? []);
-            break;
-          case DirectoryType.library:
-            foundFiles.addAll(directoryContents[directoryType.name] ?? []);
-            break;
-          case DirectoryType.external:
-            foundFiles.addAll(directoryContents[directoryType.name] ?? []);
-            break;
-          default:
-            break;
+    final directoryContents = await listDirectories(directoryTypes: directoryTypes);
+    for (final entry in directoryContents.entries) {
+      for (final p in entry.value) {
+        final f = File(p);
+        final d = Directory(p);
+        if (f.existsSync()) {
+          final nameOk = fileName == null || path.basename(p).contains(fileName);
+          final extOk = extension == null || p.toLowerCase().endsWith(extension.toLowerCase());
+          if (nameOk && extOk) {
+            foundFiles.add(p);
+          }
+        } else if (d.existsSync()) {
+          for (final child in d.listSync(recursive: true, followLinks: false)) {
+            final cp = child.path;
+            if (File(cp).existsSync()) {
+              final nameOk = fileName == null || path.basename(cp).contains(fileName);
+              final extOk = extension == null || cp.toLowerCase().endsWith(extension.toLowerCase());
+              if (nameOk && extOk) {
+                foundFiles.add(cp);
+              }
+            }
+          }
         }
       }
-    });
-
-    if (fileName != null) {
-      foundFiles.addAll(foundFiles.where((file) => file.contains(fileName)).toList());
     }
 
-    if (extension != null) {
-      foundFiles.addAll(foundFiles.where((file) => file.endsWith(extension)).toList());
-    }
-
-    return foundFiles;
+    // Deduplicate
+    return foundFiles.toSet().toList();
   }
 }
 
 class IOSDirectoryService implements DirectoryService {
   @override
+  Future<bool> requestPermissions({required BuildContext context}) async {
+    // iOS doesn't require explicit permissions for app sandboxed directories
+    return true;
+  }
+
+  @override
   Future<Map<String, List<String>>> listDirectories({required List<DirectoryType> directoryTypes}) async {
-    return {};
+    final Map<String, List<String>> directoryContents = {};
+    for (var directoryType in directoryTypes) {
+      switch (directoryType) {
+        case DirectoryType.documents:
+          final dir = await getApplicationDocumentsDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.applicationSupport:
+          final dir = await getApplicationSupportDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.library:
+          final dir = await getLibraryDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.temporary:
+          final dir = await getTemporaryDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        default:
+          break;
+      }
+    }
+    return directoryContents;
   }
 
   @override
   Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension}) async {
-    return [];
+    final List<String> foundFiles = [];
+    final directoryContents = await listDirectories(directoryTypes: directoryTypes);
+    for (final entry in directoryContents.entries) {
+      for (final p in entry.value) {
+        final f = File(p);
+        final d = Directory(p);
+        if (f.existsSync()) {
+          final nameOk = fileName == null || path.basename(p).contains(fileName);
+          final extOk = extension == null || p.toLowerCase().endsWith(extension.toLowerCase());
+          if (nameOk && extOk) {
+            foundFiles.add(p);
+          }
+        } else if (d.existsSync()) {
+          for (final child in d.listSync(recursive: true, followLinks: false)) {
+            final cp = child.path;
+            if (File(cp).existsSync()) {
+              final nameOk = fileName == null || path.basename(cp).contains(fileName);
+              final extOk = extension == null || cp.toLowerCase().endsWith(extension.toLowerCase());
+              if (nameOk && extOk) {
+                foundFiles.add(cp);
+              }
+            }
+          }
+        }
+      }
+    }
+    return foundFiles.toSet().toList();
   }
 }
 
+class DesktopDirectoryService implements DirectoryService {
+  @override
+  Future<bool> requestPermissions({required BuildContext context}) async {
+    // Desktop platforms don't require explicit permissions
+    return true;
+  }
 
+  @override
+  Future<Map<String, List<String>>> listDirectories({required List<DirectoryType> directoryTypes}) async {
+    final cwd = Directory.current;
+    return {
+      'cwd': [cwd.path]
+    };
+  }
 
+  @override
+  Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension}) async {
+    final List<String> results = [];
+    for (final entity in Directory.current.listSync(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        final p = entity.path;
+        final nameOk = fileName == null || path.basename(p).contains(fileName);
+        final extOk = extension == null || p.toLowerCase().endsWith(extension.toLowerCase());
+        if (nameOk && extOk) {
+          results.add(p);
+        }
+      }
+    }
+    return results.toSet().toList();
+  }
+}

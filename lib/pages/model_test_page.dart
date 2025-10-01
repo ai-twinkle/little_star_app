@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/llama_service.dart';
-import '../services/ios_directory_service.dart';
+import '../data/repositories/gguf_repository.dart';
+import '../data/services/directory_service.dart';
 import '../core/lm.dart';
 
 class ExpansibleController extends ChangeNotifier {
@@ -38,6 +38,10 @@ class ModelTestPage extends StatefulWidget {
 
 class _ModelTestPageState extends State<ModelTestPage> {
   final LlamaService _llamaService = LlamaService();
+
+  late final DirectoryService _directoryService;
+  late final GGUFRepository _ggufRepository;
+
   bool _isLoading = false;
 
   // Model-related state
@@ -76,6 +80,16 @@ class _ModelTestPageState extends State<ModelTestPage> {
     _promptController.addListener(() {
       setState(() {}); // Rebuild to update button state
     });
+
+    // Initialize GGUF repository
+    if (Platform.isAndroid) {
+      _directoryService = AndroidDirectoryService();
+    } else if (Platform.isIOS) {
+      _directoryService = IOSDirectoryService();
+    } else {
+      _directoryService = DesktopDirectoryService();
+    }
+    _ggufRepository = GGUFRepository(directoryService: _directoryService);
     _llamaService.addListener(_onServiceStateChanged);
   }
 
@@ -92,53 +106,6 @@ class _ModelTestPageState extends State<ModelTestPage> {
         _modelController.collapse();
       }
     });
-  }
-
-  // Request necessary permissions for Android
-  Future<bool> _requestPermissions() async {
-    if (!Platform.isAndroid) return true;
-
-    var storageStatus = await Permission.storage.status;
-    if (storageStatus.isDenied) {
-      storageStatus = await Permission.storage.request();
-    }
-    
-    if (storageStatus.isGranted) {
-      return true;
-    }
-    
-    var manageStatus = await Permission.manageExternalStorage.status;
-    if (manageStatus.isDenied) {
-      setState(() {
-        _isLoading = false;
-      });
-      
-      final shouldRequest = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Storage Permission Required'),
-          content: const Text(
-            'This app needs access to Downloads folder to load AI models. Please grant "All files access" permission in the next screen.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Grant'),
-            ),
-          ],
-        ),
-      );
-      
-      if (shouldRequest != true) return false;
-      
-      manageStatus = await Permission.manageExternalStorage.request();
-    }
-    
-    return manageStatus.isGranted;
   }
 
   // Find model file in common locations
@@ -202,54 +169,17 @@ class _ModelTestPageState extends State<ModelTestPage> {
     });
 
     try {
-      if (Platform.isAndroid) {
-        final hasPermission = await _requestPermissions();
-        if (!hasPermission) {
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
+      // Request permissions if needed
+      final hasPermission = await _ggufRepository.ensurePermissions(context);
+      if (!hasPermission) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
       }
 
-      List<String> ggufFiles = [];
-      
-      if (Platform.isAndroid) {
-        final searchPaths = [
-          '/storage/emulated/0/Download',
-          '/storage/emulated/0/Documents',
-          '/sdcard/Download',
-          '/sdcard/Documents',
-        ];
-
-        for (final searchPath in searchPaths) {
-          try {
-            final dir = Directory(searchPath);
-            if (await dir.exists()) {
-              final files = dir.listSync(recursive: false);
-              for (final file in files) {
-                if (file is File && file.path.toLowerCase().endsWith('.gguf')) {
-                  ggufFiles.add(file.path);
-                }
-              }
-            }
-          } catch (e) {
-            print('Error searching in $searchPath: $e');
-          }
-        }
-      } else if (Platform.isIOS) {
-        // For iOS, use the IOSDirectoryService
-        ggufFiles = await IOSDirectoryService.findGGUFFiles();
-      } else {
-        // For other platforms (macOS, Windows, Linux)
-        final currentDir = Directory.current;
-        final files = currentDir.listSync(recursive: false);
-        for (final file in files) {
-          if (file is File && file.path.toLowerCase().endsWith('.gguf')) {
-            ggufFiles.add(file.path);
-          }
-        }
-      }
+      final ggufModels = await _ggufRepository.getGGUFModels();
+      final ggufFiles = ggufModels.map((model) => model.filePath).toList();
 
       setState(() {
         _isLoading = false;
@@ -347,12 +277,13 @@ class _ModelTestPageState extends State<ModelTestPage> {
   // Debug iOS directories function
   Future<void> _debugIOSDirectories() async {
     if (Platform.isIOS) {
-      await IOSDirectoryService.printDirectoryReport();
-      
+      // Debug function - IOSDirectoryService.printDirectoryReport() removed
+      // as part of GGUF repository consolidation
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('iOS directory report printed to console. Check your debug output.'),
+            content: Text('iOS directory debug function disabled after GGUF repository consolidation.'),
             duration: Duration(seconds: 3),
           ),
         );

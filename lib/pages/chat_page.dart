@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import 'package:permission_handler/permission_handler.dart';
 import '../models/chat_message.dart';
 import '../services/llama_service.dart';
-import '../services/ios_directory_service.dart';
-import '../core/engine/llama_cpp/llama_cpp_ffi.dart';
+import '../data/repositories/gguf_repository.dart';
+import '../data/services/directory_service.dart';
 import 'dart:async';
 
 class ChatPage extends StatefulWidget {
@@ -21,7 +19,10 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
-  
+
+  late final DirectoryService _directoryService;
+  late final GGUFRepository _ggufRepository;
+
   bool _isLoading = false;
   bool _isResponding = false;
   String? _modelPath;
@@ -36,6 +37,16 @@ class _ChatPageState extends State<ChatPage> {
       setState(() {}); // Update send button state
     });
     _llamaService.addListener(_onServiceStateChanged);
+
+    // Initialize GGUF repository
+    if (Platform.isAndroid) {
+      _directoryService = AndroidDirectoryService();
+    } else if (Platform.isIOS) {
+      _directoryService = IOSDirectoryService();
+    } else {
+      _directoryService = DesktopDirectoryService();
+    }
+    _ggufRepository = GGUFRepository(directoryService: _directoryService);
   }
 
   @override
@@ -64,49 +75,6 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
-  // Request permissions for Android
-  Future<bool> _requestPermissions() async {
-    if (!Platform.isAndroid) return true;
-
-    var storageStatus = await Permission.storage.status;
-    if (storageStatus.isDenied) {
-      storageStatus = await Permission.storage.request();
-    }
-    
-    if (storageStatus.isGranted) {
-      return true;
-    }
-    
-    var manageStatus = await Permission.manageExternalStorage.status;
-    if (manageStatus.isDenied) {
-      final shouldRequest = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Storage Permission Required'),
-          content: const Text(
-            'This app needs access to Downloads folder to load AI models. Please grant "All files access" permission.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Grant'),
-            ),
-          ],
-        ),
-      );
-      
-      if (shouldRequest != true) return false;
-      
-      manageStatus = await Permission.manageExternalStorage.request();
-    }
-    
-    return manageStatus.isGranted;
-  }
-
   // Browse for GGUF files
   Future<void> _browseGGUFFiles() async {
     setState(() {
@@ -114,54 +82,17 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     try {
-      if (Platform.isAndroid) {
-        final hasPermission = await _requestPermissions();
-        if (!hasPermission) {
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
+      // Request permissions if needed
+      final hasPermission = await _ggufRepository.ensurePermissions(context);
+      if (!hasPermission) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
       }
 
-      List<String> ggufFiles = [];
-      
-      if (Platform.isAndroid) {
-        final searchPaths = [
-          '/storage/emulated/0/Download',
-          '/storage/emulated/0/Documents',
-          '/sdcard/Download',
-          '/sdcard/Documents',
-        ];
-
-        for (final searchPath in searchPaths) {
-          try {
-            final dir = Directory(searchPath);
-            if (await dir.exists()) {
-              final files = dir.listSync(recursive: false);
-              for (final file in files) {
-                if (file is File && file.path.toLowerCase().endsWith('.gguf')) {
-                  ggufFiles.add(file.path);
-                }
-              }
-            }
-          } catch (e) {
-            print('Error searching in $searchPath: $e');
-          }
-        }
-      } else if (Platform.isIOS) {
-        // For iOS, use the IOSDirectoryService
-        ggufFiles = await IOSDirectoryService.findGGUFFiles();
-      } else {
-        // For other platforms (macOS, Windows, Linux)
-        final currentDir = Directory.current;
-        final files = currentDir.listSync(recursive: false);
-        for (final file in files) {
-          if (file is File && file.path.toLowerCase().endsWith('.gguf')) {
-            ggufFiles.add(file.path);
-          }
-        }
-      }
+      final ggufModels = await _ggufRepository.getGGUFModels();
+      final ggufFiles = ggufModels.map((model) => model.filePath).toList();
 
       setState(() {
         _isLoading = false;
