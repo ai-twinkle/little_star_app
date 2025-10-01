@@ -110,154 +110,164 @@ class _CompletionScreenState extends State<CompletionScreen> {
 
           return Padding(
             padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 模型狀態卡片
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        // const Icon(Icons.model_training, color: Colors.blue),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Current model',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              Text(
-                                viewModel.selectedModelName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => _showModelSelection(context),
-                          icon: const Icon(Icons.swap_horiz, size: 12),
-                          label: const Text('Select GGUF'),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _promptController,
-                  minLines: 3,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Prompt',
-                    border: OutlineInputBorder(),
-                  ),
-                  textInputAction: TextInputAction.newline,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: viewModel.isRunning
-                          ? () {
-                            viewModel.cancel();
-                          }
-                          : () {
-                              FocusScope.of(context).unfocus();
-                              final prompt = _promptController.text.trim();
-                              if (prompt.isEmpty) return;
-                              viewModel.startCompletion(prompt);
-                            },
-                      icon: !viewModel.isRunning
-                          ? const Icon(Icons.play_arrow)
-                          : const Icon(Icons.stop),
-                      label: !viewModel.isRunning
-                          ? const Text('Run')
-                          : const Text('Cancel'),
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        viewModel.reset();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Reset'),
-                    ),
-                    // OutlinedButton.icon(
-                    //   onPressed: () async {
-                    //     final json = viewModel.exportMetricsJson();
-                    //     await Clipboard.setData(ClipboardData(text: json));
-                    //     if (!mounted) return;
-                    //     ScaffoldMessenger.of(context).showSnackBar(
-                    //       const SnackBar(content: Text('Metrics JSON copied to clipboard')),
-                    //     );
-                    //   },
-                    //   icon: const Icon(Icons.file_download),
-                    //   label: const Text('Export JSON'),
-                    // ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
+                        // 模型狀態卡片
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
+                              children: [
+                                // const Icon(Icons.model_training, color: Colors.blue),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Current model',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      Text(
+                                        viewModel.selectedModelName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => _showModelSelection(context),
+                                  icon: const Icon(Icons.swap_horiz, size: 12),
+                                  label: const Text('Select GGUF'),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _promptController,
+                          minLines: 3,
+                          maxLines: 6,
+                          decoration: const InputDecoration(
+                            labelText: 'Prompt',
+                            border: OutlineInputBorder(),
+                          ),
+                          textInputAction: TextInputAction.newline,
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            Expanded(child: _MetricTile(title: 'TTFT', value: _fmtDuration(viewModel.ttft))),
-                            Expanded(child: _MetricTile(title: 'Prefill tps', value: _fmtDouble(viewModel.prefillTokensPerSecond))),
-                            Expanded(child: _MetricTile(title: 'Decode tps', value: _fmtDouble(viewModel.decodeTokensPerSecond))),
+                            ElevatedButton.icon(
+                              onPressed: viewModel.isRunning
+                                  ? () {
+                                viewModel.cancel();
+                              }
+                                  : () {
+                                      FocusScope.of(context).unfocus();
+                                      final prompt = _promptController.text.trim();
+                                      if (prompt.isEmpty) return;
+                                      viewModel.startCompletion(prompt);
+                                    },
+                              icon: !viewModel.isRunning
+                                  ? const Icon(Icons.play_arrow)
+                                  : const Icon(Icons.stop),
+                              label: !viewModel.isRunning
+                                  ? const Text('Run')
+                                  : const Text('Cancel'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {
+                                viewModel.reset();
+                              },
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Reset'),
+                            ),
+                            // OutlinedButton.icon(
+                            //   onPressed: () async {
+                            //     final json = viewModel.exportMetricsJson();
+                            //     await Clipboard.setData(ClipboardData(text: json));
+                            //     if (!mounted) return;
+                            //     ScaffoldMessenger.of(context).showSnackBar(
+                            //       const SnackBar(content: Text('Metrics JSON copied to clipboard')),
+                            //     );
+                            //   },
+                            //   icon: const Icon(Icons.file_download),
+                            //   label: const Text('Export JSON'),
+                            // ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(child: _MetricTile(title: 'Prompt tokens', value: '${viewModel.promptTokenCount}')),
-                            Expanded(child: _MetricTile(title: 'Gen tokens', value: '${viewModel.generatedTokenCount}')),
-                            Expanded(child: _MetricTile(title: 'Total time', value: _fmtDuration(viewModel.totalDuration))),
-                          ],
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(child: _MetricTile(title: 'TTFT', value: _fmtDuration(viewModel.ttft))),
+                                    Expanded(child: _MetricTile(title: 'Prefill tps', value: _fmtDouble(viewModel.prefillTokensPerSecond))),
+                                    Expanded(child: _MetricTile(title: 'Decode tps', value: _fmtDouble(viewModel.decodeTokensPerSecond))),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: _MetricTile(title: 'Prompt tokens', value: '${viewModel.promptTokenCount}')),
+                                    Expanded(child: _MetricTile(title: 'Gen tokens', value: '${viewModel.generatedTokenCount}')),
+                                    Expanded(child: _MetricTile(title: 'Total time', value: _fmtDuration(viewModel.totalDuration))),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text('Stop reason: ${viewModel.stopReason ?? '-'}'),
+                                // if (viewModel.isRunning) const Padding(
+                                //   padding: EdgeInsets.only(top: 8.0),
+                                //   child: LinearProgressIndicator(minHeight: 3),
+                                // ),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        Text('Stop reason: ${viewModel.stopReason ?? '-'}'),
-                        // if (viewModel.isRunning) const Padding(
-                        //   padding: EdgeInsets.only(top: 8.0),
-                        //   child: LinearProgressIndicator(minHeight: 3),
-                        // ),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minHeight: 200),
+                              child: SingleChildScrollView(
+                                controller: _outputScroll,
+                                child: Text(
+                                  viewModel.outputText,
+                                  style: const TextStyle(fontFamily: 'monospace'),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: SingleChildScrollView(
-                        controller: _outputScroll,
-                        child: Text(
-                          viewModel.outputText,
-                          style: const TextStyle(fontFamily: 'monospace'),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           );
         },
