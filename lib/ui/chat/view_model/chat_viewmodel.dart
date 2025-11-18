@@ -130,27 +130,12 @@ class ChatViewModel extends ChangeNotifier {
 
         // Check for stop sequences in the accumulated text
         if (_shouldStop(streamingMessageNotifier.value)) {
+          _finalizeMessage();
           _subscription?.cancel();
         }
       },
       onDone: () {
-        _generationEndTime = DateTime.now();
-
-        // Create AI message
-        final aiMessage = ChatMessage(
-          content: streamingMessageNotifier.value,
-          isUser: false,
-          modelName: selectedModelName,
-        );
-        _messages.add(aiMessage);
-
-        // Store metrics for this message
-        _storeCurrentMetrics(_messages.length - 1);
-
-        // Reset streaming state
-        streamingMessageNotifier.value = '';
-        _isGenerating = false;
-        notifyListeners();
+        _finalizeMessage();
       },
       onError: (error, stack) {
         debugPrint('Error during generation: $error');
@@ -241,6 +226,31 @@ class ChatViewModel extends ChangeNotifier {
 
     buffer.writeln('<|assistant|>');
     return buffer.toString();
+  }
+
+  void _finalizeMessage() {
+    // Prevent duplicate finalization
+    if (!_isGenerating) return;
+
+    _generationEndTime = DateTime.now();
+
+    // Only create message if we have content
+    if (streamingMessageNotifier.value.isNotEmpty) {
+      final aiMessage = ChatMessage(
+        content: streamingMessageNotifier.value,
+        isUser: false,
+        modelName: selectedModelName,
+      );
+      _messages.add(aiMessage);
+
+      // Store metrics for this message
+      _storeCurrentMetrics(_messages.length - 1);
+    }
+
+    // Reset streaming state
+    streamingMessageNotifier.value = '';
+    _isGenerating = false;
+    notifyListeners();
   }
 
   bool _shouldStop(String text) {
