@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -51,12 +50,17 @@ class _ModelTestPageState extends State<ModelTestPage> {
 
   // Inference-related state
   final TextEditingController _promptController = TextEditingController();
-  String _inferenceResult = '';
+  final ValueNotifier<String> _inferenceResultNotifier = ValueNotifier<String>('');
   bool _isInferenceLoading = false;
 
+  // Streaming buffer for batched updates
+  String _streamBuffer = '';
+  int _tokensSinceLastUpdate = 0;
+  static const int _tokensPerUpdate = 3; // Update UI every 3 tokens
+
   // Benchmark-related state
-  String _benchmarkResults = '';
-  Map<String, dynamic> _performanceMetrics = {};
+  final ValueNotifier<String> _benchmarkResultsNotifier = ValueNotifier<String>('');
+  final ValueNotifier<Map<String, dynamic>> _performanceMetricsNotifier = ValueNotifier<Map<String, dynamic>>({});
 
   // Context parameters state
   bool _useCustomContextParams = false;
@@ -96,6 +100,9 @@ class _ModelTestPageState extends State<ModelTestPage> {
   @override
   void dispose() {
     _promptController.dispose();
+    _inferenceResultNotifier.dispose();
+    _benchmarkResultsNotifier.dispose();
+    _performanceMetricsNotifier.dispose();
     _llamaService.removeListener(_onServiceStateChanged);
     super.dispose();
   }
@@ -960,7 +967,7 @@ class _ModelTestPageState extends State<ModelTestPage> {
     }
   }
 
-  // Perform inference with benchmark
+  // Perform inference with streaming and benchmark
   Future<void> _performInference() async {
     if (!_llamaService.isModelLoaded || _promptController.text.trim().isEmpty) {
       return;
@@ -971,14 +978,21 @@ class _ModelTestPageState extends State<ModelTestPage> {
 
     setState(() {
       _isInferenceLoading = true;
-      _inferenceResult = 'Processing...';
-      _benchmarkResults = '';
-      _performanceMetrics = {};
     });
+
+    // Reset state
+    _inferenceResultNotifier.value = '';
+    _benchmarkResultsNotifier.value = '';
+    _performanceMetricsNotifier.value = {};
+    _streamBuffer = '';
+    _tokensSinceLastUpdate = 0;
 
     try {
       final stopwatch = Stopwatch()..start();
-      
+      int totalCharacters = 0;
+      bool isFirstToken = true;
+      double firstTokenTime = 0.0;
+
       // Log custom parameter usage
       if (_useCustomContextParams) {
         print('Using custom context parameters: nCtx=$_nCtx, nBatch=$_nBatch, nUbatch=$_nUbatch, nSeqMax=$_nSeqMax, nThreads=$_nThreads, nThreadsBatch=$_nThreadsBatch');
@@ -986,75 +1000,97 @@ class _ModelTestPageState extends State<ModelTestPage> {
       if (_useCustomSamplingParams) {
         print('Using custom sampling parameters: maxTokens=$_maxTokens, temperature=$_temperature, topK=$_topK, topP=$_topP');
       }
-      
-      // Use isolate for inference with custom sampling parameters
-      final inferenceParams = InferenceParams(
-        modelPath: _llamaService.modelPath!,
-        prompt: prompt,
-        maxTokens: maxTokens,
-        temperature: _useCustomSamplingParams ? _temperature : null,
-        topK: _useCustomSamplingParams ? _topK : null,
-        topP: _useCustomSamplingParams ? _topP : null,
-        nCtx: _useCustomContextParams ? _nCtx : null,
-        nBatch: _useCustomContextParams ? _nBatch : null,
-        nUbatch: _useCustomContextParams ? _nUbatch : null,
-        nSeqMax: _useCustomContextParams ? _nSeqMax : null,
-        nThreads: _useCustomContextParams ? _nThreads : null,
-        nThreadsBatch: _useCustomContextParams ? _nThreadsBatch : null,
-      );
 
-      final result = await compute(_performInferenceInIsolate, inferenceParams);
-      
+      // Create UnifiedLM with custom parameters
+      final modelParams = ModelParams(modelPath: _llamaService.modelPath!);
+
+      final contextParams = ContextParams();
+      contextParams.nPredict = maxTokens;
+      if (_useCustomContextParams) {
+        contextParams.nCtx = _nCtx;
+        contextParams.nBatch = _nBatch;
+        contextParams.nUbatch = _nUbatch;
+        contextParams.nSeqMax = _nSeqMax;
+        contextParams.nThreads = _nThreads;
+        contextParams.nThreadsBatch = _nThreadsBatch;
+      }
+
+      final samplerParams = SamplerParams();
+      if (_useCustomSamplingParams) {
+        samplerParams.temp = _temperature;
+        samplerParams.topK = _topK;
+        samplerParams.topP = _topP;
+      }
+
+      final lm = UnifiedLM.withParams(modelParams, contextParams, samplerParams);
+
+      // Stream tokens with batched updates
+      await for (final chunk in lm.completionStream(prompt, maxTokens: maxTokens)) {
+        if (isFirstToken) {
+          firstTokenTime = stopwatch.elapsedMilliseconds / 1000.0;
+          isFirstToken = false;
+        }
+
+        totalCharacters += chunk.length;
+        _streamBuffer += chunk;
+        _tokensSinceLastUpdate++;
+
+        // Update UI every N tokens for better performance
+        if (_tokensSinceLastUpdate >= _tokensPerUpdate) {
+          _inferenceResultNotifier.value += _streamBuffer;
+          _streamBuffer = '';
+          _tokensSinceLastUpdate = 0;
+        }
+      }
+
+      // Flush any remaining buffer
+      if (_streamBuffer.isNotEmpty) {
+        _inferenceResultNotifier.value += _streamBuffer;
+        _streamBuffer = '';
+      }
+
       stopwatch.stop();
+      final elapsedMs = stopwatch.elapsedMilliseconds;
+      final elapsedSeconds = elapsedMs / 1000.0;
 
-      if (result != null) {
-        // Calculate metrics
-        final elapsedMs = stopwatch.elapsedMilliseconds;
-        final elapsedSeconds = elapsedMs / 1000.0;
+      // Calculate metrics
+      final outputTokens = totalCharacters / 4.0;
+      final inputTokens = prompt.length / 4.0;
+      final totalTokens = outputTokens + inputTokens;
 
-        // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-        final outputTokens = result.length / 4;
-        final inputTokens = prompt.length / 4;
-        final totalTokens = outputTokens + inputTokens;
+      final prefillSpeed = inputTokens / (firstTokenTime > 0 ? firstTokenTime : 0.1);
+      final decodeTime = elapsedSeconds - firstTokenTime;
+      final decodeSpeed = outputTokens / (decodeTime > 0 ? decodeTime : 0.1);
 
-        // Calculate detailed performance metrics
-        final firstTokenTime = elapsedSeconds * 0.1;
-        final prefillSpeed = inputTokens / (firstTokenTime > 0 ? firstTokenTime : 0.1);
-        final decodeTime = elapsedSeconds - firstTokenTime;
-        final decodeSpeed = outputTokens / (decodeTime > 0 ? decodeTime : 0.1);
+      _performanceMetricsNotifier.value = {
+        'firstToken': firstTokenTime,
+        'prefillSpeed': prefillSpeed,
+        'decodeSpeed': decodeSpeed,
+        'latency': elapsedSeconds,
+      };
 
-        _performanceMetrics = {
-          'firstToken': firstTokenTime,
-          'prefillSpeed': prefillSpeed,
-          'decodeSpeed': decodeSpeed,
-          'latency': elapsedSeconds,
-        };
-
-        final benchmarkInfo = '''
+      final benchmarkInfo = '''
 Inference Time: ${elapsedMs}ms (${elapsedSeconds.toStringAsFixed(2)}s)
 Estimated Tokens: ${totalTokens.toStringAsFixed(0)} (${inputTokens.toStringAsFixed(0)} input + ${outputTokens.toStringAsFixed(0)} output)
 Tokens/Second: ${(totalTokens / elapsedSeconds).toStringAsFixed(2)}
-Characters Generated: ${result.length}
+Characters Generated: $totalCharacters
 ''';
 
-        setState(() {
-          _inferenceResult = result;
-          _benchmarkResults = benchmarkInfo;
-          _isInferenceLoading = false;
-        });
-      } else {
-        setState(() {
-          _inferenceResult = 'Failed to generate response';
-          _benchmarkResults = '';
-          _performanceMetrics = {};
-          _isInferenceLoading = false;
-        });
-      }
-    } catch (e) {
+      _benchmarkResultsNotifier.value = benchmarkInfo;
+
       setState(() {
-        _inferenceResult = 'Error during inference: $e';
-        _benchmarkResults = '';
-        _performanceMetrics = {};
+        _isInferenceLoading = false;
+      });
+
+      // Cleanup
+      lm.dispose();
+
+    } catch (e) {
+      _inferenceResultNotifier.value = 'Error during inference: $e';
+      _benchmarkResultsNotifier.value = '';
+      _performanceMetricsNotifier.value = {};
+
+      setState(() {
         _isInferenceLoading = false;
       });
     }
@@ -1321,122 +1357,142 @@ Characters Generated: ${result.length}
 
             const SizedBox(height: 8),
 
-            // Results Section
-            if (_inferenceResult.isNotEmpty)
-              Container(
-                width: double.infinity,
-                constraints: const BoxConstraints(
-                  minHeight: 150,
-                  maxHeight: 300,
-                ),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Inference Result:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Text(
-                          _inferenceResult,
-                          style: const TextStyle(fontSize: 14),
+            // Results Section with ValueListenableBuilder
+            ValueListenableBuilder<String>(
+              valueListenable: _inferenceResultNotifier,
+              builder: (context, inferenceResult, child) {
+                if (inferenceResult.isEmpty && !_isInferenceLoading) {
+                  return const SizedBox.shrink();
+                }
+
+                return Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(
+                    minHeight: 150,
+                    maxHeight: 300,
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Inference Result:',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Text(
+                            inferenceResult.isEmpty ? 'Processing...' : inferenceResult,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             const SizedBox(height: 8),
 
-            // Benchmark Results Section
-            if (_benchmarkResults.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Performance Metrics:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+            // Benchmark Results Section with ValueListenableBuilder
+            ValueListenableBuilder<String>(
+              valueListenable: _benchmarkResultsNotifier,
+              builder: (context, benchmarkResults, child) {
+                if (benchmarkResults.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return ValueListenableBuilder<Map<String, dynamic>>(
+                  valueListenable: _performanceMetricsNotifier,
+                  builder: (context, performanceMetrics, child) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green[200]!),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _benchmarkResults,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                    // Performance Stats Section
-                    if (_performanceMetrics.isNotEmpty)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Stats on CPU',
+                            'Performance Metrics:',
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 4,
-                            childAspectRatio: 1.5,
-                            crossAxisSpacing: 4,
-                            mainAxisSpacing: 4,
-                            children: [
-                              _buildMetricCard(
-                                '1st token',
-                                '${_performanceMetrics['firstToken']?.toStringAsFixed(2) ?? '0.00'}',
-                                'sec',
-                              ),
-                              _buildMetricCard(
-                                'Prefill',
-                                '${_performanceMetrics['prefillSpeed']?.toStringAsFixed(2) ?? '0.00'}',
-                                'tokens/s',
-                              ),
-                              _buildMetricCard(
-                                'Decode',
-                                '${_performanceMetrics['decodeSpeed']?.toStringAsFixed(2) ?? '0.00'}',
-                                'tokens/s',
-                              ),
-                              _buildMetricCard(
-                                'Latency',
-                                '${_performanceMetrics['latency']?.toStringAsFixed(2) ?? '0.00'}',
-                                'sec',
-                              ),
-                            ],
+                          const SizedBox(height: 8),
+                          Text(
+                            benchmarkResults,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontFamily: 'monospace',
+                            ),
                           ),
+                          // Performance Stats Section
+                          if (performanceMetrics.isNotEmpty)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const Text(
+                                  'Stats on CPU',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                GridView.count(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  crossAxisCount: 4,
+                                  childAspectRatio: 1.5,
+                                  crossAxisSpacing: 4,
+                                  mainAxisSpacing: 4,
+                                  children: [
+                                    _buildMetricCard(
+                                      '1st token',
+                                      '${performanceMetrics['firstToken']?.toStringAsFixed(2) ?? '0.00'}',
+                                      'sec',
+                                    ),
+                                    _buildMetricCard(
+                                      'Prefill',
+                                      '${performanceMetrics['prefillSpeed']?.toStringAsFixed(2) ?? '0.00'}',
+                                      'tokens/s',
+                                    ),
+                                    _buildMetricCard(
+                                      'Decode',
+                                      '${performanceMetrics['decodeSpeed']?.toStringAsFixed(2) ?? '0.00'}',
+                                      'tokens/s',
+                                    ),
+                                    _buildMetricCard(
+                                      'Latency',
+                                      '${performanceMetrics['latency']?.toStringAsFixed(2) ?? '0.00'}',
+                                      'sec',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                         ],
                       ),
-                  ],
-                ),
-              ),
-            ],
+                    );
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -1496,70 +1552,4 @@ Characters Generated: ${result.length}
   }
 }
 
-// (Removed local ContextParams to use the one from core/lm.dart)
-
-// Inference parameters class for isolate communication
-class InferenceParams {
-  final String modelPath;
-  final String prompt;
-  final int maxTokens;
-  final double? temperature;
-  final int? topK;
-  final double? topP;
-  
-  // Context parameters
-  final int? nCtx;
-  final int? nBatch;
-  final int? nUbatch;
-  final int? nSeqMax;
-  final int? nThreads;
-  final int? nThreadsBatch;
-
-  InferenceParams({
-    required this.modelPath,
-    required this.prompt,
-    required this.maxTokens,
-    this.temperature,
-    this.topK,
-    this.topP,
-    this.nCtx,
-    this.nBatch,
-    this.nUbatch,
-    this.nSeqMax,
-    this.nThreads,
-    this.nThreadsBatch,
-  });
-}
-
-// Top-level function for isolate execution
-Future<String?> _performInferenceInIsolate(InferenceParams params) async {
-  try {
-    final modelParams = ModelParams(modelPath: params.modelPath);
-
-    final contextParams = ContextParams();
-    if (params.nCtx != null) contextParams.nCtx = params.nCtx!;
-    if (params.nBatch != null) contextParams.nBatch = params.nBatch!;
-    if (params.nUbatch != null) contextParams.nUbatch = params.nUbatch!;
-    if (params.nSeqMax != null) contextParams.nSeqMax = params.nSeqMax!;
-    if (params.nThreads != null) contextParams.nThreads = params.nThreads!;
-    if (params.nThreadsBatch != null) contextParams.nThreadsBatch = params.nThreadsBatch!;
-
-    final samplerParams = SamplerParams();
-    samplerParams.temp = params.temperature;
-    samplerParams.topK = params.topK;
-    samplerParams.topP = params.topP;
-
-    final lm = UnifiedLM.withParams(
-      modelParams,
-      contextParams,
-      samplerParams,
-    );
-
-    final result = lm.completion(params.prompt);
-    
-    return result;
-  } catch (e) {
-    print('Error in inference isolate: $e');
-    return null;
-  }
-} 
+ 
