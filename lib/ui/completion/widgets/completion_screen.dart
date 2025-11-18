@@ -102,12 +102,6 @@ class _CompletionScreenState extends State<CompletionScreen> {
       body: AnimatedBuilder(
         animation: viewModel,
         builder: (context, _) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_outputScroll.hasClients) {
-              _outputScroll.jumpTo(_outputScroll.position.maxScrollExtent);
-            }
-          });
-
           return Padding(
             padding: const EdgeInsets.all(12.0),
             child: LayoutBuilder(
@@ -216,52 +210,71 @@ class _CompletionScreenState extends State<CompletionScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                        // Metrics Card - uses ValueListenableBuilder for better performance
+                        ValueListenableBuilder(
+                          valueListenable: viewModel.metricsNotifier,
+                          builder: (context, metrics, child) {
+                            return Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(child: _MetricTile(title: 'TTFT', value: _fmtDuration(viewModel.ttft))),
-                                    Expanded(child: _MetricTile(title: 'Prefill tps', value: _fmtDouble(viewModel.prefillTokensPerSecond))),
-                                    Expanded(child: _MetricTile(title: 'Decode tps', value: _fmtDouble(viewModel.decodeTokensPerSecond))),
+                                    Row(
+                                      children: [
+                                        Expanded(child: _MetricTile(title: 'TTFT', value: _fmtDuration(metrics.ttft))),
+                                        Expanded(child: _MetricTile(title: 'Prefill tps', value: _fmtDouble(metrics.prefillTokensPerSecond))),
+                                        Expanded(child: _MetricTile(title: 'Decode tps', value: _fmtDouble(metrics.decodeTokensPerSecond))),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(child: _MetricTile(title: 'Prompt tokens', value: '${metrics.promptTokenCount}')),
+                                        Expanded(child: _MetricTile(title: 'Gen tokens', value: '${metrics.generatedTokenCount}')),
+                                        Expanded(child: _MetricTile(title: 'Total time', value: _fmtDuration(metrics.totalDuration))),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('Stop reason: ${metrics.stopReason ?? '-'}'),
+                                    // if (viewModel.isRunning) const Padding(
+                                    //   padding: EdgeInsets.only(top: 8.0),
+                                    //   child: LinearProgressIndicator(minHeight: 3),
+                                    // ),
                                   ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(child: _MetricTile(title: 'Prompt tokens', value: '${viewModel.promptTokenCount}')),
-                                    Expanded(child: _MetricTile(title: 'Gen tokens', value: '${viewModel.generatedTokenCount}')),
-                                    Expanded(child: _MetricTile(title: 'Total time', value: _fmtDuration(viewModel.totalDuration))),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text('Stop reason: ${viewModel.stopReason ?? '-'}'),
-                                // if (viewModel.isRunning) const Padding(
-                                //   padding: EdgeInsets.only(top: 8.0),
-                                //   child: LinearProgressIndicator(minHeight: 3),
-                                // ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 200),
-                              child: SingleChildScrollView(
-                                controller: _outputScroll,
-                                child: Text(
-                                  viewModel.outputText,
-                                  style: const TextStyle(fontFamily: 'monospace'),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        // Output Card - uses ValueListenableBuilder for frequent text updates
+                        ValueListenableBuilder<String>(
+                          valueListenable: viewModel.outputTextNotifier,
+                          builder: (context, outputText, child) {
+                            // Trigger auto-scroll after text updates
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (_outputScroll.hasClients) {
+                                _outputScroll.jumpTo(_outputScroll.position.maxScrollExtent);
+                              }
+                            });
+
+                            return Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(minHeight: 200),
+                                  child: SingleChildScrollView(
+                                    controller: _outputScroll,
+                                    child: Text(
+                                      outputText,
+                                      style: const TextStyle(fontFamily: 'monospace'),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),

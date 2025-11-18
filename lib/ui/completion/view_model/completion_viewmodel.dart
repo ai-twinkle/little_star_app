@@ -4,14 +4,59 @@ import 'package:flutter/material.dart';
 
 import 'package:little_star_app/core/lm.dart';
 
+// Data class for metrics to reduce rebuild frequency
+class MetricsData {
+  final int promptTokenCount;
+  final int generatedTokenCount;
+  final Duration? ttft;
+  final Duration? totalDuration;
+  final double? prefillTokensPerSecond;
+  final double? decodeTokensPerSecond;
+  final String? stopReason;
+
+  MetricsData({
+    this.promptTokenCount = 0,
+    this.generatedTokenCount = 0,
+    this.ttft,
+    this.totalDuration,
+    this.prefillTokensPerSecond,
+    this.decodeTokensPerSecond,
+    this.stopReason,
+  });
+
+  MetricsData copyWith({
+    int? promptTokenCount,
+    int? generatedTokenCount,
+    Duration? ttft,
+    Duration? totalDuration,
+    double? prefillTokensPerSecond,
+    double? decodeTokensPerSecond,
+    String? stopReason,
+  }) {
+    return MetricsData(
+      promptTokenCount: promptTokenCount ?? this.promptTokenCount,
+      generatedTokenCount: generatedTokenCount ?? this.generatedTokenCount,
+      ttft: ttft ?? this.ttft,
+      totalDuration: totalDuration ?? this.totalDuration,
+      prefillTokensPerSecond: prefillTokensPerSecond ?? this.prefillTokensPerSecond,
+      decodeTokensPerSecond: decodeTokensPerSecond ?? this.decodeTokensPerSecond,
+      stopReason: stopReason ?? this.stopReason,
+    );
+  }
+}
 
 class CompletionViewModel extends ChangeNotifier {
   UnifiedLM _lm;
 
   // Run state
   bool _isRunning = false;
-  String _outputText = '';
   StreamSubscription<String>? _subscription;
+
+  // Separate ValueNotifier for output text (updates frequently)
+  final ValueNotifier<String> outputTextNotifier = ValueNotifier<String>('');
+
+  // Separate ValueNotifier for metrics (updates less frequently)
+  final ValueNotifier<MetricsData> metricsNotifier = ValueNotifier<MetricsData>(MetricsData());
 
   // Timing
   DateTime? _submittedAt;
@@ -22,7 +67,7 @@ class CompletionViewModel extends ChangeNotifier {
   int _promptTokenCount = 0;
   int _generatedTokenCount = 0;
 
-  // Metrics
+  // Metrics (kept for backward compatibility and internal use)
   Duration? _ttft; // Time-To-First-Token
   Duration? _totalDuration;
   double? _prefillTokensPerSecond; // approx: prompt_tokens / ttft
@@ -46,7 +91,7 @@ class CompletionViewModel extends ChangeNotifier {
 
   // Public getters for UI
   bool get isRunning => _isRunning;
-  String get outputText => _outputText;
+  String get outputText => outputTextNotifier.value; // Deprecated: use outputTextNotifier directly
   int get promptTokenCount => _promptTokenCount;
   int get generatedTokenCount => _generatedTokenCount;
   Duration? get ttft => _ttft;
@@ -106,6 +151,9 @@ class CompletionViewModel extends ChangeNotifier {
       stopSequences: _stopSequences,
     );
 
+    int chunksSinceLastMetricsUpdate = 0;
+    const metricsUpdateInterval = 5; // Update metrics every 5 chunks for better performance
+
     _subscription = stream.listen(
       (chunk) {
         // First token arrival
@@ -116,10 +164,13 @@ class CompletionViewModel extends ChangeNotifier {
             tokens: _promptTokenCount,
             duration: _ttft,
           );
+
+          // Update metrics immediately on first token
+          _updateMetricsNotifier();
         }
 
-        // Append output and update generated token count (approx by emission)
-        _outputText += chunk;
+        // Append output text immediately (fast update)
+        outputTextNotifier.value += chunk;
         _generatedTokenCount += 1;
 
         // Update decode throughput using elapsed since first token
@@ -134,7 +185,15 @@ class CompletionViewModel extends ChangeNotifier {
           _stopReason ??= 'length';
         }
 
-        notifyListeners();
+        // Batch metrics updates to reduce rebuilds
+        chunksSinceLastMetricsUpdate++;
+        if (chunksSinceLastMetricsUpdate >= metricsUpdateInterval) {
+          _updateMetricsNotifier();
+          chunksSinceLastMetricsUpdate = 0;
+        }
+
+        // Only notify listeners for isRunning state changes, not for every chunk
+        // notifyListeners(); // REMOVED - metrics use their own notifier
       },
       onDone: () {
         _finishedAt = DateTime.now();
@@ -142,11 +201,16 @@ class CompletionViewModel extends ChangeNotifier {
 
         // Infer stop reason if not set by length
         _stopReason ??= _inferStopReason(
-          output: _outputText,
+          output: outputTextNotifier.value,
           stopSequences: _stopSequences,
         );
 
         _isRunning = false;
+
+        // Final metrics update
+        _updateMetricsNotifier();
+
+        // Notify for state change
         notifyListeners();
       },
       onError: (error, stack) {
@@ -154,6 +218,8 @@ class CompletionViewModel extends ChangeNotifier {
         _isRunning = false;
         _finishedAt = DateTime.now();
         _totalDuration = _submittedAt == null ? null : _finishedAt!.difference(_submittedAt!);
+
+        _updateMetricsNotifier();
         notifyListeners();
       },
       cancelOnError: true,
@@ -221,7 +287,7 @@ class CompletionViewModel extends ChangeNotifier {
       'decode_tps': _decodeTokensPerSecond,
       'decode_time_ms': decodeDuration?.inMilliseconds,
       'stop_reason': _stopReason,
-      'text_length': _outputText.length,
+      'text_length': outputTextNotifier.value.length,
     };
   }
 
@@ -235,10 +301,24 @@ class CompletionViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    outputTextNotifier.dispose();
+    metricsNotifier.dispose();
     super.dispose();
   }
 
   // Helpers
+  void _updateMetricsNotifier() {
+    metricsNotifier.value = MetricsData(
+      promptTokenCount: _promptTokenCount,
+      generatedTokenCount: _generatedTokenCount,
+      ttft: _ttft,
+      totalDuration: _totalDuration,
+      prefillTokensPerSecond: _prefillTokensPerSecond,
+      decodeTokensPerSecond: _decodeTokensPerSecond,
+      stopReason: _stopReason,
+    );
+  }
+
   double? _computeThroughput({required int tokens, Duration? duration}) {
     if (duration == null) return null;
     final seconds = duration.inMilliseconds / 1000.0;
@@ -260,7 +340,7 @@ class CompletionViewModel extends ChangeNotifier {
   void _resetRunState() {
     _subscription = null;
     _isRunning = false;
-    _outputText = '';
+    outputTextNotifier.value = '';
     _submittedAt = null;
     _firstTokenAt = null;
     _finishedAt = null;
@@ -271,5 +351,6 @@ class CompletionViewModel extends ChangeNotifier {
     _prefillTokensPerSecond = null;
     _decodeTokensPerSecond = null;
     _stopReason = null;
+    metricsNotifier.value = MetricsData();
   }
 }
