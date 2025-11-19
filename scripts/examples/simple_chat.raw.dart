@@ -3,8 +3,8 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:ffi/ffi.dart';
-import 'package:logging/logging.dart';
-import '../../lib/llama_ffi.dart';
+import '../../lib/core/engine/llama_cpp/llama_cpp_ffi.dart';
+import '../../lib/utils/logger.dart';
 
 final log = Logger('SimpleChat');
 
@@ -28,22 +28,6 @@ class ChatMessage {
 }
 
 void main(List<String> args) {
-  Logger.root.level = Level.INFO;
-  Logger.root.onRecord.listen((record) {
-    if (record.level == Level.SEVERE) {
-      print('\x1b[31m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
-    } else if (record.level == Level.WARNING) {
-      print('\x1b[33m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
-    } else if (record.level == Level.INFO) {
-      print('\x1b[32m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
-    } else if (record.level == Level.FINE) {
-      print('\x1b[34m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
-    } else if (record.level == Level.FINER) {
-      print('\x1b[35m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
-    } else if (record.level == Level.FINEST) {
-      print('\x1b[36m${record.level.name}: ${record.time}: ${record.message}\x1b[0m');
-    }
-  });
   // Ensure console I/O uses UTF-8 (helps on Windows terminals)
   stdout.encoding = utf8;
   stderr.encoding = utf8;
@@ -96,14 +80,14 @@ void main(List<String> args) {
   }
 
   // Initialize llamaFFI instance
-  final LlamaFFI llamaFFI = LlamaFFI();
+  final LlamaCppFFI llamaFFI = LlamaCppFFI();
   if (!llamaFFI.modelFileExists(modelPath)) {
-    log.severe("error: model file not found");
+    log.error("error: model file not found");
     exit(1);
   }
 
   // Load dynamic backends
-  log.fine("Loading backends...");
+  log.debug("Loading backends...");
   llamaFFI.ggml_backend_load_all();
 
   // Initialize the model
@@ -114,14 +98,14 @@ void main(List<String> args) {
   final model = llamaFFI.llama_model_load_from_file(pathPtr, modelParams);
   malloc.free(pathPtr);
   if (model.address == 0) {
-    log.severe("error: unable to load model");
+    log.error("error: unable to load model");
     exit(1);
   }
 
   // Get vocabulary from model
   final vocab = llamaFFI.llama_model_get_vocab(model);
   if (vocab.address == 0) {
-    log.severe("error: failed to get vocabulary from model");
+    log.error("error: failed to get vocabulary from model");
     llamaFFI.llama_model_free(model);
     exit(1);
   }
@@ -133,7 +117,7 @@ void main(List<String> args) {
 
   final ctx = llamaFFI.llama_init_from_model(model, ctxParams);
   if (ctx.address == 0) {
-    log.severe("error: failed to create the llama_context");
+    log.error("error: failed to create the llama_context");
     llamaFFI.llama_model_free(model);
     exit(1);
   }
@@ -164,7 +148,7 @@ void main(List<String> args) {
     final nPromptRequired = llamaFFI.llama_tokenize(vocab, promptPtr, promptByteLength, ffi.nullptr, 0, addBos, true);
     
     if (nPromptRequired >= 0) {
-      log.severe("error: unexpected positive return from tokenize call");
+      log.error("error: unexpected positive return from tokenize call");
       malloc.free(promptUtf8);
       return "";
     }
@@ -173,20 +157,20 @@ void main(List<String> args) {
     
     // Check if prompt is too long for context
     if (nPrompt >= nCtx - 10) { // Leave some room for generation
-      log.severe("error: prompt too long for context size ($nPrompt tokens >= ${nCtx - 10})");
+      log.error("error: prompt too long for context size ($nPrompt tokens >= ${nCtx - 10})");
       malloc.free(promptUtf8);
       return "";
     }
-    
+
     // Allocate space for tokens and tokenize
     final tokens = malloc<llama_token>(nPrompt);
-    final actualTokens = llamaFFI.llama_tokenize(
+    final tokensCount = llamaFFI.llama_tokenize(
         vocab, promptPtr, promptByteLength, tokens, nPrompt, addBos, true);
         
     malloc.free(promptUtf8);
-        
-    if (actualTokens < 0) {
-      log.severe("error: failed to tokenize the prompt");
+
+    if (tokensCount < 0) {
+      log.error("error: failed to tokenize the prompt");
       malloc.free(tokens);
       return "";
     }
@@ -200,13 +184,13 @@ void main(List<String> args) {
       while (generatedTokens < maxTokens) {
         // Check if we have enough space in the context
         if (nPrompt + generatedTokens >= nCtx - 1) {
-          log.warning("\nContext limit reached");
+          log.warn("\nContext limit reached");
           break;
         }
 
         // Decode the batch
         if (llamaFFI.llama_decode(ctx, batch) != 0) {
-          log.warning("\nDecode failed");
+          log.warn("\nDecode failed");
           break;
         }
 
@@ -222,7 +206,7 @@ void main(List<String> args) {
         final buf = malloc<ffi.Char>(256);
         final n = llamaFFI.llama_token_to_piece(vocab, newTokenId, buf, 256, 0, true);
         if (n < 0) {
-          log.severe("error: failed to convert token to piece");
+          log.error("error: failed to convert token to piece");
           malloc.free(buf);
           break;
         }
@@ -272,14 +256,14 @@ void main(List<String> args) {
   var isFirstPrompt = true;
   int prevLen = 0; // Track previous conversation length
 
-  log.fine("Chat started. Type your message and press Enter. Empty line to exit.\n");
+  log.debug("Chat started. Type your message and press Enter. Empty line to exit.\n");
   
   while (true) {
     // Get user input
     stdout.write('\x1b[32m> \x1b[0m'); // Green prompt
     final userInput = stdin.readLineSync(encoding: utf8);
 
-    log.fine("userInput: ${userInput}\n");
+    log.debug("userInput: ${userInput}\n");
 
     if (userInput == null || userInput.trim().isEmpty) {
       break;
@@ -287,12 +271,12 @@ void main(List<String> args) {
 
     // Try to get model-provided chat template
     final tmplPtr = llamaFFI.llama_model_chat_template(model, ffi.nullptr);
-    log.finest("tmplPtr: ${tmplPtr}\n");
+    log.trace("tmplPtr: ${tmplPtr}\n");
 
     // Add user message to history
     messages.add(ChatMessage("user", userInput));
 
-    log.fine("messages: ${messages}\n");
+    log.debug("messages: ${messages}\n");
 
     // Build native llama_chat_message array
     final messageData = malloc<llama_chat_message>(messages.length);
@@ -307,6 +291,7 @@ void main(List<String> args) {
 
     int newLen = llamaFFI.llama_chat_apply_template(tmplPtr, messageData, messages.length, true, ffi.nullptr, 0);
     if (newLen > formattedSize) {
+      log.trace("Reallocating buffer from $formattedSize to $newLen");
       // Reallocate buffer if needed
       malloc.free(formatted);
       formattedSize = newLen;
@@ -327,16 +312,16 @@ void main(List<String> args) {
 
     // Generate response
     stdout.write('\x1b[33m'); // Yellow text for assistant
-    log.fine("prompt: ${prompt}\n");
+    log.debug("prompt: ${prompt}\n");
     final response = generate(prompt, maxResponseTokens, addBos: isFirstPrompt);
-    log.fine("response: ${response}\n");
+    log.debug("response: ${response}\n");
     stdout.write('\n\x1b[0m'); // Reset color
 
     // Add response to message history
     if (response.isNotEmpty) {
       messages.add(ChatMessage("assistant", response));
 
-      log.fine("messages: ${messages}\n");
+      log.debug("messages: ${messages}\n");
       
       // Update prevLen after adding assistant response (like C++ does)
       // Rebuild message array to include the assistant response
@@ -384,5 +369,5 @@ void main(List<String> args) {
   llamaFFI.llama_free(ctx);
   llamaFFI.llama_model_free(model);
 
-  log.fine("Chat ended.");
+  log.debug("Chat ended.");
 }
