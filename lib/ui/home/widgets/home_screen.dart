@@ -1,37 +1,19 @@
 import 'package:flutter/material.dart';
-import 'model_test_page.dart';
-import 'chat_page.dart';
-import '../services/llama_service.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+import 'package:little_star_app/ui/completion/widgets/completion_screen.dart';
+import 'package:little_star_app/ui/chat/widgets/chat_screen.dart';
+
+
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final LlamaService _llamaService = LlamaService();
-  bool _isInitializing = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeService();
-  }
-
-  Future<void> _initializeService() async {
-    setState(() {
-      _isInitializing = true;
-    });
-    
-    await _llamaService.initializeLlama();
-    
-    setState(() {
-      _isInitializing = false;
-    });
-  }
-
+class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,7 +28,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 16),
-            
+
             // Welcome Section
             Card(
               elevation: 4,
@@ -75,88 +57,31 @@ class _HomePageState extends State<HomePage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    
-                    // Service Status
-                    ListenableBuilder(
-                      listenable: _llamaService,
-                      builder: (context, _) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _llamaService.isInitialized 
-                              ? Colors.green[50] 
-                              : Colors.orange[50],
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: _llamaService.isInitialized 
-                                ? Colors.green[200]! 
-                                : Colors.orange[200]!,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_isInitializing)
-                                const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              else
-                                Icon(
-                                  _llamaService.isInitialized 
-                                    ? Icons.check_circle 
-                                    : Icons.warning,
-                                  size: 16,
-                                  color: _llamaService.isInitialized 
-                                    ? Colors.green 
-                                    : Colors.orange,
-                                ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _isInitializing 
-                                  ? 'Initializing...' 
-                                  : (_llamaService.isInitialized 
-                                      ? 'Service Ready' 
-                                      : 'Service Not Ready'),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: _llamaService.isInitialized 
-                                    ? Colors.green[700] 
-                                    : Colors.orange[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
             ),
             
             const SizedBox(height: 24),
-            
+
             // Navigation Cards
             Column(
               children: [
                 // Model Test Card
                 _buildNavigationCard(
                   context: context,
-                  title: 'Model Testing',
+                  title: 'Model Completion',
                   subtitle: 'Test models with single prompts and view performance metrics',
                   icon: Icons.science,
                   color: Colors.blue,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ModelTestPage()),
+                    MaterialPageRoute(builder: (context) => const CompletionScreen()),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Chat Card
                 _buildNavigationCard(
                   context: context,
@@ -166,23 +91,10 @@ class _HomePageState extends State<HomePage> {
                   color: Colors.green,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ChatPage()),
+                    MaterialPageRoute(builder: (context) => const ChatScreen()),
                   ),
                 ),
-                
-                const SizedBox(height: 24),
-                
-                // Reinitialize button
-                if (!_llamaService.isInitialized && !_isInitializing)
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _initializeService,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Reinitialize Service'),
-                    ),
-                  ),
-                
+
                 // Add some bottom padding to ensure content isn't cut off
                 const SizedBox(height: 20),
               ],
@@ -254,4 +166,4 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-} 
+}
