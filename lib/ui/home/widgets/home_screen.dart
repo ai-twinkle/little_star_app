@@ -1,7 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
+import 'package:little_star_app/data/repositories/download_repository.dart';
+import 'package:little_star_app/data/services/directory_service.dart';
+import 'package:little_star_app/data/services/download_service.dart';
+import 'package:little_star_app/data/services/huggingface_service.dart';
 import 'package:little_star_app/ui/completion/widgets/completion_screen.dart';
 import 'package:little_star_app/ui/chat/widgets/chat_screen.dart';
+import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
+import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
 
 
 
@@ -95,12 +103,48 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
+                const SizedBox(height: 16),
+
+                // Model Manager Card
+                _buildNavigationCard(
+                  context: context,
+                  title: 'Model Manager',
+                  subtitle: 'Browse, download and manage GGUF models from Hugging Face',
+                  icon: Icons.download,
+                  color: Colors.orange,
+                  onTap: () => _openModelManager(context),
+                ),
+
                 // Add some bottom padding to ensure content isn't cut off
                 const SizedBox(height: 20),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openModelManager(BuildContext context) {
+    // Create dependencies
+    final directoryService = Platform.isAndroid
+        ? AndroidDirectoryService()
+        : Platform.isIOS
+            ? IOSDirectoryService()
+            : DesktopDirectoryService();
+
+    final viewModel = ModelManagerViewModel(
+      hfService: HuggingFaceService(),
+      downloadService: DownloadService(),
+      downloadRepository: DownloadRepository(),
+      directoryService: directoryService,
+    );
+
+    // Navigate (init is called in ModelManagerScreen's initState)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ModelManagerScreen(viewModel: viewModel),
       ),
     );
   }

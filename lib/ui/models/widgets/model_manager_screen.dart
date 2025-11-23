@@ -1,0 +1,230 @@
+import 'package:flutter/material.dart';
+import 'package:little_star_app/models/download_task.dart';
+import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
+import 'package:little_star_app/ui/models/widgets/model_file_list.dart';
+import 'package:little_star_app/ui/models/widgets/model_search_list.dart';
+import 'package:little_star_app/ui/models/widgets/local_model_list.dart';
+import 'package:little_star_app/ui/models/widgets/download_progress_card.dart';
+
+/// Main screen for managing models - browsing, downloading, and local files.
+class ModelManagerScreen extends StatefulWidget {
+  final ModelManagerViewModel viewModel;
+
+  const ModelManagerScreen({super.key, required this.viewModel});
+
+  @override
+  State<ModelManagerScreen> createState() => _ModelManagerScreenState();
+}
+
+class _ModelManagerScreenState extends State<ModelManagerScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    widget.viewModel.init();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Model Manager'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.folder), text: 'Local Models'),
+            Tab(icon: Icon(Icons.cloud_download), text: 'Online Downloads'),
+          ],
+        ),
+      ),
+      body: ListenableBuilder(
+        listenable: widget.viewModel,
+        builder: (context, _) {
+          return Column(
+            children: [
+              // Download progress section
+              if (widget.viewModel.activeTasks.isNotEmpty)
+                _buildDownloadSection(),
+              // Tab content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildLocalTab(),
+                    _buildOnlineTab(),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDownloadSection() {
+    final activeTasks = widget.viewModel.activeTasks.where((t) =>
+        t.status == DownloadStatus.downloading ||
+        t.status == DownloadStatus.pending ||
+        t.status == DownloadStatus.paused);
+
+    if (activeTasks.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'Downloading',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          ...activeTasks.map((task) => DownloadProgressCard(
+                task: task,
+                progress: widget.viewModel.getProgress(task.id),
+                onPause: () => widget.viewModel.pauseDownload(task.id),
+                onResume: () => widget.viewModel.resumeDownload(task.id),
+                onCancel: () => widget.viewModel.cancelDownload(task.id),
+              )),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocalTab() {
+    if (widget.viewModel.isLoadingLocal) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (widget.viewModel.localModels.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.folder_open,
+              size: 64,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No local models',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Go to the "Online Downloads" page to download models',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return LocalModelList(
+      models: widget.viewModel.localModels,
+      onDelete: widget.viewModel.deleteLocalModel,
+      onRefresh: widget.viewModel.loadLocalModels,
+    );
+  }
+
+  Widget _buildOnlineTab() {
+    // If a model is selected, show its files
+    if (widget.viewModel.selectedModel != null) {
+      return ModelFileList(
+        model: widget.viewModel.selectedModel!,
+        files: widget.viewModel.selectedModelFiles,
+        isLoading: widget.viewModel.isLoadingFiles,
+        onBack: widget.viewModel.clearSelection,
+        onDownload: widget.viewModel.startDownload,
+        isDownloaded: widget.viewModel.isDownloaded,
+        isDownloading: widget.viewModel.isDownloading,
+        getDownloadStatus: widget.viewModel.getDownloadStatus,
+      );
+    }
+
+    // Show search and results
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search GGUF models...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        widget.viewModel.searchModels();
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+            ),
+            onSubmitted: widget.viewModel.searchModels,
+          ),
+        ),
+        if (widget.viewModel.error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.viewModel.error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Expanded(
+          child: widget.viewModel.isSearching
+              ? const Center(child: CircularProgressIndicator())
+              : ModelSearchList(
+                  models: widget.viewModel.searchResults,
+                  onSelect: widget.viewModel.selectModel,
+                ),
+        ),
+      ],
+    );
+  }
+}
