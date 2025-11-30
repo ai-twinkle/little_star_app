@@ -166,7 +166,14 @@ class ModelManagerViewModel extends ChangeNotifier {
           notifyListeners();
         },
         onError: (e) {
-          _log.error('Download error: $e');
+          // Ignore errors if task already completed (race condition)
+          final currentTask = _activeTasks.where((t) => t.id == task.id).firstOrNull;
+          if (currentTask?.status != DownloadStatus.completed) {
+            _log.error('Download stream error: $e');
+          }
+        },
+        onDone: () {
+          // Stream closed, cleanup handled by service
         },
       );
 

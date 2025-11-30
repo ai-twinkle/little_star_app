@@ -166,7 +166,9 @@ class DownloadService {
 
         if (!cancelToken.isCancelled) {
           // Rename temp file to final
-          await tempFile.rename(task.destinationPath);
+          if (await tempFile.exists()) {
+            await tempFile.rename(task.destinationPath);
+          }
 
           task.status = DownloadStatus.completed;
           task.completedAt = DateTime.now();
@@ -187,9 +189,12 @@ class DownloadService {
         task.errorMessage = e.message;
       }
     } catch (e) {
-      _log.error('Download error: $e');
-      task.status = DownloadStatus.failed;
-      task.errorMessage = e.toString();
+      // Only log error if not already completed (race condition with rename)
+      if (task.status != DownloadStatus.completed) {
+        _log.error('Download error: $e');
+        task.status = DownloadStatus.failed;
+        task.errorMessage = e.toString();
+      }
     } finally {
       onStatusChanged(task);
       _cleanup(task.id);
