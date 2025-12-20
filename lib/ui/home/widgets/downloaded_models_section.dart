@@ -7,6 +7,7 @@ class DownloadedModelsSection extends StatelessWidget {
   final Function(GGUFModelInfo) onChat;
   final Function(GGUFModelInfo) onTest;
   final VoidCallback onManage;
+  final bool initiallyExpanded;
 
   const DownloadedModelsSection({
     super.key,
@@ -14,6 +15,7 @@ class DownloadedModelsSection extends StatelessWidget {
     required this.onChat,
     required this.onTest,
     required this.onManage,
+    this.initiallyExpanded = true,
   });
 
   @override
@@ -24,48 +26,49 @@ class DownloadedModelsSection extends StatelessWidget {
 
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.folder,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Downloaded Models (${models.length})',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: onManage,
-                child: const Text('Manage'),
-              ),
-            ],
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 8.0),
+        childrenPadding: const EdgeInsets.only(bottom: 12),
+        leading: Icon(
+          Icons.folder,
+          size: 20,
+          color: theme.colorScheme.primary,
+        ),
+        title: Text(
+          'Downloaded Models (${models.length})',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 140,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            itemCount: models.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              return _buildModelCard(context, models[index], theme);
-            },
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              onPressed: onManage,
+              child: const Text('Manage'),
+            ),
+            const Icon(Icons.expand_more),
+          ],
         ),
-      ],
+        children: [
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: models.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                return _buildModelCard(context, models[index], theme);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 

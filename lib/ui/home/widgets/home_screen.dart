@@ -210,57 +210,53 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRecommendedModelsSection(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.star,
-                size: 20,
-                color: Colors.amber,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Recommended Models',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 8.0),
+        childrenPadding: const EdgeInsets.only(bottom: 12),
+        leading: Icon(
+          Icons.star,
+          size: 20,
+          color: Colors.amber,
+        ),
+        title: Text(
+          'Recommended Models',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 8),
-        if (_viewModel.isLoadingLocal)
-          const SkeletonRecommendedModels()
-        else
-          SizedBox(
-            height: 200,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: _viewModel.recommendedModels.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final modelState = _viewModel.recommendedModels[index];
-                return SizedBox(
-                  width: 320,
-                  child: RecommendedModelCard(
-                    modelState: modelState,
-                    onDownload: () => _viewModel.startOneClickDownload(modelState),
-                    onOpen: () => _navigateToChat(
-                      context,
-                      _findLocalModel(modelState.recommendedFile?.filename),
+        children: [
+          if (_viewModel.isLoadingLocal)
+            const SkeletonRecommendedModels()
+          else
+            SizedBox(
+              height: 200,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                itemCount: _viewModel.recommendedModels.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final modelState = _viewModel.recommendedModels[index];
+                  return SizedBox(
+                    width: 320,
+                    child: RecommendedModelCard(
+                      modelState: modelState,
+                      onDownload: () => _viewModel.startOneClickDownload(modelState),
+                      onOpen: () => _navigateToChat(
+                        context,
+                        _findLocalModel(modelState.recommendedFile?.filename),
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
