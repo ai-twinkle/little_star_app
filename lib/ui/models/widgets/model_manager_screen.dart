@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:little_star_app/config/recommended_models.dart';
 import 'package:little_star_app/models/download_task.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_file_list.dart';
@@ -9,8 +10,13 @@ import 'package:little_star_app/ui/models/widgets/download_progress_card.dart';
 /// Main screen for managing models - browsing, downloading, and local files.
 class ModelManagerScreen extends StatefulWidget {
   final ModelManagerViewModel viewModel;
+  final dynamic preselectedModel;
 
-  const ModelManagerScreen({super.key, required this.viewModel});
+  const ModelManagerScreen({
+    super.key,
+    required this.viewModel,
+    this.preselectedModel,
+  });
 
   @override
   State<ModelManagerScreen> createState() => _ModelManagerScreenState();
@@ -26,6 +32,14 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     widget.viewModel.init();
+
+    // If a preselected model is provided, switch to online tab and select it
+    if (widget.preselectedModel != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tabController.animateTo(1); // Switch to online tab
+        widget.viewModel.selectModel(widget.preselectedModel);
+      });
+    }
   }
 
   @override
@@ -219,11 +233,96 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
         Expanded(
           child: widget.viewModel.isSearching
               ? const Center(child: CircularProgressIndicator())
-              : ModelSearchList(
-                  models: widget.viewModel.searchResults,
-                  onSelect: widget.viewModel.selectModel,
+              : CustomScrollView(
+                  slivers: [
+                    // Recommended models section
+                    if (_searchController.text.isEmpty)
+                      SliverToBoxAdapter(
+                        child: _buildRecommendedModelsSection(),
+                      ),
+                    // Search results
+                    SliverToBoxAdapter(
+                      child: ModelSearchList(
+                        models: widget.viewModel.searchResults,
+                        onSelect: widget.viewModel.selectModel,
+                      ),
+                    ),
+                  ],
                 ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendedModelsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Recommended Models',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: RecommendedModels.models.length,
+          itemBuilder: (context, index) {
+            final modelConfig = RecommendedModels.models[index];
+            final model = modelConfig.modelInfo;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.star, color: Colors.amber, size: 20),
+                ),
+                title: Text(
+                  model.modelName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  modelConfig.quickDescription ?? model.description ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => widget.viewModel.selectModel(model),
+              ),
+            );
+          },
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          child: Divider(),
+        ),
+        if (widget.viewModel.searchResults.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Text(
+              'Search Results',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
       ],
     );
   }
