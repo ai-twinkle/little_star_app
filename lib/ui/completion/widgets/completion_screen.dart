@@ -7,17 +7,36 @@ import 'package:little_star_app/ui/completion/widgets/model_selection_dialog.dar
 
 
 class CompletionScreen extends StatefulWidget {
-  const CompletionScreen({super.key});
+  final String? initialModelPath;
+
+  const CompletionScreen({
+    super.key,
+    this.initialModelPath,
+  });
 
   @override
   State<CompletionScreen> createState() => _CompletionScreenState();
 }
 
 class _CompletionScreenState extends State<CompletionScreen> {
-  final CompletionViewModel viewModel = CompletionViewModel(modelPath: '/storage/emulated/0/Download/Llama-3.2-3B-F1-Reasoning-Instruct-Q3_K_M.gguf');
+  late final CompletionViewModel viewModel;
 
   final _promptController = TextEditingController();
   final _outputScroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with provided model path or empty
+    viewModel = CompletionViewModel(modelPath: widget.initialModelPath ?? '');
+
+    // Prompt user to select a model if none provided
+    if (widget.initialModelPath == null || widget.initialModelPath!.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showModelSelection(context);
+      });
+    }
+  }
 
   @override
   void dispose() {

@@ -336,7 +336,9 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ChatScreen(),
+        builder: (context) => ChatScreen(
+          initialModelPath: model.filePath,
+        ),
       ),
     );
   }
@@ -346,7 +348,9 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CompletionScreen(),
+        builder: (context) => CompletionScreen(
+          initialModelPath: model.filePath,
+        ),
       ),
     );
   }
