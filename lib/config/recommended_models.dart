@@ -51,6 +51,36 @@ class RecommendedModels {
       useCases: ['Chat', 'Multilingual'],
       badge: 'Efficient',
     ),
+    RecommendedModelConfig(
+      modelInfo: HFModelInfo(
+        id: 'unsloth/gemma-3-1b-it-GGUF',
+        author: 'unsloth',
+        modelName: 'gemma-3-1b-it-GGUF',
+        downloads: 180000,
+        likes: 700,
+        tags: ['gemma', 'instruct', 'gguf', 'balanced'],
+        description: 'Google\'s Gemma 3 1B model. Balanced performance and size for mobile devices.',
+      ),
+      recommendedQuantization: 'Q4_K_M',
+      quickDescription: 'Balanced performance and efficiency',
+      useCases: ['Chat', 'General Tasks'],
+      badge: 'Balanced',
+    ),
+    RecommendedModelConfig(
+      modelInfo: HFModelInfo(
+        id: 'Qwen/Qwen2.5-1.5B-Instruct-GGUF',
+        author: 'Qwen',
+        modelName: 'Qwen2.5-1.5B-Instruct-GGUF',
+        downloads: 320000,
+        likes: 850,
+        tags: ['qwen', 'instruct', 'gguf', 'multilingual'],
+        description: 'Qwen 2.5 1.5B Instruct model. Enhanced multilingual capabilities with good performance.',
+      ),
+      recommendedQuantization: 'Q4_K_M',
+      quickDescription: 'Enhanced multilingual performance',
+      useCases: ['Chat', 'Multilingual', 'General Tasks'],
+      badge: 'Versatile',
+    ),
   ];
 
   /// Get a specific recommended model by ID.
