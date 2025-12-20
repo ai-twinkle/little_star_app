@@ -6,28 +6,50 @@ class LocalModelList extends StatelessWidget {
   final List<GGUFModelInfo> models;
   final Function(GGUFModelInfo) onDelete;
   final VoidCallback onRefresh;
+  final VoidCallback? onImport;
 
   const LocalModelList({
     super.key,
     required this.models,
     required this.onDelete,
     required this.onRefresh,
+    this.onImport,
   });
 
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: models.length,
-        itemBuilder: (context, index) {
-          final model = models[index];
-          return _LocalModelCard(
-            model: model,
-            onDelete: () => _confirmDelete(context, model),
-          );
-        },
+      child: Column(
+        children: [
+          // Import button section
+          if (onImport != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: OutlinedButton.icon(
+                onPressed: onImport,
+                icon: const Icon(Icons.file_upload),
+                label: const Text('Import GGUF Models'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              ),
+            ),
+          // Models list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              itemCount: models.length,
+              itemBuilder: (context, index) {
+                final model = models[index];
+                return _LocalModelCard(
+                  model: model,
+                  onDelete: () => _confirmDelete(context, model),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

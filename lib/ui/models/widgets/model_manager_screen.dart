@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:little_star_app/config/recommended_models.dart';
 import 'package:little_star_app/models/download_task.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
@@ -6,6 +7,7 @@ import 'package:little_star_app/ui/models/widgets/model_file_list.dart';
 import 'package:little_star_app/ui/models/widgets/model_search_list.dart';
 import 'package:little_star_app/ui/models/widgets/local_model_list.dart';
 import 'package:little_star_app/ui/models/widgets/download_progress_card.dart';
+import 'package:little_star_app/utils/logger.dart';
 
 /// Main screen for managing models - browsing, downloading, and local files.
 class ModelManagerScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final Logger _log = Logger('ModelManagerScreen');
 
   @override
   void initState() {
@@ -47,6 +50,125 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleImportModels() async {
+    try {
+      // Pick files - use FileType.any since .gguf is not a recognized MIME type
+      // We'll filter for .gguf files after selection
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: true,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        _log.debug('File selection cancelled');
+        return;
+      }
+
+      // Log selected files info
+      _log.info('FilePicker result: ${result.files.length} files');
+      for (var file in result.files) {
+        _log.debug('File: ${file.name}, Path: ${file.path}');
+      }
+
+      // Get file paths and filter for .gguf files
+      final allPaths = result.paths.whereType<String>().toList();
+      _log.debug('All paths: $allPaths');
+
+      final paths = allPaths
+          .where((path) => path.toLowerCase().endsWith('.gguf'))
+          .toList();
+      _log.info('Filtered GGUF paths: ${paths.length} files');
+
+      if (allPaths.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No files selected'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (paths.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No .gguf files selected. Selected ${allPaths.length} non-GGUF file(s).',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Show loading indicator with file count
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Text('Importing ${paths.length} model(s)...'),
+              ],
+            ),
+            duration: const Duration(seconds: 30),
+          ),
+        );
+      }
+
+      _log.info('Starting import of ${paths.length} files');
+
+      // Import files
+      final importedFiles = await widget.viewModel.importModels(paths);
+
+      _log.info('Import completed: ${importedFiles.length} files imported');
+
+      // Hide loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      // Show result
+      if (mounted) {
+        if (importedFiles.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No new models imported (files may already exist)'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Successfully imported ${importedFiles.length} model(s)',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to import models: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -144,10 +266,17 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Go to the "Online Downloads" page to download models',
+              'Download models from "Online Downloads" tab\nor import existing .gguf files',
+              textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: _handleImportModels,
+              icon: const Icon(Icons.file_upload),
+              label: const Text('Import GGUF Models'),
             ),
           ],
         ),
@@ -158,6 +287,7 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
       models: widget.viewModel.localModels,
       onDelete: widget.viewModel.deleteLocalModel,
       onRefresh: widget.viewModel.loadLocalModels,
+      onImport: _handleImportModels,
     );
   }
 

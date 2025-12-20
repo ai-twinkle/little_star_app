@@ -319,6 +319,66 @@ class ModelManagerViewModel extends ChangeNotifier {
     return task?.status;
   }
 
+  /// Import a model from external location to the models directory.
+  /// Returns the list of successfully imported files.
+  Future<List<String>> importModels(List<String> sourcePaths) async {
+    final List<String> importedFiles = [];
+
+    _log.info('Starting import of ${sourcePaths.length} files');
+
+    try {
+      final modelsDir = await _directoryService.getModelsDirectory();
+      _log.info('Models directory: ${modelsDir.path}');
+
+      for (final sourcePath in sourcePaths) {
+        _log.debug('Processing file: $sourcePath');
+        final sourceFile = File(sourcePath);
+
+        // Verify file exists and is a .gguf file
+        if (!await sourceFile.exists()) {
+          _log.warn('Source file does not exist: $sourcePath');
+          continue;
+        }
+
+        if (!sourcePath.toLowerCase().endsWith('.gguf')) {
+          _log.warn('Not a GGUF file: $sourcePath');
+          continue;
+        }
+
+        // Get destination path
+        final fileName = path.basename(sourcePath);
+        final destinationPath = path.join(modelsDir.path, fileName);
+        final destinationFile = File(destinationPath);
+
+        // Check if file already exists
+        if (await destinationFile.exists()) {
+          _log.info('File already exists, skipping: $fileName');
+          continue;
+        }
+
+        // Copy file to models directory
+        _log.info('Copying file: $fileName');
+        await sourceFile.copy(destinationPath);
+        importedFiles.add(fileName);
+        _log.info('Successfully imported model: $fileName');
+      }
+
+      // Refresh local models list
+      if (importedFiles.isNotEmpty) {
+        _log.info('Refreshing local models list');
+        await loadLocalModels();
+      }
+
+      _log.info('Import complete: ${importedFiles.length}/${sourcePaths.length} files imported');
+      return importedFiles;
+    } catch (e, stackTrace) {
+      _error = 'Failed to import models: $e';
+      _log.error('Failed to import models: $e', error: e, st: stackTrace);
+      notifyListeners();
+      return importedFiles;
+    }
+  }
+
   @override
   void dispose() {
     for (final sub in _progressSubscriptions.values) {
