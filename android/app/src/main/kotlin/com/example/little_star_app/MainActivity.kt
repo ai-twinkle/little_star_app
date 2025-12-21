@@ -1,4 +1,4 @@
-package com.example.little_star_app
+package tw.twinkleai.little_star_app
 
 import io.flutter.embedding.android.FlutterActivity
 

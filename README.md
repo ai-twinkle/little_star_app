@@ -1,18 +1,87 @@
 # ✨ Little Star App
 
-<!-- [![Build](https://img.shields.io/github/actions/workflow/status/your‑org/little‑star/ci.yml?label=CI)](../../actions)
-[![License](https://img.shields.io/github/license/your‑org/little‑star)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/your‑org/little‑star?style=social)](../../stargazers) -->
+<!-- 在這裡放一張 App 的 Banner 或主要截圖 -->
+<!-- ![App Screenshot](path/to/screenshot.png) -->
+
+[![Flutter](https://img.shields.io/badge/Flutter-3.7.0+-blue.svg)](https://flutter.dev)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<!-- [![Build Status](...)]() -->
 
 > *"Twinkle, twinkle, little star, how I wonder what you are..."*
 
-A magical AI playground powered by Twinkle AI models. This project aims to shine bright in the universe of artificial intelligence!
+**Little Star App** is a magical AI playground designed to bring the power of Large Language Models (LLMs) directly to your device. Powered by [Twinkle AI](https://huggingface.co/twinkle-ai) and the robust [llama.cpp](https://github.com/ggerganov/llama.cpp) engine, this app lets you explore, download, and chat with AI models completely offline.
 
-## 🌟 Introduction
+<img src="snapshots/Android%20-%20Welcome%20Banner.png" alt="Welcome Banner" width="360"/>
 
-Little Star App is our ambitious MVP showcasing the capabilities of  [![](https://cdn.discordapp.com/emojis/1355024621086441473.webp?size=16) Twinkle AI](https://huggingface.co/twinkle-ai). Like a star in the night sky, we're small but full of potential energy!
 
-> [!Note]  
-> 💫 Got a brilliant idea to help our little star burn brighter?   
-> Shoot your wishes into our galactic suggestion box - every spark of inspiration counts in our constellation of innovation!
 
+## 🌟 Key Features
+
+- **🚀 On-Device Inference**: Run GGUF models locally with privacy and speed using `llama.cpp`.
+- **💬 AI Chat**: Interact with LLMs through a user-friendly chat interface.
+- **📥 Model Manager**: Integrated browser to discover and download GGUF models from Hugging Face.
+- **⚡ Performance Testing**: "Completion Mode" to test model raw performance and generation speed.
+- **📱 Cross-Platform**: Built with Flutter for Android, iOS, and Desktop (WIP).
+
+## 📸 Screenshots
+
+| Platform | Home & Models | Chat Interface | Model Completion |
+|:---:|:---:|:---:|:---:|
+| Android | ![Home](snapshots/Android%20-%20Home%20Page.png) | ![Chat](snapshots/Android%20-%20Chat%20Page.png) | ![Completion](snapshots/Android%20-%20Completion%20Page.png) |
+| iOS | ![Home](snapshots/iOS%20-%20Home%20Page.png) | ![Chat](snapshots/iOS%20-%20Chat%20Page.png) | ![Completion](snapshots/iOS%20-%20Completion%20Page.png) |
+
+## 🛠️ Tech Stack
+
+- **Framework**: [Flutter](https://flutter.dev)
+- **Inference Engine**: [llama.cpp](https://github.com/ggerganov/llama.cpp) (via FFI)
+- **Local Storage**: [Hive](https://pub.dev/packages/hive)
+- **Networking**: [Dio](https://pub.dev/packages/dio)
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Flutter SDK (3.7.0 or later)
+- C++ Compiler (CMake, GCC/Clang) for building native libraries.
+- Android NDK (for Android build) / Xcode (for iOS build).
+
+### Installation
+
+1. **Clone the repository** (including submodules):
+
+``` bash
+git clone --recursive https://github.com/your-org/little-star-app.git
+cd little-star-app
+```
+
+2. **Install dependencies**:
+
+``` bash
+flutter pub get
+```
+
+3. **Build & Run**:
+<!-- 這裡根據您的實際編譯流程填寫，是否需要先跑 script? -->
+``` bash
+flutter run
+```
+
+## 📚 Documentation
+
+Check out our development notes for deep dives into the implementation:
+- [FFI Integration Guide](docs/develop_notes/pre_alpha.1-00_ffi_integration.md)
+- [Android Integration](docs/develop_notes/pre_alpha.1-10_android_llama.cpp_integration.md)
+- [iOS Integration](docs/develop_notes/pre_alpha.1-20_ios_llama.cpp_integration.md)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE) - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) for the incredible inference engine.
+- [Hugging Face](https://huggingface.co/) for the model ecosystem.
