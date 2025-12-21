@@ -17,6 +17,7 @@ import 'package:little_star_app/ui/home/widgets/recommended_model_card.dart';
 import 'package:little_star_app/ui/home/widgets/skeleton_loader.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
+import 'package:little_star_app/ui/about/about_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -83,6 +84,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: const Text('Little Star App'),
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 elevation: 0,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.info_outline),
+                    onPressed: () => _openAboutScreen(context),
+                    tooltip: '關於',
+                  ),
+                ],
               ),
               body: RefreshIndicator(
                 onRefresh: () async {
@@ -373,6 +381,15 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => ModelManagerScreen(viewModel: viewModel),
+      ),
+    );
+  }
+
+  void _openAboutScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AboutScreen(),
       ),
     );
   }
