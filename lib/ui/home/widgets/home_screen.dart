@@ -28,6 +28,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late HomeViewModel _viewModel;
+  late DirectoryService _directoryService;
   bool _isInitializing = true;
 
   @override
@@ -37,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initViewModel() async {
-    final directoryService = Platform.isAndroid
+    _directoryService = Platform.isAndroid
         ? AndroidDirectoryService()
         : Platform.isIOS
             ? IOSDirectoryService()
@@ -49,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
       hfService: HuggingFaceService(),
       downloadService: DownloadService(),
       downloadRepository: DownloadRepository(),
-      directoryService: directoryService,
+      directoryService: _directoryService,
       onboardingService: onboardingService,
     );
 
@@ -253,7 +254,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: 320,
                     child: RecommendedModelCard(
                       modelState: modelState,
-                      onDownload: () => _viewModel.startOneClickDownload(modelState),
+                      onDownload: () => _viewModel.startOneClickDownload(
+                        modelState,
+                        requestPermission: () => _directoryService.requestPermissions(context: context),
+                      ),
                       onOpen: () => _navigateToChat(
                         context,
                         _findLocalModel(modelState.recommendedFile?.filename),

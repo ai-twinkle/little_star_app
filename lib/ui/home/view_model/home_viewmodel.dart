@@ -257,8 +257,13 @@ class HomeViewModel extends ChangeNotifier {
     return files.reduce((a, b) => a.size < b.size ? a : b);
   }
 
-  /// Start one-click download for a recommended model
-  Future<void> startOneClickDownload(RecommendedModelState modelState) async {
+  /// Start one-click download for a recommended model.
+  /// [requestPermission] is a callback to request storage permission from UI.
+  /// Returns true if permission was granted, false otherwise.
+  Future<void> startOneClickDownload(
+    RecommendedModelState modelState, {
+    required Future<bool> Function() requestPermission,
+  }) async {
     try {
       _log.info('Starting one-click download for ${modelState.config.modelInfo.modelName}');
 
@@ -272,6 +277,15 @@ class HomeViewModel extends ChangeNotifier {
       if (modelState.isDownloaded) {
         _log.warn('Model is already downloaded');
         return;
+      }
+
+      // Request storage permission before downloading (Android only)
+      if (Platform.isAndroid) {
+        final hasPermission = await requestPermission();
+        if (!hasPermission) {
+          _log.warn('Storage permission denied, cannot download');
+          throw Exception('Storage permission is required to download models');
+        }
       }
 
       // Ensure we have file info
@@ -288,7 +302,7 @@ class HomeViewModel extends ChangeNotifier {
           throw Exception('No files available for this model');
         }
 
-        return startOneClickDownload(updatedState);
+        return startOneClickDownload(updatedState, requestPermission: requestPermission);
       }
 
       final file = modelState.recommendedFile!;

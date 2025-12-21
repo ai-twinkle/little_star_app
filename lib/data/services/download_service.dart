@@ -79,9 +79,15 @@ class DownloadService {
     try {
       // Check for existing partial download
       int existingBytes = 0;
-      if (await tempFile.exists()) {
-        existingBytes = await tempFile.length();
-        _log.debug('Resuming download from byte $existingBytes');
+      try {
+        if (await tempFile.exists()) {
+          existingBytes = await tempFile.length();
+          _log.debug('Resuming download from byte $existingBytes');
+        }
+      } catch (e) {
+        // File access error - possibly permission denied or file system issue
+        _log.warn('Cannot access temp file, starting fresh: $e');
+        existingBytes = 0;
       }
 
       // Update task status
@@ -97,16 +103,48 @@ class DownloadService {
       }
 
       // Start download
-      final response = await _dio.get<ResponseBody>(
-        task.url,
-        options: Options(
-          responseType: ResponseType.stream,
-          headers: headers,
-          followRedirects: true,
-          maxRedirects: 5,
-        ),
-        cancelToken: cancelToken,
-      );
+      Response<ResponseBody> response;
+      try {
+        response = await _dio.get<ResponseBody>(
+          task.url,
+          options: Options(
+            responseType: ResponseType.stream,
+            headers: headers,
+            followRedirects: true,
+            maxRedirects: 5,
+          ),
+          cancelToken: cancelToken,
+        );
+      } on DioException catch (e) {
+        // Handle 416 Range Not Satisfiable - file may be complete or corrupted
+        if (e.response?.statusCode == 416) {
+          _log.warn(
+              'Range not satisfiable (416), deleting temp file and restarting');
+          try {
+            if (await tempFile.exists()) {
+              await tempFile.delete();
+            }
+          } catch (deleteError) {
+            // Ignore delete errors - file may already be gone
+            _log.debug('Could not delete temp file: $deleteError');
+          }
+          existingBytes = 0;
+          headers.remove('Range');
+
+          // Retry without Range header
+          response = await _dio.get<ResponseBody>(
+            task.url,
+            options: Options(
+              responseType: ResponseType.stream,
+              followRedirects: true,
+              maxRedirects: 5,
+            ),
+            cancelToken: cancelToken,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       // Get total size from content-length or content-range
       int totalBytes = task.totalBytes;
@@ -123,8 +161,9 @@ class DownloadService {
         totalBytes = existingBytes + int.parse(contentLength);
       }
 
-      // Open file for writing
-      final sink = tempFile.openWrite(mode: FileMode.append);
+      // Open file for writing (append if resuming, write if starting fresh)
+      final sink = tempFile.openWrite(
+          mode: existingBytes > 0 ? FileMode.append : FileMode.write);
 
       // Track download speed
       int bytesReceived = existingBytes;
