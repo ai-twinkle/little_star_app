@@ -433,6 +433,7 @@ typedef GgmlBackendLoadAllNative = ffi.Void Function();
 typedef GgmlBackendLoadAll = void Function();
 
 // Simplified FFI integration for llama.cpp
+// llama.cpp tag version: https://github.com/ggml-org/llama.cpp/releases/tag/b7493
 class LlamaCppFFI {
   late ffi.DynamicLibrary _lib;
   late ffi.DynamicLibrary _ggmlLib;
