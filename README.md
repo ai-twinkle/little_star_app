@@ -48,15 +48,25 @@
 ### Installation
 
 1. **Clone the repository** (including submodules):
-   git clone --recursive https://github.com/your-org/little-star-app.git
-   cd little-star-app
-   2. **Install dependencies**:
-   
-   flutter pub get
-   3. **Build & Run**:
-   <!-- 這裡根據您的實際編譯流程填寫，是否需要先跑 script? -->
-   flutter run
-   ## 📚 Documentation
+
+``` bash
+git clone --recursive https://github.com/your-org/little-star-app.git
+cd little-star-app
+```
+
+2. **Install dependencies**:
+
+``` bash
+flutter pub get
+```
+
+3. **Build & Run**:
+<!-- 這裡根據您的實際編譯流程填寫，是否需要先跑 script? -->
+``` bash
+flutter run
+```
+
+## 📚 Documentation
 
 Check out our development notes for deep dives into the implementation:
 - [FFI Integration Guide](docs/develop_notes/pre_alpha.1-00_ffi_integration.md)
@@ -66,12 +76,6 @@ Check out our development notes for deep dives into the implementation:
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feat/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
-4. Push to the Branch (`git push origin feat/AmazingFeature`)
-5. Open a Pull Request
 
 ## 📄 License
 
