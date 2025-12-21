@@ -20,9 +20,34 @@ abstract class DirectoryService {
   Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension});
 
   Future<bool> requestPermissions({required BuildContext context});
+
+  /// Returns the directory for storing downloaded models.
+  /// Creates the directory if it doesn't exist.
+  Future<Directory> getModelsDirectory();
+
+  /// Returns available storage space in bytes.
+  Future<int> getAvailableStorageSpace();
 }
 
 class AndroidDirectoryService implements DirectoryService {
+  @override
+  Future<Directory> getModelsDirectory() async {
+    // Prefer external Downloads folder for user visibility
+    final downloadDir = Directory('/storage/emulated/0/Download/LittleStar/models');
+    if (!await downloadDir.exists()) {
+      await downloadDir.create(recursive: true);
+    }
+    return downloadDir;
+  }
+
+  @override
+  Future<int> getAvailableStorageSpace() async {
+    // FileStat doesn't provide free space; proper implementation needs platform channel
+    // For now, return a large value as placeholder
+    return 10 * 1024 * 1024 * 1024; // 10 GB placeholder
+  }
+
+  @override
   Future<bool> requestPermissions({required BuildContext context}) async {
     var storageStatus = await Permission.storage.status;
     if (storageStatus.isDenied) {
@@ -163,6 +188,24 @@ class AndroidDirectoryService implements DirectoryService {
 
 class IOSDirectoryService implements DirectoryService {
   @override
+  Future<Directory> getModelsDirectory() async {
+    // Use Documents folder so users can see models in Files app
+    final documentsDir = await getApplicationDocumentsDirectory();
+    final modelsDir = Directory(path.join(documentsDir.path, 'Models'));
+    if (!await modelsDir.exists()) {
+      await modelsDir.create(recursive: true);
+    }
+    return modelsDir;
+  }
+
+  @override
+  Future<int> getAvailableStorageSpace() async {
+    // Proper implementation needs platform channel
+    // For now, return a large value as placeholder
+    return 10 * 1024 * 1024 * 1024; // 10 GB placeholder
+  }
+
+  @override
   Future<bool> requestPermissions({required BuildContext context}) async {
     // iOS doesn't require explicit permissions for app sandboxed directories
     return true;
@@ -229,6 +272,23 @@ class IOSDirectoryService implements DirectoryService {
 }
 
 class DesktopDirectoryService implements DirectoryService {
+  @override
+  Future<Directory> getModelsDirectory() async {
+    // Use a 'models' folder in the current working directory
+    final modelsDir = Directory(path.join(Directory.current.path, 'models'));
+    if (!await modelsDir.exists()) {
+      await modelsDir.create(recursive: true);
+    }
+    return modelsDir;
+  }
+
+  @override
+  Future<int> getAvailableStorageSpace() async {
+    // Proper implementation needs platform channel
+    // For now, return a large value as placeholder
+    return 100 * 1024 * 1024 * 1024; // 100 GB placeholder for desktop
+  }
+
   @override
   Future<bool> requestPermissions({required BuildContext context}) async {
     // Desktop platforms don't require explicit permissions

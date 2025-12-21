@@ -15,40 +15,30 @@ class GGUFRepository {
   }
 
   Future<List<GGUFModelInfo>> getGGUFModels() async {
-    final List<String> filePaths;
+    final List<GGUFModelInfo> models = [];
 
-    if (Platform.isAndroid || Platform.isIOS) {
-      filePaths = await directoryService.findFiles(
-        directoryTypes: [
-          DirectoryType.documents,
-          DirectoryType.downloads,
-          DirectoryType.applicationSupport,
-          DirectoryType.temporary,
-        ],
-        extension: '.gguf',
-      );
-    } else {
-      // Desktop: scan current working directory
-      filePaths = await directoryService.findFiles(directoryTypes: [DirectoryType.other], extension: '.gguf');
-    }
+    try {
+      // Scan the dedicated models directory
+      final modelsDir = await directoryService.getModelsDirectory();
 
-    // Convert file paths to GGUFModelInfo objects and deduplicate
-    final Map<String, GGUFModelInfo> modelsMap = {};
-
-    for (final filePath in filePaths) {
-      final file = File(filePath);
-      if (await file.exists()) {
-        final stat = await file.stat();
-        final fileName = file.uri.pathSegments.last;
-        final modelInfo = GGUFModelInfo(
-          filePath: filePath,
-          fileName: fileName,
-          fileSize: stat.size,
-        );
-        modelsMap[fileName] = modelInfo; // Deduplicate by filename
+      if (await modelsDir.exists()) {
+        await for (final entity in modelsDir.list()) {
+          if (entity is File && entity.path.toLowerCase().endsWith('.gguf')) {
+            final stat = await entity.stat();
+            final fileName = entity.path.split('/').last;
+            models.add(GGUFModelInfo(
+              filePath: entity.path,
+              fileName: fileName,
+              fileSize: stat.size,
+            ));
+          }
+        }
       }
+    } catch (e) {
+      // Return empty list on error - caller can check if list is empty
+      // Error will be visible in the UI as "No GGUF files found"
     }
 
-    return modelsMap.values.toList();
+    return models;
   }
 }

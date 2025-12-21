@@ -28,16 +28,25 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
   @override
   void initState() {
     super.initState();
-    // Initialize services based on platform
-    if (Platform.isAndroid) {
-      _directoryService = AndroidDirectoryService();
-    } else if (Platform.isIOS) {
-      _directoryService = IOSDirectoryService();
-    } else {
-      _directoryService = DesktopDirectoryService();
-    }
+    _directoryService = _createPlatformDirectoryService();
     _repository = GGUFRepository(directoryService: _directoryService);
     _scanForModels();
+  }
+
+  DirectoryService _createPlatformDirectoryService() {
+    if (Platform.isAndroid) {
+      return AndroidDirectoryService();
+    } else if (Platform.isIOS) {
+      return IOSDirectoryService();
+    } else {
+      return DesktopDirectoryService();
+    }
+  }
+
+  @override
+  void dispose() {
+    // Clean up resources if needed
+    super.dispose();
   }
 
   Future<void> _scanForModels() async {
@@ -76,7 +85,7 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
       title: const Text('Select GGUF Model'),
       content: SizedBox(
         width: double.maxFinite,
-        height: 400,
+        height: MediaQuery.of(context).size.height * 0.6,
         child: _buildContent(),
       ),
       actions: [
@@ -137,7 +146,7 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
             Text('No GGUF files found'),
             SizedBox(height: 8),
             Text(
-              'Place .gguf model files in your Downloads folder\nor Documents directory',
+              'Download or import models from\nthe Model Manager screen',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey),
             ),
@@ -179,37 +188,11 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
     );
   }
 
-  Future<void> _selectModel(GGUFModelInfo model) async {
-    try {
-      // Close the dialog
-      Navigator.of(context).pop();
+  void _selectModel(GGUFModelInfo model) {
+    // Close the dialog first
+    Navigator.of(context).pop();
 
-      // Show loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Loading model: ${model.fileName}...'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // Load the model
-      widget.onModelSelected(model.filePath);
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Model loaded: ${model.fileName}'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load model: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    // Call the callback - let the parent handle loading state and error handling
+    widget.onModelSelected(model.filePath);
   }
 }

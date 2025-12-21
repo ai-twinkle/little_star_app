@@ -112,7 +112,10 @@ build_architecture() {
         -DLLAMA_CURL=OFF \
         -DGGML_NO_LLAMAFILE=ON \
         -DGGML_OPENMP=OFF \
+        -DGGML_NATIVE=OFF \
         -DGGML_METAL=ON \
+        -DGGML_METAL_EMBED_LIBRARY=ON \
+        -DGGML_ACCELERATE=ON \
         -DCMAKE_C_FLAGS="-fPIC" \
         -DCMAKE_CXX_FLAGS="-fPIC"
     
@@ -235,17 +238,35 @@ cd "$LLAMA_DIR"
 # Create universal libraries if builds were successful
 if [ "$SUCCESS" = true ]; then
     echo -e "\n${CYAN}Creating universal libraries...${NC}"
-    
+
     # Create universal libllama
     if ! create_universal_library "libllama" "$IOS_LIBS_DIR"; then
         SUCCESS=false
     fi
-    
+
     # Create universal GGML libraries
     GGML_LIB_NAMES=$(find "$IOS_LIBS_DIR" -name "libggml*-arm64-device.a" | sed 's/.*\/\(libggml[^-]*\)-.*/\1/' | sort -u)
     for lib_name in $GGML_LIB_NAMES; do
         if ! create_universal_library "$lib_name" "$IOS_LIBS_DIR"; then
             SUCCESS=false
+        fi
+    done
+
+    # Copy header files to ios/Runner to keep them in sync with libraries
+    echo -e "\n${CYAN}Copying header files to ios/Runner...${NC}"
+    IOS_RUNNER_DIR="$PROJECT_ROOT/ios/Runner"
+
+    # Copy llama.h
+    if [ -f "$LLAMA_DIR/include/llama.h" ]; then
+        cp "$LLAMA_DIR/include/llama.h" "$IOS_RUNNER_DIR/"
+        echo -e "${GREEN}  ✓ Copied llama.h${NC}"
+    fi
+
+    # Copy all ggml headers (including ggml-opt.h and gguf.h which are required by llama.h)
+    for header in ggml.h ggml-alloc.h ggml-backend.h ggml-metal.h ggml-cpu.h ggml-opt.h gguf.h; do
+        if [ -f "$LLAMA_DIR/ggml/include/$header" ]; then
+            cp "$LLAMA_DIR/ggml/include/$header" "$IOS_RUNNER_DIR/"
+            echo -e "${GREEN}  ✓ Copied $header${NC}"
         fi
     done
 fi

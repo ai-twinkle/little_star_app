@@ -7,7 +7,12 @@ import 'package:little_star_app/ui/completion/widgets/model_selection_dialog.dar
 import 'package:little_star_app/ui/completion/widgets/advanced_settings_sheet.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final String? initialModelPath;
+
+  const ChatScreen({
+    super.key,
+    this.initialModelPath,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -22,10 +27,15 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: Replace with actual model path
-    viewModel = ChatViewModel(
-      modelPath: '/storage/emulated/0/Download/Llama-3.2-3B-F1-Reasoning-Instruct-Q3_K_M.gguf',
-    );
+    // Initialize with provided model path or empty
+    viewModel = ChatViewModel(modelPath: widget.initialModelPath ?? '');
+
+    // Prompt user to select a model if none provided
+    if (widget.initialModelPath == null || widget.initialModelPath!.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showModelSelection(context);
+      });
+    }
   }
 
   @override

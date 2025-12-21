@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:little_star_app/ui/home/widgets/home_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Hive for persistent storage
+  await Hive.initFlutter();
+
   runApp(const LittleStarApp());
 }
 
