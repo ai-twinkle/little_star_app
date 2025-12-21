@@ -78,7 +78,7 @@ class _AboutScreenState extends State<AboutScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('無法開啟連結: $url')),
+          SnackBar(content: Text('Unable to open link: $url')),
         );
       }
     }
@@ -90,7 +90,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('關於'),
+        title: const Text('About'),
         backgroundColor: theme.colorScheme.primaryContainer,
         elevation: 0,
       ),
@@ -113,23 +113,23 @@ class _AboutScreenState extends State<AboutScreen> {
 
                   // Version Information Section
                   InfoSection(
-                    title: '版本資訊',
+                    title: 'Version Information',
                     children: [
                       _buildInfoTile(
                         icon: Icons.info_outline,
-                        title: '應用版本',
+                        title: 'App Version',
                         subtitle: _buildNumber.isNotEmpty
                             ? '$_version ($_buildNumber)'
                             : _version,
                       ),
                       _buildInfoTile(
                         icon: Icons.memory,
-                        title: 'llama.cpp 版本',
+                        title: 'llama.cpp Version',
                         subtitle: _llamaCppVersion,
                       ),
                       _buildInfoTile(
                         icon: Icons.phone_android,
-                        title: '平台',
+                        title: 'Platform',
                         subtitle: _getPlatformName(),
                       ),
                     ],
@@ -140,7 +140,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   // Device Information Section (Phase 2)
                   if (_deviceInfo.isNotEmpty && kDebugMode) ...[
                     InfoSection(
-                      title: '裝置資訊',
+                      title: 'Device Information',
                       children: _deviceInfo.entries.map((entry) {
                         return _buildInfoTile(
                           icon: Icons.smartphone,
@@ -155,7 +155,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   // Storage Information Section (Phase 2)
                   if (_storageInfo.isNotEmpty && kDebugMode) ...[
                     InfoSection(
-                      title: '儲存路徑',
+                      title: 'Storage Path',
                       children: _storageInfo.entries.map((entry) {
                         return _buildInfoTile(
                           icon: Icons.folder,
@@ -170,17 +170,17 @@ class _AboutScreenState extends State<AboutScreen> {
 
                   // Links Section
                   InfoSection(
-                    title: '相關連結',
+                    title: 'Related Links',
                     children: [
                       _buildLinkTile(
                         icon: Icons.description,
-                        title: '開源授權',
-                        subtitle: '查看使用的開源套件',
+                        title: 'Open Source Licenses',
+                        subtitle: 'View open source packages used',
                         onTap: _openLicenses,
                       ),
                       _buildLinkTile(
                         icon: Icons.code,
-                        title: 'GitHub 儲存庫',
+                        title: 'GitHub Repository',
                         subtitle: 'github.com/Twinke-AI/little_star_app',
                         onTap: () => _openUrl('https://github.com/Twinke-AI/little_star_app'),
                       ),
@@ -236,7 +236,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
         // Version
         Text(
-          '版本 $_version',
+          'Version $_version',
           style: theme.textTheme.bodyLarge?.copyWith(
             color: Colors.grey[600],
           ),
@@ -254,7 +254,7 @@ class _AboutScreenState extends State<AboutScreen> {
           padding: const EdgeInsets.all(20.0),
           child: Text(
             'A Twinkle AI\'s little star project.\n\n'
-            '本應用使用 llama.cpp 在本地運行大型語言模型,保護您的隱私。',
+            'This app uses llama.cpp to run large language models locally, protecting your privacy.',
             style: theme.textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),

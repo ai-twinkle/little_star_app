@@ -127,7 +127,7 @@ class AppInfoService {
   Future<String> getLlamaCppVersion() async {
     // TODO: Implement native method to get llama.cpp version
     // For now, return a placeholder based on recent commits
-    return 'b4402 (2024-12-20)';
+    return 'b7493 (2025-12-21)';
   }
 
   /// Get Flutter SDK version
