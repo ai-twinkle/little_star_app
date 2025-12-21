@@ -2,4 +2,4 @@
 #include "Generated.xcconfig"
 
 // Prevent dead code stripping of llama.cpp functions
-EXPORTED_SYMBOLS_FILE = $(PROJECT_DIR)/llama.exp
+DEAD_CODE_STRIPPING = NO

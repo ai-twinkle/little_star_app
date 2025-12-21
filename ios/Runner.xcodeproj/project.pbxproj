@@ -453,6 +453,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -487,6 +488,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = M3933P3URU;
 				ENABLE_BITCODE = NO;
@@ -514,16 +517,17 @@
 					"-force_load",
 					"$(PROJECT_DIR)/Frameworks/libggml-blas-arm64-device.a",
 					"-framework",
-					"Accelerate",
+					Accelerate,
 					"-framework",
-					"Foundation",
+					Foundation,
 					"-framework",
-					"Metal",
+					Metal,
 					"-framework",
-					"MetalKit",
+					MetalKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.littleStarApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "tw.twinkleai.little-star-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -604,6 +608,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -661,6 +666,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -697,6 +703,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = M3933P3URU;
 				ENABLE_BITCODE = NO;
@@ -724,16 +732,17 @@
 					"-force_load",
 					"$(PROJECT_DIR)/Frameworks/libggml-blas-arm64-device.a",
 					"-framework",
-					"Accelerate",
+					Accelerate,
 					"-framework",
-					"Foundation",
+					Foundation,
 					"-framework",
-					"Metal",
+					Metal,
 					"-framework",
-					"MetalKit",
+					MetalKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.littleStarApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "tw.twinkleai.little-star-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -747,6 +756,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = M3933P3URU;
 				ENABLE_BITCODE = NO;
@@ -774,16 +785,17 @@
 					"-force_load",
 					"$(PROJECT_DIR)/Frameworks/libggml-blas-arm64-device.a",
 					"-framework",
-					"Accelerate",
+					Accelerate,
 					"-framework",
-					"Foundation",
+					Foundation,
 					"-framework",
-					"Metal",
+					Metal,
 					"-framework",
-					"MetalKit",
+					MetalKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.littleStarApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "tw.twinkleai.little-star-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
