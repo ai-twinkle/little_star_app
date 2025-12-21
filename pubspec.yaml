@@ -68,6 +68,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.4
 
   # Code generation
   build_runner: ^2.4.8
@@ -132,3 +133,15 @@ flutter_launcher_icons:
   macos:
     generate: true
     image_path: "assets/icons/twinkle-ai-circle-1024x1024.webp"
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: "assets/icons/twinkle-ai-circle-1024x1024.png"
+  android: true
+  ios: true
+  web: true
+
+  # Android 12+ 專用設定
+  android_12:
+    color: "#ffffff"
+    image: "assets/icons/twinkle-ai-circle-1024x1024.png"
