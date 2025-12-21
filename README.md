@@ -25,10 +25,10 @@
 
 ## 📸 Screenshots
 
-| Home & Models | Chat Interface | Model Completion |
-|:---:|:---:|:---:|
-| ![Home](snapshots/Android%20-%20Home%20Page.png) | ![Chat](snapshots/Android%20-%20Chat%20Page.png) | ![Completion](snapshots/Android%20-%20Completion%20Page.png) |
-| Browse & Manage | Chat with AI | Test Performance |
+| Platform | Home & Models | Chat Interface | Model Completion |
+|:---:|:---:|:---:|:---:|
+| Android | ![Home](snapshots/Android%20-%20Home%20Page.png) | ![Chat](snapshots/Android%20-%20Chat%20Page.png) | ![Completion](snapshots/Android%20-%20Completion%20Page.png) |
+| iOS | ![Home](snapshots/iOS%20-%20Home%20Page.png) | ![Chat](snapshots/iOS%20-%20Chat%20Page.png) | ![Completion](snapshots/iOS%20-%20Completion%20Page.png) |
 
 ## 🛠️ Tech Stack
 
