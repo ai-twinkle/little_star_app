@@ -11,6 +11,10 @@
 
 **Little Star App** is a magical AI playground designed to bring the power of Large Language Models (LLMs) directly to your device. Powered by [Twinkle AI](https://huggingface.co/twinkle-ai) and the robust [llama.cpp](https://github.com/ggerganov/llama.cpp) engine, this app lets you explore, download, and chat with AI models completely offline.
 
+<img src="snapshots/Android%20-%20Welcome%20Banner.png" alt="Welcome Banner" width="360"/>
+
+
+
 ## 🌟 Key Features
 
 - **🚀 On-Device Inference**: Run GGUF models locally with privacy and speed using `llama.cpp`.
