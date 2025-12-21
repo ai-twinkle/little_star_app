@@ -70,7 +70,7 @@ class OnboardingStep {
   static const List<OnboardingStep> defaultSteps = [
     OnboardingStep(
       title: 'Welcome to Little Star',
-      description: 'Your personal AI assistant powered by local models. Let\'s get you started!',
+      description: 'A little star shining by local AI models. Let\'s get you started!',
     ),
     OnboardingStep(
       title: 'Download a Model',
