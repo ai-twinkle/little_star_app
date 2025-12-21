@@ -181,8 +181,8 @@ class _AboutScreenState extends State<AboutScreen> {
                       _buildLinkTile(
                         icon: Icons.code,
                         title: 'GitHub Repository',
-                        subtitle: 'github.com/Twinke-AI/little_star_app',
-                        onTap: () => _openUrl('https://github.com/Twinke-AI/little_star_app'),
+                        subtitle: 'github.com/ai-twinkle/little_star_app',
+                        onTap: () => _openUrl('https://github.com/ai-twinkle/little_star_app/'),
                       ),
                     ],
                   ),
