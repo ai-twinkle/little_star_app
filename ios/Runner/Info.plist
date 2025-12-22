@@ -35,6 +35,11 @@
 			<string>fetch</string>
 			<string>processing</string>
 		</array>
+		<key>BGTaskSchedulerPermittedIdentifiers</key>
+		<array>
+			<string>tw.twinkleai.little-star-app.background-refresh</string>
+			<string>tw.twinkleai.little-star-app.background-processing</string>
+		</array>
 		<key>UIFileSharingEnabled</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>
@@ -64,7 +69,7 @@
 				<key>UTTypeDescription</key>
 				<string>GGUF Model File</string>
 				<key>UTTypeIdentifier</key>
-				<string>com.example.gguf</string>
+				<string>tw.twinkleai.gguf</string>
 				<key>UTTypeTagSpecification</key>
 				<dict>
 					<key>public.filename-extension</key>
