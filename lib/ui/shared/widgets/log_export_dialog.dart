@@ -62,6 +62,12 @@ class _LogExportDialogState extends State<LogExportDialog> {
 
   Future<void> _shareLogs() async {
     try {
+      // Get the position of the share button (for iOS), before the asynchronous operation
+      final box = context.findRenderObject() as RenderBox?;
+      final sharePositionOrigin = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+
       final file = await CrashReportingService.instance.getLogFile();
       if (file == null || !await file.exists()) {
         if (mounted) {
@@ -76,6 +82,7 @@ class _LogExportDialogState extends State<LogExportDialog> {
         [XFile(file.path)],
         subject: 'Little Star App 日誌',
         text: '請協助診斷應用程式問題',
+        sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e) {
       _log.error('Failed to share logs', error: e);
@@ -89,6 +96,12 @@ class _LogExportDialogState extends State<LogExportDialog> {
 
   Future<void> _shareAllLogs() async {
     try {
+      // 获取分享按钮的位置(用于 iPad),在异步操作前获取
+      final box = context.findRenderObject() as RenderBox?;
+      final sharePositionOrigin = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+
       if (_logFiles.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -104,6 +117,7 @@ class _LogExportDialogState extends State<LogExportDialog> {
         xFiles,
         subject: 'Little Star App 完整日誌',
         text: '請協助診斷應用程式問題（共 ${xFiles.length} 個檔案）',
+        sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e) {
       _log.error('Failed to share all logs', error: e);
