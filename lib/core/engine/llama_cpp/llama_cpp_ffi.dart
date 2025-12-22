@@ -425,6 +425,10 @@ typedef LlamaTimeUs = int Function();
 typedef LlamaPerfContextPrintNative = ffi.Void Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaPerfContextPrint = void Function(ffi.Pointer<llama_context> ctx);
 
+// System info function - returns backend/hardware info
+typedef LlamaPrintSystemInfoNative = ffi.Pointer<ffi.Char> Function();
+typedef LlamaPrintSystemInfo = ffi.Pointer<ffi.Char> Function();
+
 typedef LlamaPerfSamplerPrintNative = ffi.Void Function(ffi.Pointer<llama_sampler> sampler);
 typedef LlamaPerfSamplerPrint = void Function(ffi.Pointer<llama_sampler> sampler);
 
@@ -488,6 +492,7 @@ class LlamaCppFFI {
   late LlamaTimeUs llama_time_us;
   late LlamaPerfContextPrint llama_perf_context_print;
   late LlamaPerfSamplerPrint llama_perf_sampler_print;
+  late LlamaPrintSystemInfo llama_print_system_info;
 
   late GgmlBackendLoadAll ggml_backend_load_all;
 
@@ -740,6 +745,10 @@ class LlamaCppFFI {
           .lookup<ffi.NativeFunction<LlamaPerfSamplerPrintNative>>('llama_perf_sampler_print')
           .asFunction<LlamaPerfSamplerPrint>();
 
+      llama_print_system_info = _lib
+          .lookup<ffi.NativeFunction<LlamaPrintSystemInfoNative>>('llama_print_system_info')
+          .asFunction<LlamaPrintSystemInfo>();
+
       // GGML backend functions - try to load from main library first
       ggml_backend_load_all = _ggmlLib
           .lookup<ffi.NativeFunction<GgmlBackendLoadAllNative>>('ggml_backend_load_all')
@@ -767,6 +776,11 @@ class LlamaCppFFI {
       setLogCallback();
       llama_backend_init();
       log.debug('Llama backend initialized successfully');
+
+      // Log system/backend info
+      final systemInfoPtr = llama_print_system_info();
+      final systemInfo = systemInfoPtr.cast<Utf8>().toDartString();
+      log.debug('System info: $systemInfo');
     } catch (e) {
       throw Exception('Failed to initialize llama backend: $e');
     }
