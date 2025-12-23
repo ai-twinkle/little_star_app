@@ -48,12 +48,11 @@ app.*.map.json
 lib/firebase_options.dart
 
 # iOS
-*.a
+# Note: *.a files in ios/Frameworks/ are tracked by Git LFS
 *.dylib
 *.so
 *.dll
 *.gguf
-ios/Frameworks/
 llama.cpp/build/
 *.xcarchive
 *.ipa
