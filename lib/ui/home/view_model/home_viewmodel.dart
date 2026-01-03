@@ -102,11 +102,11 @@ class HomeViewModel extends ChangeNotifier {
     required DownloadRepository downloadRepository,
     required DirectoryService directoryService,
     required OnboardingService onboardingService,
-  })  : _hfService = hfService,
-        _downloadService = downloadService,
-        _downloadRepository = downloadRepository,
-        _directoryService = directoryService,
-        _onboardingService = onboardingService;
+  }) : _hfService = hfService,
+       _downloadService = downloadService,
+       _downloadRepository = downloadRepository,
+       _directoryService = directoryService,
+       _onboardingService = onboardingService;
 
   /// Initialize the ViewModel
   Future<void> init() async {
@@ -115,9 +115,10 @@ class HomeViewModel extends ChangeNotifier {
     _log.info('Initializing HomeViewModel');
 
     // Initialize recommended models
-    _recommendedModels = RecommendedModels.models
-        .map((config) => RecommendedModelState(config: config))
-        .toList();
+    _recommendedModels =
+        RecommendedModels.models
+            .map((config) => RecommendedModelState(config: config))
+            .toList();
 
     // Load in parallel
     await Future.wait([
@@ -138,7 +139,9 @@ class HomeViewModel extends ChangeNotifier {
     try {
       _hasCompletedOnboarding = await _onboardingService.hasCompleted();
       _currentOnboardingStep = await _onboardingService.getCurrentStep();
-      _log.info('Onboarding state: completed=$_hasCompletedOnboarding, step=$_currentOnboardingStep');
+      _log.info(
+        'Onboarding state: completed=$_hasCompletedOnboarding, step=$_currentOnboardingStep',
+      );
     } catch (e) {
       _log.error('Failed to load onboarding state: $e');
     }
@@ -157,11 +160,13 @@ class HomeViewModel extends ChangeNotifier {
         await for (final entity in modelsDir.list()) {
           if (entity is File && entity.path.toLowerCase().endsWith('.gguf')) {
             final stat = await entity.stat();
-            models.add(GGUFModelInfo(
-              filePath: entity.path,
-              fileName: entity.path.split('/').last,
-              fileSize: stat.size,
-            ));
+            models.add(
+              GGUFModelInfo(
+                filePath: entity.path,
+                fileName: entity.path.split('/').last,
+                fileSize: stat.size,
+              ),
+            );
           }
         }
       }
@@ -191,12 +196,15 @@ class HomeViewModel extends ChangeNotifier {
 
   /// Load file information for recommended models
   Future<void> loadRecommendedModelFiles() async {
-    _log.info('Loading file info for ${_recommendedModels.length} recommended models');
+    _log.info(
+      'Loading file info for ${_recommendedModels.length} recommended models',
+    );
 
     // Mark all as loading
-    _recommendedModels = _recommendedModels
-        .map((m) => m.copyWith(isLoadingFileInfo: true, clearError: true))
-        .toList();
+    _recommendedModels =
+        _recommendedModels
+            .map((m) => m.copyWith(isLoadingFileInfo: true, clearError: true))
+            .toList();
     notifyListeners();
 
     // Load all in parallel
@@ -204,7 +212,9 @@ class HomeViewModel extends ChangeNotifier {
       _recommendedModels.map((modelState) async {
         final index = _recommendedModels.indexOf(modelState);
         try {
-          final files = await _hfService.getModelFiles(modelState.config.modelInfo.id);
+          final files = await _hfService.getModelFiles(
+            modelState.config.modelInfo.id,
+          );
           final recommendedFile = _findRecommendedFile(
             files,
             modelState.config.recommendedQuantization,
@@ -220,7 +230,9 @@ class HomeViewModel extends ChangeNotifier {
             'Loaded file for ${modelState.config.modelInfo.modelName}: ${recommendedFile?.filename}',
           );
         } catch (e) {
-          _log.error('Failed to load files for ${modelState.config.modelInfo.id}: $e');
+          _log.error(
+            'Failed to load files for ${modelState.config.modelInfo.id}: $e',
+          );
           _recommendedModels[index] = modelState.copyWith(
             isLoadingFileInfo: false,
             error: 'Failed to load file info',
@@ -229,6 +241,8 @@ class HomeViewModel extends ChangeNotifier {
       }),
     );
 
+    _updateDownloadedStates();
+    _updateDownloadingStates();
     notifyListeners();
   }
 
@@ -238,18 +252,18 @@ class HomeViewModel extends ChangeNotifier {
 
     // Try exact match
     var file = files.cast<HFModelFile?>().firstWhere(
-          (f) => f?.quantization == preferred,
-          orElse: () => null,
-        );
+      (f) => f?.quantization == preferred,
+      orElse: () => null,
+    );
     if (file != null) return file;
 
     // Try same Q level (e.g., Q4_K_M -> Q4_*)
     final qLevel = preferred.length >= 2 ? preferred.substring(0, 2) : null;
     if (qLevel != null) {
       file = files.cast<HFModelFile?>().firstWhere(
-            (f) => f?.quantization?.startsWith(qLevel) ?? false,
-            orElse: () => null,
-          );
+        (f) => f?.quantization?.startsWith(qLevel) ?? false,
+        orElse: () => null,
+      );
       if (file != null) return file;
     }
 
@@ -265,7 +279,9 @@ class HomeViewModel extends ChangeNotifier {
     required Future<bool> Function() requestPermission,
   }) async {
     try {
-      _log.info('Starting one-click download for ${modelState.config.modelInfo.modelName}');
+      _log.info(
+        'Starting one-click download for ${modelState.config.modelInfo.modelName}',
+      );
 
       // Check if already downloading
       if (modelState.isDownloading) {
@@ -302,7 +318,10 @@ class HomeViewModel extends ChangeNotifier {
           throw Exception('No files available for this model');
         }
 
-        return startOneClickDownload(updatedState, requestPermission: requestPermission);
+        return startOneClickDownload(
+          updatedState,
+          requestPermission: requestPermission,
+        );
       }
 
       final file = modelState.recommendedFile!;
@@ -395,7 +414,8 @@ class HomeViewModel extends ChangeNotifier {
 
       // Reload local models
       loadLocalModels();
-    } else if (task.status == DownloadStatus.failed || task.status == DownloadStatus.cancelled) {
+    } else if (task.status == DownloadStatus.failed ||
+        task.status == DownloadStatus.cancelled) {
       // Handle error
       final index = _recommendedModels.indexWhere(
         (m) => m.activeTask?.id == task.id,
@@ -435,7 +455,9 @@ class HomeViewModel extends ChangeNotifier {
       final modelState = _recommendedModels[i];
       final recommendedFilename = modelState.recommendedFile?.filename;
       if (recommendedFilename != null) {
-        final isDownloaded = _localModels.any((m) => m.fileName == recommendedFilename);
+        final isDownloaded = _localModels.any(
+          (m) => m.fileName == recommendedFilename,
+        );
         _recommendedModels[i] = modelState.copyWith(isDownloaded: isDownloaded);
       }
     }
@@ -448,9 +470,11 @@ class HomeViewModel extends ChangeNotifier {
       final recommendedFilename = modelState.recommendedFile?.filename;
       if (recommendedFilename != null) {
         final activeTask = _activeTasks.cast<DownloadTask?>().firstWhere(
-              (t) => t?.filename == recommendedFilename && t?.status == DownloadStatus.downloading,
-              orElse: () => null,
-            );
+          (t) =>
+              t?.filename == recommendedFilename &&
+              t?.status == DownloadStatus.downloading,
+          orElse: () => null,
+        );
         if (activeTask != null) {
           _recommendedModels[i] = modelState.copyWith(
             isDownloading: true,

@@ -1,0 +1,1 @@
+為 Git Staged Chages 寫一份 git commit message

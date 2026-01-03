@@ -48,6 +48,9 @@ class MetricsData {
 class CompletionViewModel extends ChangeNotifier {
   UnifiedLM _lm;
 
+  // Cache output text for final token counting
+  String _accumulatedOutput = '';
+
   // Run state
   bool _isRunning = false;
   StreamSubscription<String>? _subscription;
@@ -171,14 +174,8 @@ class CompletionViewModel extends ChangeNotifier {
 
         // Append output text immediately (fast update)
         outputTextNotifier.value += chunk;
-        _generatedTokenCount += 1;
-
-        // Update decode throughput using elapsed since first token
-        final decodeDuration = DateTime.now().difference(_firstTokenAt!);
-        _decodeTokensPerSecond = _computeThroughput(
-          tokens: _generatedTokenCount,
-          duration: decodeDuration,
-        );
+        _accumulatedOutput += chunk;
+        _generatedTokenCount += 1; // Approximate count during streaming
 
         // Length-based stop (best-effort)
         if (_generatedTokenCount >= _maxTokens) {
@@ -198,6 +195,24 @@ class CompletionViewModel extends ChangeNotifier {
       onDone: () {
         _finishedAt = DateTime.now();
         _totalDuration = _finishedAt!.difference(_submittedAt!);
+
+        // Calculate actual generated token count using tokenizer
+        if (_accumulatedOutput.isNotEmpty) {
+          try {
+            _generatedTokenCount = _lm.countPromptTokens(_accumulatedOutput);
+          } catch (_) {
+            // Keep the approximate count if tokenization fails
+          }
+        }
+
+        // Calculate decode TPS using actual token count and decode duration
+        if (_firstTokenAt != null) {
+          final decodeDuration = _finishedAt!.difference(_firstTokenAt!);
+          _decodeTokensPerSecond = _computeThroughput(
+            tokens: _generatedTokenCount,
+            duration: decodeDuration,
+          );
+        }
 
         // Infer stop reason if not set by length
         _stopReason ??= _inferStopReason(
@@ -341,6 +356,7 @@ class CompletionViewModel extends ChangeNotifier {
     _subscription = null;
     _isRunning = false;
     outputTextNotifier.value = '';
+    _accumulatedOutput = '';
     _submittedAt = null;
     _firstTokenAt = null;
     _finishedAt = null;
