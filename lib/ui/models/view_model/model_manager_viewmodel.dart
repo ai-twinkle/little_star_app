@@ -281,8 +281,53 @@ class ModelManagerViewModel extends ChangeNotifier {
   }
 
   /// Load active download tasks.
+  /// Validates each task against actual file state and updates status accordingly.
   Future<void> loadActiveTasks() async {
-    _activeTasks = _downloadRepository.getResumableTasks();
+    final resumableTasks = _downloadRepository.getResumableTasks();
+    _activeTasks = [];
+
+    for (final task in resumableTasks) {
+      final file = File(task.destinationPath);
+      final tempFile = File('${task.destinationPath}.tmp');
+
+      // Check if the final file already exists
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        // File exists and size matches - mark as completed
+        if (fileSize == task.totalBytes || task.totalBytes == 0) {
+          task.status = DownloadStatus.completed;
+          task.completedAt = DateTime.now();
+          task.downloadedBytes = fileSize;
+          await _downloadRepository.saveTask(task);
+          _log.info(
+              'Task ${task.filename} marked as completed (file already exists)');
+          continue; // Don't add to active tasks
+        }
+      }
+
+      // Check temp file state for downloading tasks
+      if (task.status == DownloadStatus.downloading) {
+        if (await tempFile.exists()) {
+          // Temp file exists, update downloaded bytes and mark as paused
+          final tempSize = await tempFile.length();
+          task.downloadedBytes = tempSize;
+          task.status = DownloadStatus.paused;
+          await _downloadRepository.saveTask(task);
+          _log.info(
+              'Task ${task.filename} marked as paused (was downloading, temp file exists)');
+        } else {
+          // No temp file, reset to pending
+          task.downloadedBytes = 0;
+          task.status = DownloadStatus.pending;
+          await _downloadRepository.saveTask(task);
+          _log.info(
+              'Task ${task.filename} marked as pending (was downloading, no temp file)');
+        }
+      }
+
+      _activeTasks.add(task);
+    }
+
     notifyListeners();
   }
 

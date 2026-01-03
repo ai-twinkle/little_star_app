@@ -19,11 +19,12 @@ class Logger {
   /// 使用 DevTools (dart:developer.log)
   static bool useDevTools = !kReleaseMode;
 
-  /// 由 -DLOG_LEVEL 控制最低輸出等級；預設：debug/profile=DEBUG、release=WARN
+  /// 由 -DLOG_LEVEL 控制最低輸出等級；預設：debug/profile=DEBUG、release=DEBUG
+  /// 注意：Release 也記錄 DEBUG，但 UI 只顯示 WARN 以上
   static final String _envLevel =
       const String.fromEnvironment('LOG_LEVEL', defaultValue: '');
   static Level minLevel =
-      _parseLevel(_envLevel) ?? (kReleaseMode ? Level.warn : Level.debug);
+      _parseLevel(_envLevel) ?? Level.debug;
 
   // ------- 實例方法 -------
   void trace(Object? msg) => _log(Level.trace, msg);
@@ -46,6 +47,33 @@ class Logger {
   }
 
   // ------- 內部 -------
+
+  /// 過濾敏感資訊
+  static String _sanitizeMessage(String message) {
+    var sanitized = message;
+
+    // 過濾常見的敏感模式
+    // API tokens/keys (Bearer, token=, api_key=)
+    sanitized = sanitized.replaceAllMapped(
+      RegExp(r'(Bearer\s+|token[=:]\s*|api[_-]?key[=:]\s*)([A-Za-z0-9_\-\.]+)', caseSensitive: false),
+      (match) => '${match[1]}[REDACTED]',
+    );
+
+    // Authorization headers
+    sanitized = sanitized.replaceAllMapped(
+      RegExp(r'(Authorization[=:]\s*)([^\s,]+)', caseSensitive: false),
+      (match) => '${match[1]}[REDACTED]',
+    );
+
+    // 密碼
+    sanitized = sanitized.replaceAllMapped(
+      RegExp(r'(password[=:]\s*)([^\s,]+)', caseSensitive: false),
+      (match) => '${match[1]}[REDACTED]',
+    );
+
+    return sanitized;
+  }
+
   void _log(Level lvl, Object? msg, {Object? error, StackTrace? st}) {
     if (lvl.index < minLevel.index) return;
 
@@ -58,8 +86,12 @@ class Logger {
       Level.error => 'E',
     };
 
-    final line = '[$ts][$mark][$name] $msg'
-        '${error != null ? ' | error=$error' : ''}'
+    // 過濾訊息中的敏感資訊
+    final sanitizedMsg = _sanitizeMessage(msg.toString());
+    final sanitizedError = error != null ? _sanitizeMessage(error.toString()) : null;
+
+    final line = '[$ts][$mark][$name] $sanitizedMsg'
+        '${sanitizedError != null ? ' | error=$sanitizedError' : ''}'
         '${st != null ? '\n$st' : ''}';
 
     if (sink != null) sink!(line);

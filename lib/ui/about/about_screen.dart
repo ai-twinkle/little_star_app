@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:little_star_app/data/services/app_info_service.dart';
 import 'package:little_star_app/ui/about/widgets/info_section.dart';
+import 'package:little_star_app/ui/shared/widgets/log_export_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatefulWidget {
@@ -167,6 +168,21 @@ class _AboutScreenState extends State<AboutScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
+
+                  // Support Section
+                  InfoSection(
+                    title: 'Support',
+                    children: [
+                      _buildLinkTile(
+                        icon: Icons.bug_report,
+                        title: 'Export Logs',
+                        subtitle: 'Share logs for troubleshooting',
+                        onTap: () => LogExportDialog.show(context),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
 
                   // Links Section
                   InfoSection(
