@@ -62,6 +62,7 @@ dependencies:
   # Firebase (Crash Reporting & Analytics)
   firebase_core: ^3.8.0
   firebase_crashlytics: ^4.1.4
+  flutter_riverpod: ^2.6.1
 
 dev_dependencies:
   flutter_test:

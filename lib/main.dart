@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:little_star_app/firebase_options.dart';
@@ -45,7 +46,7 @@ void main() async {
 
     Logger('Main').info('App starting...');
 
-    runApp(const LittleStarApp());
+    runApp(const ProviderScope(child: LittleStarApp()));
   }, (error, stack) {
     // 這個處理 runZonedGuarded 區域內的未捕獲錯誤
     Logger('Main').error('Uncaught error in zone', error: error, st: stack);
