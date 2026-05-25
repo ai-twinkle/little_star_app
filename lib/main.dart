@@ -21,13 +21,12 @@ void main() async {
     await Hive.initFlutter();
 
     // Initialize Firebase（僅支援 Android/iOS/macOS）
-    if (_isFirebaseSupported) {
+    if (_isFirebaseSupported && !DefaultFirebaseOptions.isStub) {
       try {
         await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
         );
       } catch (e) {
-        // Firebase 可能已經在原生層初始化，忽略重複初始化錯誤
         if (!e.toString().contains('duplicate-app')) {
           rethrow;
         }

@@ -8,6 +8,7 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
+    setupMlxBridge()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }

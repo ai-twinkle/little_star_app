@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:little_star_app/data/repositories/download_repository.dart';
@@ -16,6 +19,7 @@ import 'package:little_star_app/ui/home/widgets/skeleton_loader.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
 import 'package:little_star_app/ui/about/about_screen.dart';
+import 'package:little_star_app/debug/mlx_spike_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -80,6 +84,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 elevation: 0,
                 actions: [
+                  if (kDebugMode && Platform.isIOS)
+                    IconButton(
+                      icon: const Icon(Icons.science_outlined),
+                      tooltip: 'MLX Spike',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MlxSpikeScreen()),
+                      ),
+                    ),
                   IconButton(
                     icon: const Icon(Icons.info_outline),
                     onPressed: () => _openAboutScreen(context),

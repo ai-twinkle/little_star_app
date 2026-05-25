@@ -13,9 +13,16 @@
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		967B9C0B2FC34E38006848BF /* MLXEmbedders in Frameworks */ = {isa = PBXBuildFile; productRef = 967B9C0A2FC34E38006848BF /* MLXEmbedders */; };
+		967B9C0D2FC34E38006848BF /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 967B9C0C2FC34E38006848BF /* MLXHuggingFace */; };
+		967B9C0F2FC34E38006848BF /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 967B9C0E2FC34E38006848BF /* MLXLLM */; };
+		967B9C122FC34E7D006848BF /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 967B9C112FC34E7C006848BF /* Tokenizers */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		AA10000100000001AA100001 /* AppDelegate+MlxSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000001AA100001 /* AppDelegate+MlxSetup.swift */; };
+		AA10000100000002AA100002 /* MlxInference.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000002AA100002 /* MlxInference.g.swift */; };
+		AA10000100000003AA100003 /* MlxInferenceBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000003AA100003 /* MlxInferenceBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +72,9 @@
 		B2BED08C29DBBD5DECE7EC82 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		B55A014F544994D28B1D0648 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		D1E9A32A179FDBE89E43BB5C /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		AA10000000000001AA100001 /* AppDelegate+MlxSetup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppDelegate+MlxSetup.swift"; sourceTree = "<group>"; };
+		AA10000000000002AA100002 /* MlxInference.g.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "MlxInference.g.swift"; sourceTree = "<group>"; };
+		AA10000000000003AA100003 /* MlxInferenceBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MlxInferenceBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,7 +90,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				967B9C0F2FC34E38006848BF /* MLXLLM in Frameworks */,
+				967B9C0B2FC34E38006848BF /* MLXEmbedders in Frameworks */,
 				2D12616DF5B50FFC949007C9 /* Pods_Runner.framework in Frameworks */,
+				967B9C0D2FC34E38006848BF /* MLXHuggingFace in Frameworks */,
+				967B9C122FC34E7D006848BF /* Tokenizers in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,8 +174,19 @@
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				AA10000000000010AA100010 /* MlxBridge */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		AA10000000000010AA100010 /* MlxBridge */ = {
+			isa = PBXGroup;
+			children = (
+				AA10000000000001AA100001 /* AppDelegate+MlxSetup.swift */,
+				AA10000000000002AA100002 /* MlxInference.g.swift */,
+				AA10000000000003AA100003 /* MlxInferenceBridge.swift */,
+			);
+			path = MlxBridge;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -238,6 +263,10 @@
 				Base,
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
+			packageReferences = (
+				967B9C092FC34E37006848BF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				967B9C102FC34E7C006848BF /* XCRemoteSwiftPackageReference "swift-transformers" */,
+			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -396,6 +425,9 @@
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
+				AA10000100000001AA100001 /* AppDelegate+MlxSetup.swift in Sources */,
+				AA10000100000002AA100002 /* MlxInference.g.swift in Sources */,
+				AA10000100000003AA100003 /* MlxInferenceBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -473,7 +505,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRIP_STYLE = "non-global";
@@ -635,7 +667,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -688,7 +720,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRIP_STYLE = "non-global";
@@ -839,6 +871,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		967B9C092FC34E37006848BF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		967B9C102FC34E7C006848BF /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		967B9C0A2FC34E38006848BF /* MLXEmbedders */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 967B9C092FC34E37006848BF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXEmbedders;
+		};
+		967B9C0C2FC34E38006848BF /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 967B9C092FC34E37006848BF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		967B9C0E2FC34E38006848BF /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 967B9C092FC34E37006848BF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		967B9C112FC34E7C006848BF /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 967B9C102FC34E7C006848BF /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 97C146E61CF9000F007C117D /* Project object */;
 }
