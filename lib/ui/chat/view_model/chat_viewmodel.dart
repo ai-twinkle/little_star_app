@@ -1,10 +1,18 @@
 import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:little_star_app/core/lm.dart' hide ChatMessage;
+import 'package:little_star_app/core/inference/backend_selector.dart';
+import 'package:little_star_app/core/inference/inference_session.dart';
+import 'package:little_star_app/core/inference/inference_settings.dart';
+import 'package:little_star_app/core/inference/sampling_params.dart';
+import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/models/chat_message.dart';
+import 'package:little_star_app/ui/shared/inference/generation_controller.dart';
 
-// Data class for per-message metrics
+// ── MessageMetrics ────────────────────────────────────────────────────────────
+
 class MessageMetrics {
   final Duration? ttft;
   final Duration? totalDuration;
@@ -21,250 +29,109 @@ class MessageMetrics {
   });
 }
 
+// ── ChatViewModel ─────────────────────────────────────────────────────────────
+
 class ChatViewModel extends ChangeNotifier {
-  UnifiedLM _lm;
+  // Settings — single source of truth.
+  InferenceSettings _settings;
+  int _contextMessageCount = 10;
+
+  // Session lifecycle — kept alive across turns; recreated on model/settings change.
+  ModelProfile? _profile;
+  InferenceSession? _session;
+  bool _sessionDirty = false;
+
+  final _controller = GenerationController();
+  StreamSubscription<GenerationEvent>? _sub;
 
   // Chat state
   final List<ChatMessage> _messages = [];
-  final Map<int, MessageMetrics> _messageMetrics = {}; // Index -> Metrics
-
-  // Streaming state
+  final Map<int, MessageMetrics> _messageMetrics = {};
   bool _isGenerating = false;
-  StreamSubscription<String>? _subscription;
-  final ValueNotifier<String> streamingMessageNotifier = ValueNotifier<String>('');
-
-  // Timing for current generation
-  DateTime? _generationStartTime;
-  DateTime? _firstTokenTime;
-  DateTime? _generationEndTime;
-  int _currentTokenCount = 0;
-
-  // Settings
-  int _maxTokens = 512;
-  int _contextMessageCount = 10; // Keep last N messages for context
-  List<String> _stopSequences = ['<|user|>', '<|system|>', '\n<|user|>', '\n<|system|>'];
-  double _temperature = 0.8;
-  int _topK = 40;
-  double _topP = 0.9;
-  String _systemPrompt = 'You are a helpful AI assistant.';
   String? _selectedModelPath;
 
-  ChatViewModel({required String modelPath})
-      : _lm = UnifiedLM(modelPath),
-        _selectedModelPath = modelPath;
+  final ValueNotifier<String> streamingMessageNotifier = ValueNotifier('');
 
-  // Getters
+  ChatViewModel({
+    required String modelPath,
+    @visibleForTesting InferenceSession Function(ModelProfile, InferenceSettings)? sessionFactory,
+  })  : _settings = const InferenceSettings(
+          maxTokens: 512,
+          systemPrompt: 'You are a helpful AI assistant.',
+          samplingParams: SamplingParams(topK: 40, topP: 0.9, temperature: 0.8),
+        ),
+        _selectedModelPath = modelPath,
+        _sessionFactory = sessionFactory {
+    _profile = _buildProfile(modelPath);
+    _session = _openSession();
+  }
+
+  final InferenceSession Function(ModelProfile, InferenceSettings)? _sessionFactory;
+
+  // ── Public getters ────────────────────────────────────────────────────────
+
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get isGenerating => _isGenerating;
-  int get maxTokens => _maxTokens;
-  List<String> get stopSequences => _stopSequences;
-  double get temperature => _temperature;
-  int get topK => _topK;
-  double get topP => _topP;
-  String get systemPrompt => _systemPrompt;
+
+  int get maxTokens => _settings.maxTokens;
+  List<String> get stopSequences => _settings.stopSequences;
+  double get temperature => _settings.samplingParams.temperature;
+  int get topK => _settings.samplingParams.topK;
+  double get topP => _settings.samplingParams.topP;
+  String get systemPrompt => _settings.systemPrompt ?? 'You are a helpful AI assistant.';
   String? get selectedModelPath => _selectedModelPath;
-  String get selectedModelName => _selectedModelPath != null
-      ? _selectedModelPath!.split('/').last
-      : 'No model selected';
+  String get selectedModelName =>
+      _selectedModelPath?.split('/').last ?? 'No model selected';
 
   MessageMetrics? getMessageMetrics(int index) => _messageMetrics[index];
 
+  // ── Model selection ───────────────────────────────────────────────────────
+
   Future<void> selectModel(String modelPath) async {
-    _lm = UnifiedLM(modelPath);
+    _session?.dispose();
     _selectedModelPath = modelPath;
+    _profile = _buildProfile(modelPath);
+    _session = _openSession();
+    _sessionDirty = false;
     notifyListeners();
   }
 
-  Future<void> sendMessage(String userMessageText) async {
-    if (userMessageText.trim().isEmpty || _isGenerating) return;
+  // ── Chat ──────────────────────────────────────────────────────────────────
 
-    // Cancel any ongoing generation
-    await _subscription?.cancel();
+  Future<void> sendMessage(String text) async {
+    if (text.trim().isEmpty || _isGenerating) return;
 
-    // Add user message
-    final userMessage = ChatMessage(
-      content: userMessageText,
+    await _sub?.cancel();
+    _messages.add(ChatMessage(
+      content: text,
       isUser: true,
       modelName: selectedModelName,
-    );
-    _messages.add(userMessage);
+    ));
     notifyListeners();
 
-    // Start generating AI response
     await _generateResponse();
-  }
-
-  Future<void> _generateResponse() async {
-    _isGenerating = true;
-    streamingMessageNotifier.value = '';
-    _generationStartTime = DateTime.now();
-    _firstTokenTime = null;
-    _generationEndTime = null;
-    _currentTokenCount = 0;
-    notifyListeners();
-
-    // Build prompt from recent messages
-    final prompt = _buildPromptFromHistory();
-
-    // Update sampler params
-    _lm.updateSamplerParams(
-      temperature: _temperature,
-      topK: _topK,
-      topP: _topP,
-    );
-
-    // Start streaming
-    final stream = _lm.completionStream(
-      prompt,
-      maxTokens: _maxTokens,
-      stopSequences: _stopSequences,
-    );
-
-    _subscription = stream.listen(
-      (chunk) {
-        // Track first token time
-        _firstTokenTime ??= DateTime.now();
-
-        streamingMessageNotifier.value += chunk;
-        _currentTokenCount++;
-
-        // Check for stop sequences in the accumulated text
-        if (_shouldStop(streamingMessageNotifier.value)) {
-          _finalizeMessage();
-          _subscription?.cancel();
-        }
-      },
-      onDone: () {
-        _finalizeMessage();
-      },
-      onError: (error, stack) {
-        debugPrint('Error during generation: $error');
-
-        // Add error message if we got any content
-        if (streamingMessageNotifier.value.isNotEmpty) {
-          final aiMessage = ChatMessage(
-            content: '${streamingMessageNotifier.value}\n[Error occurred]',
-            isUser: false,
-            modelName: selectedModelName,
-          );
-          _messages.add(aiMessage);
-        }
-
-        streamingMessageNotifier.value = '';
-        _isGenerating = false;
-        notifyListeners();
-      },
-      cancelOnError: true,
-    );
   }
 
   Future<void> stopGeneration() async {
     if (!_isGenerating) return;
 
-    await _subscription?.cancel();
-    _generationEndTime = DateTime.now();
+    _controller.cancel();
+    await _sub?.cancel();
+    _sub = null;
 
-    // Save partial message if any
     if (streamingMessageNotifier.value.isNotEmpty) {
-      final aiMessage = ChatMessage(
+      _messages.add(ChatMessage(
         content: '${streamingMessageNotifier.value}\n[Generation stopped]',
         isUser: false,
         modelName: selectedModelName,
-      );
-      _messages.add(aiMessage);
-      _storeCurrentMetrics(_messages.length - 1);
+      ));
+      _messageMetrics[_messages.length - 1] =
+          MessageMetrics(stopReason: StopReason.cancelled.name);
     }
 
     streamingMessageNotifier.value = '';
     _isGenerating = false;
     notifyListeners();
-  }
-
-  void _storeCurrentMetrics(int messageIndex) {
-    if (_generationStartTime == null) return;
-
-    final ttft = _firstTokenTime?.difference(_generationStartTime!);
-
-    final totalDuration = _generationEndTime?.difference(_generationStartTime!);
-
-    final tps = totalDuration != null && totalDuration.inMilliseconds > 0
-        ? _currentTokenCount / (totalDuration.inMilliseconds / 1000.0)
-        : null;
-
-    _messageMetrics[messageIndex] = MessageMetrics(
-      ttft: ttft,
-      totalDuration: totalDuration,
-      tokensPerSecond: tps,
-      tokenCount: _currentTokenCount,
-      stopReason: _isGenerating ? 'stopped' : 'completed',
-    );
-  }
-
-  String _buildPromptFromHistory() {
-    // Take last N messages for context
-    final contextMessages = _messages.length > _contextMessageCount
-        ? _messages.sublist(_messages.length - _contextMessageCount)
-        : _messages;
-
-    // Format with system prompt
-    final buffer = StringBuffer();
-
-    if (_systemPrompt.isNotEmpty) {
-      buffer.writeln('<|system|>');
-      buffer.writeln(_systemPrompt);
-    }
-
-    for (final msg in contextMessages) {
-      if (msg.isUser) {
-        buffer.writeln('<|user|>');
-        buffer.writeln(msg.content);
-      } else {
-        buffer.writeln('<|assistant|>');
-        buffer.writeln(msg.content);
-      }
-    }
-
-    buffer.writeln('<|assistant|>');
-    return buffer.toString();
-  }
-
-  void _finalizeMessage() {
-    // Prevent duplicate finalization
-    if (!_isGenerating) return;
-
-    _generationEndTime = DateTime.now();
-
-    // Only create message if we have content
-    if (streamingMessageNotifier.value.isNotEmpty) {
-      final aiMessage = ChatMessage(
-        content: streamingMessageNotifier.value,
-        isUser: false,
-        modelName: selectedModelName,
-      );
-      _messages.add(aiMessage);
-
-      // Store metrics for this message
-      _storeCurrentMetrics(_messages.length - 1);
-    }
-
-    // Reset streaming state
-    streamingMessageNotifier.value = '';
-    _isGenerating = false;
-    notifyListeners();
-  }
-
-  bool _shouldStop(String text) {
-    if (_stopSequences.isEmpty) return false;
-
-    for (final stopSeq in _stopSequences) {
-      if (text.contains(stopSeq)) {
-        // Remove the stop sequence from the output
-        final index = text.indexOf(stopSeq);
-        streamingMessageNotifier.value = text.substring(0, index);
-        return true;
-      }
-    }
-    return false;
   }
 
   void clearChat() {
@@ -273,6 +140,8 @@ class ChatViewModel extends ChangeNotifier {
     streamingMessageNotifier.value = '';
     notifyListeners();
   }
+
+  // ── Settings ──────────────────────────────────────────────────────────────
 
   void updateSettings({
     int? maxTokens,
@@ -283,31 +152,126 @@ class ChatViewModel extends ChangeNotifier {
     double? topP,
     String? systemPrompt,
   }) {
-    if (maxTokens != null) _maxTokens = maxTokens.clamp(16, 2048);
-    if (contextMessageCount != null) _contextMessageCount = contextMessageCount.clamp(1, 50);
-    if (stopSequences != null) _stopSequences = stopSequences.where((s) => s.trim().isNotEmpty).toList();
-    if (temperature != null) _temperature = temperature.clamp(0.0, 2.0);
-    if (topK != null) _topK = topK.clamp(1, 100);
-    if (topP != null) _topP = topP.clamp(0.1, 1.0);
-    if (systemPrompt != null) _systemPrompt = systemPrompt;
+    if (contextMessageCount != null) {
+      _contextMessageCount = contextMessageCount.clamp(1, 50);
+    }
+    final prev = _settings;
+    _settings = InferenceSettings(
+      samplingParams: SamplingParams(
+        topK: (topK ?? _settings.samplingParams.topK).clamp(1, 100),
+        topP: (topP ?? _settings.samplingParams.topP).clamp(0.1, 1.0),
+        temperature:
+            (temperature ?? _settings.samplingParams.temperature).clamp(0.0, 2.0),
+      ),
+      systemPrompt: systemPrompt ?? _settings.systemPrompt,
+      maxTokens: (maxTokens ?? _settings.maxTokens).clamp(16, 2048),
+      stopSequences: stopSequences != null
+          ? stopSequences.where((s) => s.trim().isNotEmpty).toList()
+          : _settings.stopSequences,
+    );
+    if (_settings != prev) _sessionDirty = true;
     notifyListeners();
   }
 
   void resetSettings() {
-    _maxTokens = 512;
     _contextMessageCount = 10;
-    _stopSequences = ['<|user|>', '<|system|>', '\n<|user|>', '\n<|system|>'];
-    _temperature = 0.8;
-    _topK = 40;
-    _topP = 0.9;
-    _systemPrompt = 'You are a helpful AI assistant.';
+    _settings = const InferenceSettings(
+      maxTokens: 512,
+      systemPrompt: 'You are a helpful AI assistant.',
+      samplingParams: SamplingParams(topK: 40, topP: 0.9, temperature: 0.8),
+    );
+    _sessionDirty = true;
     notifyListeners();
   }
 
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
   @override
   void dispose() {
-    _subscription?.cancel();
+    _sub?.cancel();
+    _session?.dispose();
     streamingMessageNotifier.dispose();
     super.dispose();
   }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+
+  Future<void> _generateResponse() async {
+    if (_sessionDirty || _session == null) {
+      _session?.dispose();
+      _session = _openSession();
+      _sessionDirty = false;
+    }
+    final session = _session;
+    if (session == null) return;
+
+    _isGenerating = true;
+    streamingMessageNotifier.value = '';
+    notifyListeners();
+
+    final contextMessages = _messages.length > _contextMessageCount
+        ? _messages.sublist(_messages.length - _contextMessageCount)
+        : List.of(_messages);
+
+    _sub = _controller.run(session, contextMessages).listen(_handleEvent);
+  }
+
+  void _handleEvent(GenerationEvent event) {
+    switch (event) {
+      case GenerationToken(:final token):
+        streamingMessageNotifier.value += token;
+
+      case GenerationDone(:final metrics):
+        _finalizeMessage(metrics);
+
+      case GenerationError():
+        if (streamingMessageNotifier.value.isNotEmpty) {
+          _messages.add(ChatMessage(
+            content: '${streamingMessageNotifier.value}\n[Error occurred]',
+            isUser: false,
+            modelName: selectedModelName,
+          ));
+        }
+        streamingMessageNotifier.value = '';
+        _isGenerating = false;
+        notifyListeners();
+    }
+  }
+
+  void _finalizeMessage(GenerationMetrics metrics) {
+    if (!_isGenerating) return;
+
+    if (streamingMessageNotifier.value.isNotEmpty) {
+      _messages.add(ChatMessage(
+        content: streamingMessageNotifier.value,
+        isUser: false,
+        modelName: selectedModelName,
+      ));
+      _messageMetrics[_messages.length - 1] = MessageMetrics(
+        ttft: metrics.ttft,
+        tokensPerSecond: metrics.tokensPerSecond,
+        tokenCount: metrics.tokenCount,
+        stopReason: metrics.stopReason.name,
+      );
+    }
+
+    streamingMessageNotifier.value = '';
+    _isGenerating = false;
+    notifyListeners();
+  }
+
+  InferenceSession? _openSession() {
+    final profile = _profile;
+    if (profile == null) return null;
+    if (_sessionFactory != null) return _sessionFactory(profile, _settings);
+    final backend = BackendSelector().select(profile);
+    return backend.createSession(profile, _settings);
+  }
+
+  static ModelProfile _buildProfile(String modelPath) => ModelProfile(
+        id: modelPath,
+        displayName: modelPath.split('/').last,
+        format: ModelFormat.gguf,
+        localPath: modelPath,
+      );
 }

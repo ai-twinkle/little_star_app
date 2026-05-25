@@ -80,37 +80,37 @@ class GenerationController {
     int tokenCount = 0;
 
     try {
-      await for (final token in session.generate(messages)) {
-        firstTokenTime ??= DateTime.now();
-        tokenCount++;
-        yield GenerationToken(token);
+      try {
+        await for (final token in session.generate(messages)) {
+          firstTokenTime ??= DateTime.now();
+          tokenCount++;
+          yield GenerationToken(token);
+        }
+      } catch (e, st) {
+        yield GenerationError(e, st);
+        return;
       }
-    } catch (e, st) {
+
+      final finishedTime = DateTime.now();
+      final stopReason = _cancelled ? StopReason.cancelled : StopReason.completed;
+      final ttft = firstTokenTime?.difference(startTime);
+      final decodeDuration = firstTokenTime != null
+          ? finishedTime.difference(firstTokenTime)
+          : null;
+      final tps = decodeDuration != null && decodeDuration.inMilliseconds > 0
+          ? tokenCount / (decodeDuration.inMilliseconds / 1000.0)
+          : null;
+
+      yield GenerationDone(GenerationMetrics(
+        tokenCount: tokenCount,
+        stopReason: stopReason,
+        ttft: ttft,
+        tokensPerSecond: tps,
+      ));
+    } finally {
       _isRunning = false;
       _activeSession = null;
-      yield GenerationError(e, st);
-      return;
     }
-
-    final finishedTime = DateTime.now();
-    final stopReason = _cancelled ? StopReason.cancelled : StopReason.completed;
-
-    final ttft = firstTokenTime?.difference(startTime);
-    final decodeDuration = firstTokenTime != null
-        ? finishedTime.difference(firstTokenTime)
-        : null;
-    final tps = decodeDuration != null && decodeDuration.inMilliseconds > 0
-        ? tokenCount / (decodeDuration.inMilliseconds / 1000.0)
-        : null;
-
-    _isRunning = false;
-    _activeSession = null;
-    yield GenerationDone(GenerationMetrics(
-      tokenCount: tokenCount,
-      stopReason: stopReason,
-      ttft: ttft,
-      tokensPerSecond: tps,
-    ));
   }
 
   /// Requests the active generation to stop.
