@@ -10,6 +10,9 @@ abstract class PlatformAdapter {
   String get platformId;
   bool get supportsInference;
   DirectoryService get directoryService;
+
+  /// Returns the [PlatformAdapter] for the running platform.
+  static PlatformAdapter current() => PlatformAdapterFactory.create();
 }
 
 class AndroidPlatformAdapter implements PlatformAdapter {
@@ -78,3 +81,4 @@ class PlatformAdapterFactory {
     return LinuxPlatformAdapter();
   }
 }
+

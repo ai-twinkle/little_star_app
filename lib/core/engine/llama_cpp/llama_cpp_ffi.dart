@@ -2,8 +2,8 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:convert';
 import 'package:ffi/ffi.dart';
-import 'package:path/path.dart' as path;
 
+import '../../platform/native_library_loader.dart';
 import '../../../utils/logger.dart';
 
 final log = Logger('LlamaCppFFI');
@@ -522,67 +522,13 @@ class LlamaCppFFI {
   }
 
   void _loadLibrary() {
-    String llamaLibraryPath;
-    String ggmlLibraryPath;
-
-    if (Platform.isAndroid) {
-      llamaLibraryPath = 'libllama.so';
-      ggmlLibraryPath = 'libggml.so';
-      log.debug('Android platform detected - using library names: $llamaLibraryPath, $ggmlLibraryPath');
-    } else if (Platform.isIOS) {
-      // On iOS, libraries are statically linked into the app bundle
-      // Use DynamicLibrary.process() to access the current process
-      try {
-        _lib = ffi.DynamicLibrary.process();
-        _ggmlLib = ffi.DynamicLibrary.process();
-        log.debug('Successfully loaded llama.cpp libraries from iOS app bundle');
-        return;
-      } catch (e) {
-        throw Exception('Failed to load libraries from iOS app bundle: $e');
-      }
-    } else if (Platform.isWindows) {
-      llamaLibraryPath = path.join(Directory.current.path, 'llama.dll');
-      ggmlLibraryPath = path.join(Directory.current.path, 'ggml.dll');
-      log.debug('Windows platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
-    } else if (Platform.isLinux) {
-      llamaLibraryPath = path.join(Directory.current.path, 'libllama.so');
-      ggmlLibraryPath = path.join(Directory.current.path, 'libggml.so');
-      log.debug('Linux platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
-    } else if (Platform.isMacOS) {
-      // Static libraries are linked into the app binary (same as iOS).
-      // DynamicLibrary.process() resolves symbols from the current process image.
-      try {
-        _lib = ffi.DynamicLibrary.process();
-        _ggmlLib = ffi.DynamicLibrary.process();
-        log.debug('Successfully loaded llama.cpp libraries from macOS app bundle');
-        return;
-      } catch (e) {
-        throw Exception('Failed to load libraries from macOS app bundle: $e');
-      }
-    } else {
-      throw UnsupportedError('Platform not supported');
-    }
-
     try {
-      // Print the exact absolute paths being used
-      final llamaAbsolutePath = path.absolute(llamaLibraryPath);
-      final ggmlAbsolutePath = path.absolute(ggmlLibraryPath);
-      
-      log.trace('=== Library Loading Information ===');
-      log.trace('Platform: ${Platform.operatingSystem}');
-      log.trace('Current working directory: ${Directory.current.path}');
-      log.trace('_lib will be loaded from: $llamaAbsolutePath');
-      log.trace('_ggmlLib will be loaded from: $ggmlAbsolutePath');
-      
-      _lib = ffi.DynamicLibrary.open(llamaLibraryPath);
-      log.trace('✅ Successfully loaded llama.cpp library: $llamaAbsolutePath');
-      log.trace('  _lib handle: ${_lib.toString()}');
-
-      _ggmlLib = ffi.DynamicLibrary.open(ggmlLibraryPath);
-      log.trace('✅ Successfully loaded GGML library: $ggmlAbsolutePath');
-      log.trace('  _ggmlLib handle: ${_ggmlLib.toString()}');
+      final libs = NativeLibraryLoader().loadLlama();
+      _lib = libs.llama;
+      _ggmlLib = libs.ggml;
+      log.debug('Successfully loaded llama.cpp libraries');
     } catch (e) {
-      throw Exception('Failed to load libraries: $e');
+      throw Exception('Failed to load llama.cpp libraries: $e');
     }
   }
 

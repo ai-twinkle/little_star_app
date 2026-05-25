@@ -470,11 +470,11 @@ EP-10 MLX Backend ─┘
 | EP-3 Prompt Layer | 2 | 1.75 天 | ✅ 完成 |
 | EP-4 Platform Abstraction | 2 | 1.5 天 | 🔲 待開始 |
 | EP-5 ModelProfile | 1 | 1 天 | ✅ 完成 |
-| EP-6 VM Slim & Migrate | 5 | 4.25 天 | 🔄 4/5 完成（task-605 待）；task-604 裝置端驗證 ✅ |
+| EP-6 VM Slim & Migrate | 5 | 4.25 天 | ✅ 完成 |
 | EP-7 macOS Build | 1 | 0.5 天 | 🔲 待開始 |
 | EP-8 Windows DLL | 1 | 0.5 天 | 🔲 待開始 |
 | EP-9 Desktop Demo | 2 | 2 天 | 🔲 待開始 |
 | EP-10 MLX Backend | 3 | 6 天 | 🔲 待開始 |
 | EP-11 Design System Report | 1 | 1.5 天 | 🔲 待開始 |
 | EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | 🔲 待開始 |
-| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **14/28 任務完成** |
+| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **15/28 任務完成** |

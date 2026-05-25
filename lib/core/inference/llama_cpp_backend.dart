@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:little_star_app/core/engine/llama_cpp/llama_cpp_ffi.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
+import 'package:little_star_app/core/platform/native_library_loader.dart';
 import 'package:little_star_app/models/chat_message.dart';
 import 'package:little_star_app/utils/logger.dart';
 
@@ -219,8 +218,8 @@ class LlamaCppBackend implements InferenceBackend {
     _log.debug('createSession: $localPath');
 
     final ffi = LlamaCppFFI();
-
-    if (Platform.isWindows) {
+    final loader = NativeLibraryLoader();
+    if (loader.needsExplicitBackendInit) {
       ffi.setLogCallback();
       ffi.ggml_backend_load_all();
     } else {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -186,25 +185,6 @@ class CompletionViewModel extends ChangeNotifier {
     _settings = const InferenceSettings(maxTokens: 256);
     _sessionDirty = true;
     notifyListeners();
-  }
-
-  // ── Metrics export ────────────────────────────────────────────────────────
-
-  Map<String, dynamic> exportMetrics() {
-    final m = metricsNotifier.value;
-    return {
-      'generated_tokens': m.generatedTokenCount,
-      'ttft_ms': m.ttft?.inMilliseconds,
-      'decode_tps': m.decodeTokensPerSecond,
-      'stop_reason': m.stopReason,
-    };
-  }
-
-  String exportMetricsJson({bool pretty = true}) {
-    final map = exportMetrics();
-    return pretty
-        ? const JsonEncoder.withIndent('  ').convert(map)
-        : jsonEncode(map);
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
