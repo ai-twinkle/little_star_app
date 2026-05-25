@@ -271,10 +271,141 @@ class IOSDirectoryService implements DirectoryService {
   }
 }
 
+class MacOsDirectoryService implements DirectoryService {
+  @override
+  Future<Directory> getModelsDirectory() async {
+    // Application Support is sandbox-safe and persists across app updates
+    final appSupportDir = await getApplicationSupportDirectory();
+    final modelsDir = Directory(path.join(appSupportDir.path, 'Models'));
+    if (!await modelsDir.exists()) {
+      await modelsDir.create(recursive: true);
+    }
+    return modelsDir;
+  }
+
+  @override
+  Future<int> getAvailableStorageSpace() async {
+    return 100 * 1024 * 1024 * 1024; // 100 GB placeholder
+  }
+
+  @override
+  Future<bool> requestPermissions({required BuildContext context}) async {
+    return true;
+  }
+
+  @override
+  Future<Map<String, List<String>>> listDirectories({required List<DirectoryType> directoryTypes}) async {
+    final Map<String, List<String>> directoryContents = {};
+    for (final directoryType in directoryTypes) {
+      switch (directoryType) {
+        case DirectoryType.documents:
+          final dir = await getApplicationDocumentsDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.applicationSupport:
+          final dir = await getApplicationSupportDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.temporary:
+          final dir = await getTemporaryDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.downloads:
+          final dir = await getDownloadsDirectory();
+          directoryContents[directoryType.name] = dir?.listSync(recursive: false).map((e) => e.path).toList() ?? [];
+          break;
+        default:
+          break;
+      }
+    }
+    return directoryContents;
+  }
+
+  @override
+  Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension}) async {
+    final List<String> results = [];
+    final modelsDir = await getModelsDirectory();
+    for (final entity in modelsDir.listSync(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        final p = entity.path;
+        final nameOk = fileName == null || path.basename(p).contains(fileName);
+        final extOk = extension == null || p.toLowerCase().endsWith(extension.toLowerCase());
+        if (nameOk && extOk) results.add(p);
+      }
+    }
+    return results.toSet().toList();
+  }
+}
+
+class WindowsDirectoryService implements DirectoryService {
+  @override
+  Future<Directory> getModelsDirectory() async {
+    final documentsDir = await getApplicationDocumentsDirectory();
+    final modelsDir = Directory(path.join(documentsDir.path, 'LittleStar', 'Models'));
+    if (!await modelsDir.exists()) {
+      await modelsDir.create(recursive: true);
+    }
+    return modelsDir;
+  }
+
+  @override
+  Future<int> getAvailableStorageSpace() async {
+    return 100 * 1024 * 1024 * 1024; // 100 GB placeholder
+  }
+
+  @override
+  Future<bool> requestPermissions({required BuildContext context}) async {
+    return true;
+  }
+
+  @override
+  Future<Map<String, List<String>>> listDirectories({required List<DirectoryType> directoryTypes}) async {
+    final Map<String, List<String>> directoryContents = {};
+    for (final directoryType in directoryTypes) {
+      switch (directoryType) {
+        case DirectoryType.documents:
+          final dir = await getApplicationDocumentsDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.applicationSupport:
+          final dir = await getApplicationSupportDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.temporary:
+          final dir = await getTemporaryDirectory();
+          directoryContents[directoryType.name] = dir.listSync(recursive: false).map((e) => e.path).toList();
+          break;
+        case DirectoryType.downloads:
+          final dir = await getDownloadsDirectory();
+          directoryContents[directoryType.name] = dir?.listSync(recursive: false).map((e) => e.path).toList() ?? [];
+          break;
+        default:
+          break;
+      }
+    }
+    return directoryContents;
+  }
+
+  @override
+  Future<List<String>> findFiles({required List<DirectoryType> directoryTypes, String? fileName, String? extension}) async {
+    final List<String> results = [];
+    final modelsDir = await getModelsDirectory();
+    for (final entity in modelsDir.listSync(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        final p = entity.path;
+        final nameOk = fileName == null || path.basename(p).contains(fileName);
+        final extOk = extension == null || p.toLowerCase().endsWith(extension.toLowerCase());
+        if (nameOk && extOk) results.add(p);
+      }
+    }
+    return results.toSet().toList();
+  }
+}
+
+/// Linux fallback — uses cwd; not sandboxed or production-ready.
 class DesktopDirectoryService implements DirectoryService {
   @override
   Future<Directory> getModelsDirectory() async {
-    // Use a 'models' folder in the current working directory
     final modelsDir = Directory(path.join(Directory.current.path, 'models'));
     if (!await modelsDir.exists()) {
       await modelsDir.create(recursive: true);
@@ -284,14 +415,11 @@ class DesktopDirectoryService implements DirectoryService {
 
   @override
   Future<int> getAvailableStorageSpace() async {
-    // Proper implementation needs platform channel
-    // For now, return a large value as placeholder
     return 100 * 1024 * 1024 * 1024; // 100 GB placeholder for desktop
   }
 
   @override
   Future<bool> requestPermissions({required BuildContext context}) async {
-    // Desktop platforms don't require explicit permissions
     return true;
   }
 
@@ -311,11 +439,19 @@ class DesktopDirectoryService implements DirectoryService {
         final p = entity.path;
         final nameOk = fileName == null || path.basename(p).contains(fileName);
         final extOk = extension == null || p.toLowerCase().endsWith(extension.toLowerCase());
-        if (nameOk && extOk) {
-          results.add(p);
-        }
+        if (nameOk && extOk) results.add(p);
       }
     }
     return results.toSet().toList();
+  }
+}
+
+class DirectoryServiceFactory {
+  static DirectoryService create() {
+    if (Platform.isAndroid) return AndroidDirectoryService();
+    if (Platform.isIOS) return IOSDirectoryService();
+    if (Platform.isMacOS) return MacOsDirectoryService();
+    if (Platform.isWindows) return WindowsDirectoryService();
+    return DesktopDirectoryService(); // Linux fallback
   }
 }

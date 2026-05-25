@@ -1,1 +1,2 @@
 ios/Frameworks/*.a filter=lfs diff=lfs merge=lfs -text
+macos/Frameworks/*.a filter=lfs diff=lfs merge=lfs -text

@@ -22,7 +22,6 @@ migrate_working_dir/
 .vscode/settings.json
 .claude/settings*.json
 
-
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
@@ -44,8 +43,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase configuration (contains API keys)
-lib/firebase_options.dart
+# Firebase configuration — real file with API keys is gitignored; stub for non-Firebase platforms is tracked
+# lib/firebase_options.dart  ← uncomment to re-ignore when committing real API keys
 
 # iOS
 # Note: *.a files in ios/Frameworks/ are tracked by Git LFS
@@ -56,3 +55,6 @@ lib/firebase_options.dart
 llama.cpp/build/
 *.xcarchive
 *.ipa
+
+# FVM Version Cache
+.fvm/

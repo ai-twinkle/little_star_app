@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import 'package:little_star_app/data/repositories/download_repository.dart';
@@ -38,11 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initViewModel() async {
-    _directoryService = Platform.isAndroid
-        ? AndroidDirectoryService()
-        : Platform.isIOS
-            ? IOSDirectoryService()
-            : DesktopDirectoryService();
+    _directoryService = DirectoryServiceFactory.create();
 
     final onboardingService = await OnboardingService.create();
 
@@ -368,11 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openModelManager(BuildContext context) {
-    final directoryService = Platform.isAndroid
-        ? AndroidDirectoryService()
-        : Platform.isIOS
-            ? IOSDirectoryService()
-            : DesktopDirectoryService();
+    final directoryService = DirectoryServiceFactory.create();
 
     final viewModel = ModelManagerViewModel(
       hfService: HuggingFaceService(),

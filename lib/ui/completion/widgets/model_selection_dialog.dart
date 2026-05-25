@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../../data/repositories/gguf_repository.dart';
@@ -34,13 +33,7 @@ class _ModelSelectionDialogState extends State<ModelSelectionDialog> {
   }
 
   DirectoryService _createPlatformDirectoryService() {
-    if (Platform.isAndroid) {
-      return AndroidDirectoryService();
-    } else if (Platform.isIOS) {
-      return IOSDirectoryService();
-    } else {
-      return DesktopDirectoryService();
-    }
+    return DirectoryServiceFactory.create();
   }
 
   @override

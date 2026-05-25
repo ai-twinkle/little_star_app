@@ -549,9 +549,16 @@ class LlamaCppFFI {
       ggmlLibraryPath = path.join(Directory.current.path, 'libggml.so');
       log.debug('Linux platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
     } else if (Platform.isMacOS) {
-      llamaLibraryPath = path.join(Directory.current.path, 'libllama.dylib');
-      ggmlLibraryPath = path.join(Directory.current.path, 'libggml.dylib');
-      log.debug('macOS platform detected - using library paths: $llamaLibraryPath, $ggmlLibraryPath');
+      // Static libraries are linked into the app binary (same as iOS).
+      // DynamicLibrary.process() resolves symbols from the current process image.
+      try {
+        _lib = ffi.DynamicLibrary.process();
+        _ggmlLib = ffi.DynamicLibrary.process();
+        log.debug('Successfully loaded llama.cpp libraries from macOS app bundle');
+        return;
+      } catch (e) {
+        throw Exception('Failed to load libraries from macOS app bundle: $e');
+      }
     } else {
       throw UnsupportedError('Platform not supported');
     }

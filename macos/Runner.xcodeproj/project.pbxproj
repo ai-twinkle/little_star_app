@@ -557,7 +557,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -578,6 +578,24 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libllama.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-base.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-cpu.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-metal.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-blas.a",
+					"-framework Metal",
+					"-framework Accelerate",
+					"-framework Foundation",
 				);
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
@@ -639,7 +657,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -689,7 +707,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -711,6 +729,24 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libllama.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-base.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-cpu.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-metal.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-blas.a",
+					"-framework Metal",
+					"-framework Accelerate",
+					"-framework Foundation",
+				);
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -730,6 +766,24 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libllama.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-base.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-cpu.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-metal.a",
+					"-force_load",
+					"$(PROJECT_DIR)/Frameworks/libggml-blas.a",
+					"-framework Metal",
+					"-framework Accelerate",
+					"-framework Foundation",
 				);
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;

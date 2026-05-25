@@ -10,9 +10,8 @@ import 'package:little_star_app/data/services/crash_reporting_service.dart';
 import 'package:little_star_app/data/services/log_file_service.dart';
 import 'package:little_star_app/utils/logger.dart';
 
-/// Firebase 僅支援 Android/iOS/macOS
-bool get _isFirebaseSupported =>
-    Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+/// Firebase 僅支援 Android/iOS (macOS 尚未配置 GoogleService-Info.plist)
+bool get _isFirebaseSupported => Platform.isAndroid || Platform.isIOS;
 
 void main() async {
   await runZonedGuarded(() async {
