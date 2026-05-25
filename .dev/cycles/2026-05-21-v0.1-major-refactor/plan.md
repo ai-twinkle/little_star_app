@@ -274,12 +274,12 @@ EP-10 MLX Backend ─┘
 
 #### task-701: macOS llama.cpp 正式整合
 - **類型**: ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 把 task-002 Spike 產出的 macOS build script 與 binary 正式整合進 repo；補進 build doc。
 - **驗收標準**:
-  - [ ] `macos/Frameworks/libllama.a` (universal) 入 repo（或透過 LFS）
-  - [ ] `scripts/llama.cpp_MacOS_Build.md` 完整
-  - [ ] CI / 開發者重 build 流程文件化
+  - [x] `macos/Frameworks/libllama.a` (universal) 入 repo（透過 LFS）
+  - [x] `scripts/llama.cpp_MacOS_Build.md` 完整
+  - [x] CI / 開發者重 build 流程文件化
 - **預估時間**: 0.5 天
 - **依賴**: task-002
 
@@ -471,10 +471,10 @@ EP-10 MLX Backend ─┘
 | EP-4 Platform Abstraction | 2 | 1.5 天 | ✅ 完成 |
 | EP-5 ModelProfile | 1 | 1 天 | ✅ 完成 |
 | EP-6 VM Slim & Migrate | 5 | 4.25 天 | ✅ 完成 |
-| EP-7 macOS Build | 1 | 0.5 天 | 🔲 待開始 |
+| EP-7 macOS Build | 1 | 0.5 天 | ✅ 完成 |
 | EP-8 Windows DLL | 1 | 0.5 天 | 🔲 待開始 |
 | EP-9 Desktop Demo | 2 | 2 天 | 🔲 待開始 |
 | EP-10 MLX Backend | 3 | 6 天 | 🔲 待開始 |
 | EP-11 Design System Report | 1 | 1.5 天 | 🔲 待開始 |
 | EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | 🔲 待開始 |
-| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **17/28 任務完成** |
+| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **18/28 任務完成** |

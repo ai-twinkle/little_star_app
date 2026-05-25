@@ -129,7 +129,9 @@ OTHER_LDFLAGS = (
 
 ---
 
-## Verified Results (2026-05-22, Apple Silicon M-series)
+## Verified Results
+
+### Spike (2026-05-22, Apple Silicon M-series)
 
 ```
 ✅ flutter build macos --debug  →  build succeeded
@@ -145,6 +147,15 @@ Metal : EMBED_LIBRARY = 1 | CPU : NEON = 1 | ARM_FMA = 1 | FP16_VA = 1 |
 DOTPROD = 1 | LLAMAFILE = 1 | ACCELERATE = 1 | REPACK = 1
 ```
 
+### EP-7 Integration (2026-05-26, Apple Silicon M-series)
+
+```
+✅ flutter build macos --debug  →  build succeeded (universal libs via LFS)
+✅ flutter run -d macos         →  app launches, inference pipeline active
+✅ loadModel → generate         →  end-to-end chat verified; tokens streaming normally
+✅ MacOSPlatformAdapter         →  supportsInference = true
+```
+
 ---
 
 ## Known Issues
@@ -157,15 +168,10 @@ DOTPROD = 1 | LLAMAFILE = 1 | ACCELERATE = 1 | REPACK = 1
 2. **`macOS deployment target` warnings from Pods**: Some CocoaPods targets use 10.11;
    these are third-party warnings and do not affect our code.
 
-3. **`supportsInference = false`** in `MacOSPlatformAdapter`: Kept disabled until
-   proper EP-7 integration (task-701). Enable temporarily for testing by setting to `true`.
-
 ---
 
-## Next Steps (EP-7: task-701)
+## Next Steps (EP-9: task-902)
 
-- [ ] Add `macos/Frameworks/libllama.a` + other `.a` files to git (or LFS)
-- [ ] Run full `loadModel → completion` end-to-end test (manual UI: type prompt, run)
-- [ ] Measure tok/s on Apple Silicon vs iOS
-- [ ] Set `MacOSPlatformAdapter.supportsInference = true` for production
+- [ ] Measure tok/s on Apple Silicon (compare with iOS 88.9 tok/s baseline)
 - [ ] Configure Firebase for macOS (add `GoogleService-Info.plist`)
+- [ ] `flutter run -d macos` full demo flow (EP-9: task-902)

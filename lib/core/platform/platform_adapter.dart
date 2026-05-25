@@ -41,9 +41,8 @@ class MacOSPlatformAdapter implements PlatformAdapter {
   @override
   String get platformId => 'macos';
 
-  /// llama.cpp Desktop integration: EP-7 (task-701).
   @override
-  bool get supportsInference => false;
+  bool get supportsInference => true;
 
   @override
   DirectoryService get directoryService => MacOsDirectoryService();
