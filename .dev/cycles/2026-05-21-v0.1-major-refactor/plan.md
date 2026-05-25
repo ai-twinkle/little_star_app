@@ -173,23 +173,23 @@ EP-10 MLX Backend ─┘
 
 #### task-401: PlatformAdapter 與 NativeLibraryLoader
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 把現有 `Platform.isWindows` 分流邏輯（在 `lm.dart` 與 `llama_cpp_ffi.dart` 內）收編進 `lib/core/platform/`。`NativeLibraryLoader` 封裝 iOS/Android/Windows/macOS 的 lib 載入路徑差異。
 - **驗收標準**:
-  - [ ] `PlatformAdapter.current()` 回傳當前平台適配器
-  - [ ] `NativeLibraryLoader.loadLlama()` 在四平台都能正確載入
-  - [ ] FFI code 移除散落的 `Platform.is*` 分支（集中於 PlatformAdapter）
+  - [x] `PlatformAdapter.current()` 回傳當前平台適配器
+  - [x] `NativeLibraryLoader.loadLlama()` 在四平台都能正確載入
+  - [x] FFI code 移除散落的 `Platform.is*` 分支（集中於 PlatformAdapter）
 - **預估時間**: 1 天
 - **依賴**: task-003（Spike）、task-202
 
 #### task-402: DirectoryService Desktop 實作收編
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 把 task-003 Spike 產出的 Desktop 實作正式收編進 `lib/data/services/directory_service.dart`，補單元測試。
 - **驗收標準**:
-  - [ ] `MacOsDirectoryService` / `WindowsDirectoryService` 在 main code base
-  - [ ] 四平台都能掃描、建立、回傳 model directory
-  - [ ] 既有 Mobile 行為無回歸
+  - [x] `MacOsDirectoryService` / `WindowsDirectoryService` 在 main code base
+  - [x] 四平台都能掃描、建立、回傳 model directory
+  - [x] 既有 Mobile 行為無回歸
 - **預估時間**: 0.5 天
 - **依賴**: task-003
 
@@ -468,7 +468,7 @@ EP-10 MLX Backend ─┘
 | EP-1 Foundation | 1 | 1 天 | ✅ 完成 |
 | EP-2 Inference Backend | 3 | 3.5 天 | ✅ 完成 |
 | EP-3 Prompt Layer | 2 | 1.75 天 | ✅ 完成 |
-| EP-4 Platform Abstraction | 2 | 1.5 天 | 🔲 待開始 |
+| EP-4 Platform Abstraction | 2 | 1.5 天 | ✅ 完成 |
 | EP-5 ModelProfile | 1 | 1 天 | ✅ 完成 |
 | EP-6 VM Slim & Migrate | 5 | 4.25 天 | ✅ 完成 |
 | EP-7 macOS Build | 1 | 0.5 天 | 🔲 待開始 |
@@ -477,4 +477,4 @@ EP-10 MLX Backend ─┘
 | EP-10 MLX Backend | 3 | 6 天 | 🔲 待開始 |
 | EP-11 Design System Report | 1 | 1.5 天 | 🔲 待開始 |
 | EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | 🔲 待開始 |
-| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **15/28 任務完成** |
+| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **17/28 任務完成** |
