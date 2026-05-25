@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'format/prompt_format.dart';
 import 'engine/llama_cpp/llama_cpp_ffi.dart';
 import '../utils/logger.dart';
 
@@ -9,8 +8,6 @@ final log = Logger('UnifiedLM');
 
 class ModelParams {
   String? modelPath;
-
-  PromptFormat? format;
 
   /// Number of layers to store in VRAM
   int nGpuLayers = 99;
