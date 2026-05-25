@@ -2,6 +2,10 @@ import 'package:little_star_app/models/hf_model_info.dart';
 
 /// Configuration for a recommended model with additional metadata
 /// for the home screen experience.
+///
+/// @deprecated Use [ModelProfile] instead. Retained to avoid UI churn
+/// until the home screen is migrated (task-603 / task-604).
+@Deprecated('Use ModelProfile from lib/core/model/model_profile.dart')
 class RecommendedModelConfig {
   /// The base HuggingFace model information
   final HFModelInfo modelInfo;

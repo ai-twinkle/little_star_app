@@ -37,6 +37,20 @@ class SamplingParams {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'topK': topK,
+        'topP': topP,
+        'temperature': temperature,
+        'seed': seed,
+      };
+
+  factory SamplingParams.fromJson(Map<String, dynamic> json) => SamplingParams(
+        topK: (json['topK'] as num?)?.toInt() ?? 40,
+        topP: (json['topP'] as num?)?.toDouble() ?? 0.95,
+        temperature: (json['temperature'] as num?)?.toDouble() ?? 0.8,
+        seed: (json['seed'] as num?)?.toInt() ?? -1,
+      );
+
   @override
   bool operator ==(Object other) =>
       other is SamplingParams &&
