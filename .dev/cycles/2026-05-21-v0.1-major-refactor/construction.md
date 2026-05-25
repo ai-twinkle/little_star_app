@@ -268,3 +268,184 @@ Commit: `7aad50f`
 
 ---
 
+---
+
+## EP-1 Foundation
+
+### task-101: 引入 Riverpod [DONE]
+
+> Commit: `14ff550 feat(ep1-ep2): introduce Riverpod DI + InferenceBackend abstraction`
+
+- [x] `flutter_riverpod: ^2.6.1` 加入 pubspec（3.x 與 pigeon ^22.7.2 版本衝突，降至 2.6.1）
+- [x] `main.dart` 用 `ProviderScope` 包 `LittleStarApp`
+- [x] `lib/providers/service_providers.dart` 新增：`directoryServiceProvider`、`huggingFaceServiceProvider`、`downloadServiceProvider`、`onboardingServiceProvider`、`backendSelectorProvider`
+
+---
+
+## EP-2 Inference Backend 抽象
+
+### task-201: InferenceBackend / InferenceSession 介面 [DONE]
+
+> Commit: `14ff550`
+
+**新增檔案：**
+- `lib/core/model/model_profile.dart` — 最小 ModelProfile stub（ModelFormat enum + id/displayName/format）
+- `lib/core/inference/sampling_params.dart` — backend-neutral SamplingParams（topK/topP/temperature/seed，含 copyWith/==）
+- `lib/core/inference/inference_settings.dart` — InferenceSettings（samplingParams/systemPrompt/maxTokens/stopSequences，含 clearSystemPrompt/==）
+- `lib/core/inference/inference_session.dart` — abstract InferenceSession（generate/cancel/dispose）
+- `lib/core/inference/inference_backend.dart` — abstract InferenceBackend（canHandle/createSession）
+
+**測試：** 19 unit tests（`test/core/inference/`）
+
+### task-202: LlamaCppBackend 實作介面 [DONE]
+
+> Commit: `14ff550`
+
+**新增 / 修改：**
+- `lib/core/model/model_profile.dart` — 加 `localPath` 欄位
+- `lib/core/inference/llama_cpp_backend.dart`：`kLlamaCppVersion = 'b7493'`、`LlamaFfiDriver` abstract（可 unit-test）、`_RealFfiDriver`（包 LlamaCppFFI）、`LlamaCppSession`（tokenize → batch 狀態封裝）、`LlamaCppBackend`（canHandle GGUF，createSession）
+
+**測試：** 18 新 tests；inference/ 共 37 tests 通過
+
+### task-203: BackendSelector [DONE]
+
+> Commit: `14ff550`
+
+**新增：**
+- `lib/core/inference/backend_selector.dart`：`BackendOverride` enum、`BackendPlatform` abstract（可注入）、`SystemBackendPlatform`（Platform.*）、`BackendSelector.select(profile, [override])`
+- `lib/providers/service_providers.dart` 加 `backendSelectorProvider`
+- MlxBackend 以 `mlxBackendFactory` 插槽預留（task-1001 完成後接入）
+
+**測試：** 12 新 tests（5 驗收情境 + override 群組）；inference/ 共 49 tests 通過
+
+---
+
+## EP-5 ModelProfile
+
+### task-501: ModelProfile 完整型態 [DONE]
+
+> Commit: `f6c9c33 feat(ep5): task-501 — full ModelProfile type + recommended catalogue migration`
+
+**展開欄位：** `hfRepoId`、`ChatTemplateHint`（gemma/llama3/qwen2/qwen3/unknown）、`ctxLen`、`defaultSamplingParams`、`BackendHint`（auto/llamaCpp/mlx）、`recommendedQuantization`、UI 欄位、`toJson`/`fromJson`/`copyWith`
+
+**其他：**
+- `SamplingParams` 加 `toJson`/`fromJson`
+- `RecommendedModels.profiles`：5 GGUF + 1 MLX (`mlx-community/Llama-3.2-1B-Instruct-4bit`)
+- `RecommendedModelConfig` + 舊 `models` 標 `@Deprecated`（UI 尚未遷移，保留）
+- 修正 stale `widget_test.dart`（原引用已不存在的 `MyApp`）
+
+**測試：** 25 新 tests；全套 75 tests 通過
+
+---
+
+## EP-3 Prompt 統一層
+
+### task-301: ChatTemplate 抽象介面 [DONE]
+
+> Commit: `4bb2e76 feat(ep3): task-301 — ChatTemplate abstraction + ChatTemplateResolver`
+
+**新增檔案：**
+- `lib/core/prompt/chat_template.dart`：`ChatTemplate` abstract + `GemmaChatTemplate`（`<bos><start_of_turn>user\n`）+ `Llama3ChatTemplate`（`<|begin_of_text|><|start_header_id|>`）+ `ChatMlChatTemplate`（`<|im_start|>user\n`，Qwen2/Qwen3）+ `FallbackChatTemplate`（`User: ...\nAssistant:`）
+- `lib/core/prompt/chat_template_resolver.dart`：`ChatTemplateResolver.resolve(profile, [override])` + `chatTemplateProvider`（Provider.family）
+
+**測試：** 25 unit tests；精確 token string 斷言 + "Smoking Gun" group 記錄 `_buildPromptFromHistory` 用錯 `<|user|>` tokens；全套 100 tests 通過
+
+### task-302: 刪除 PromptFormat dead code [DONE]
+
+> Commit: `fd70f99 refactor(ep3): task-302 — delete dead PromptFormat code`
+
+- `lib/core/format/prompt_format.dart` 刪除（`SequenceFilter`、`PromptFormatType` enum、`PromptFormat` abstract — 全 dead code）
+- `lib/core/lm.dart` 移除 `format/prompt_format.dart` import 及 `ModelParams.format` 欄位
+- 全套 100 tests 通過
+
+---
+
+## EP-6 ViewModel 瘦身與遷移
+
+### task-601: GenerationController [DONE]
+
+> Commit: `387995e feat(ep6): task-601 — GenerationController with metrics + cancel`
+
+**新增：** `lib/ui/shared/inference/generation_controller.dart`
+
+```
+sealed class GenerationEvent {}
+class GenerationToken  { final String token; }
+class GenerationDone   { final GenerationMetrics metrics; }
+class GenerationError  { final Object error; final StackTrace? stackTrace; }
+
+enum StopReason { completed, cancelled, error }
+
+class GenerationMetrics {
+  final int tokenCount;
+  final Duration? ttft;
+  final double? tokensPerSecond;
+  final StopReason stopReason;
+}
+
+class GenerationController {
+  Stream<GenerationEvent> run(session, messages) async* { ... }  // try/finally 保證清理
+  void cancel() { ... }
+}
+```
+
+**關鍵設計：** `async*` + `try/finally` 確保取消時 `_isRunning`/`_activeSession` 必定清零；TTFT 以第一個 token 時間計算。
+
+**測試：** 14 unit tests；normal flow / cancel（3）/ error（3）
+
+### task-602: InferenceSettings [DONE]
+
+> 隨 task-201 一起完成（Commit: `14ff550`）
+
+`lib/core/inference/inference_settings.dart` 涵蓋 `copyWith`/`==`/`clearSystemPrompt`；為 task-603/604 共用基礎。
+
+### task-603: CompletionViewModel 遷移 [DONE]
+
+> Commit: `7c60863 feat(ep6): task-603 + task-604 — ViewModel migration + Smoking Gun fix`
+
+- `UnifiedLM` → `InferenceSession + GenerationController + InferenceSettings`
+- 371 → 244 lines（**-34%**）
+- Session 生命週期：建構時建立，`_sessionDirty` flag 觸發重建（避免每次推論重載模型）
+- `@visibleForTesting sessionFactory` 注入，讓 unit tests 不需 native libs
+
+**測試：** 12 unit tests（normal/cancel/error/settings/selectModel）
+
+### task-604: ChatViewModel 遷移 + Smoking Gun 修復 [DONE]
+
+> Commit: `7c60863`
+
+- **刪除 `_buildPromptFromHistory()`**（手刻 `<|user|>` tokens — Gemma/Llama3/Qwen 全錯）
+- `stopSequences` 預設改為 `[]`（GGUF 內建 stop tokens 足夠，舊的 `<|user|>` workaround 廢除）
+- 系統提示經 `InferenceSettings(systemPrompt:)` → `LlamaCppSession` → `applyChatTemplate`
+- `_contextMessageCount = 10`（context window 滑動）
+
+**測試：** 20 unit tests（含 `'default stopSequences is empty (Smoking Gun fix)'` 驗收測試）；全套 **146 tests 通過**
+
+#### 裝置端人工驗證（2026-05-25，iPhone BobsoniPhone iOS 26.4.2）
+
+附帶修復：`applyChatTemplate` 在 `createContext` 之前被呼叫，但內部用了 `_context!` → crash。改為標準兩段式呼叫（第一次 `nullptr` 取得 required size，第二次 render），完全移除對 `_context` 的依賴。
+
+| 模型 | Template | T1 回應 | Multi-turn | Stop token | 備註 |
+|------|----------|---------|-----------|------------|------|
+| Gemma 3 270M Q4_K_M | `<start_of_turn>user\n...<end_of_turn>` | ✅ | ✅ | ✅ | system prompt 正確注入 first user turn |
+| Gemma 3 4B T1 Q4_K_M | `<start_of_turn>user\n...<end_of_turn>` | ✅ | ✅ | ✅ | 非 recommended list，同 family 架構 |
+| Llama 3.2 1B Instruct Q4_K_M | `<\|start_header_id\|>system<\|end_header_id\|>...<\|eot_id\|>` | ✅ | ✅ | ✅ | Llama3 template 代表 |
+| Qwen 3 0.6B Q4_K_M | `<\|im_start\|>system\n...<\|im_end\|>` | ✅ | ✅ | ✅ | `<think>` block 為 Qwen3 thinking mode 正常行為 |
+
+**跳過：** Gemma 3 1B（同 Gemma family）、Llama 3.2 3B F1（同 Llama3 family）、Qwen 2.5 1.5B（同 ChatML family）。
+
+**結論：** 三個 template family 全部驗證通過；無 `<|user|>` 等舊 bad token；multi-turn context 正確累積；stop token 乾淨。Smoking Gun 修復確認有效。
+
+---
+
+## 提交歷史（EP-1 ~ EP-6）
+
+| Commit | 日期 | 描述 | 任務 |
+|--------|------|------|------|
+| `14ff550` | 2026-05-22 | feat(ep1-ep2): introduce Riverpod DI + InferenceBackend abstraction | task-101/201/202/203 |
+| `f6c9c33` | 2026-05-22 | feat(ep5): task-501 — full ModelProfile type + recommended catalogue migration | task-501 |
+| `4bb2e76` | 2026-05-23 | feat(ep3): task-301 — ChatTemplate abstraction + ChatTemplateResolver | task-301 |
+| `fd70f99` | 2026-05-23 | refactor(ep3): task-302 — delete dead PromptFormat code | task-302 |
+| `387995e` | 2026-05-24 | feat(ep6): task-601 — GenerationController with metrics + cancel | task-601 |
+| `7c60863` | 2026-05-25 | feat(ep6): task-603 + task-604 — ViewModel migration + Smoking Gun fix | task-603/604 |
+

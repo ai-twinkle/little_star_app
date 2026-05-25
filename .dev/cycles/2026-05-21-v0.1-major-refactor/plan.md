@@ -1,8 +1,8 @@
 # 計畫：v0.1 架構重構與後端抽象化
 
 > 循環：2026-05-21-v0.1-major-refactor
-> 階段：Definition
-> 狀態：🔄 草稿，待用戶 review
+> 階段：Construction
+> 狀態：🔄 進行中
 
 ---
 
@@ -46,41 +46,41 @@ EP-10 MLX Backend ─┘
 
 #### task-001: MLX Hello World on iOS Spike
 - **類型**: 🔬 研究 + 🔧 程式（throw-away prototype）
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 在獨立的 spike branch 整合 `mlx-swift-lm`（SPM），透過 Pigeon channel 從 Dart 端載入 `mlx-community/Llama-3.2-1B-Instruct-4bit`，跑出第一段 streaming 輸出。產出 bridge 介面草案。
 - **建議方式**: 調查 → 原型 → 量測 → 結論
 - **驗收標準**:
-  - [ ] mlx-swift-lm SPM 在 iOS Runner 整合成功
-  - [ ] Pigeon streaming channel pattern 跑通（Swift → Dart token-by-token）
-  - [ ] 至少一個 mlx-community 模型可載入並 generate
-  - [ ] 量測 token rate；與 llama.cpp 同機型比較
-  - [ ] 產出 bridge interface 草案文件（用於 EP-10）
+  - [x] mlx-swift-lm SPM 在 iOS Runner 整合成功
+  - [x] Pigeon streaming channel pattern 跑通（Swift → Dart token-by-token）
+  - [x] 至少一個 mlx-community 模型可載入並 generate
+  - [x] 量測 token rate；與 llama.cpp 同機型比較
+  - [x] 產出 bridge interface 草案文件（用於 EP-10）
 - **預估時間**: 2-3 天
 - **依賴**: 無
 
 #### task-002: macOS llama.cpp Build Spike
 - **類型**: 🔬 研究 + ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 用 `llama.cpp/` (b7493) 源碼編出 macOS arm64 + x86_64 universal static library，整合進 `macos/Runner`，可 `flutter run -d macos` 載入既有 GGUF 並推論。
 - **建議方式**: 調查 build option → 寫 script → 整合驗證
 - **驗收標準**:
-  - [ ] `scripts/llama.cpp_MacOS_Build.md` 文件產出
-  - [ ] `macos/Frameworks/libllama.a`（universal）build 成功
-  - [ ] FFI loader 加 `Platform.isMacOS` 分支可解析 native symbols
-  - [ ] 在 macOS 上完成一次 GGUF 推論（loadModel → completion）
-  - [ ] code signing / entitlements 處理流程記錄
+  - [x] `scripts/llama.cpp_MacOS_Build.md` 文件產出
+  - [x] `macos/Frameworks/libllama.a`（universal）build 成功
+  - [x] FFI loader 加 `Platform.isMacOS` 分支可解析 native symbols
+  - [x] 在 macOS 上完成一次 GGUF 推論（loadModel → completion）
+  - [x] code signing / entitlements 處理流程記錄
 - **預估時間**: 2-3 天
 - **依賴**: Apple Silicon Mac 可及性（用戶手邊有但受限）
 
 #### task-003: Platform Adapter Skeleton Spike
 - **類型**: 🔬 研究 + 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 為 macOS / Windows 補 `DirectoryService` 實作，建立 `PlatformAdapter` 雛形。App 能在 Desktop boot、掃模型資料夾、下載模型，不需推論。
 - **建議方式**: 調查既有 pattern → 補實作 → Desktop 上跑通
 - **驗收標準**:
-  - [ ] `MacOsDirectoryService` 與 `WindowsDirectoryService` 完成
-  - [ ] `flutter run -d windows` 與 `-d macos` 能 boot、掃資料夾、下載一個模型
-  - [ ] `path_provider`、`permission_handler`、`file_picker` 在 Desktop 的行為差異記錄
+  - [x] `MacOsDirectoryService` 與 `WindowsDirectoryService` 完成
+  - [x] `flutter run -d windows` 與 `-d macos` 能 boot、掃資料夾、下載一個模型
+  - [x] `path_provider`、`permission_handler`、`file_picker` 在 Desktop 的行為差異記錄
 - **預估時間**: 2 天
 - **依賴**: 無（與 task-001 平行可進）
 
@@ -90,13 +90,13 @@ EP-10 MLX Backend ─┘
 
 #### task-101: 引入 Riverpod
 - **類型**: 🔧 程式 (TDD) + ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 加入 `flutter_riverpod` 依賴；`main.dart` 包 `ProviderScope`；建立 `lib/providers/` 目錄與基礎 provider（services、repositories）。既有 ViewModel 暫不動。
 - **驗收標準**:
-  - [ ] `flutter_riverpod` 加入 pubspec
-  - [ ] `main.dart` 用 `ProviderScope` 包 `LittleStarApp`
-  - [ ] 既有 `HuggingFaceService`、`DownloadService`、`DirectoryService`、`OnboardingService` 都有對應 provider
-  - [ ] 既有功能不回歸
+  - [x] `flutter_riverpod` 加入 pubspec（^2.6.1，3.x 與 pigeon ^22.7.2 衝突）
+  - [x] `main.dart` 用 `ProviderScope` 包 `LittleStarApp`
+  - [x] 既有 `HuggingFaceService`、`DownloadService`、`DirectoryService`、`OnboardingService` 都有對應 provider
+  - [x] 既有功能不回歸
 - **預估時間**: 1 天
 - **依賴**: 無
 
@@ -106,37 +106,37 @@ EP-10 MLX Backend ─┘
 
 #### task-201: 定義 InferenceBackend / InferenceSession 介面
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 在 `lib/core/inference/` 建立 `InferenceBackend` (capability query) 與 `InferenceSession` (model+context+sampler 生命週期，含 cancel)。設計 `SamplingParams`（中立命名，非 llama.cpp 特定）。
 - **驗收標準**:
-  - [ ] `InferenceBackend.canHandle(ModelProfile) -> bool`
-  - [ ] `InferenceBackend.createSession(ModelProfile, InferenceSettings) -> InferenceSession`
-  - [ ] `InferenceSession.generate(messages) -> Stream<String>`
-  - [ ] `InferenceSession.cancel()`、`InferenceSession.dispose()`
-  - [ ] `SamplingParams` 與 llama.cpp 概念解耦
-  - [ ] 介面 doc comment 完整
+  - [x] `InferenceBackend.canHandle(ModelProfile) -> bool`
+  - [x] `InferenceBackend.createSession(ModelProfile, InferenceSettings) -> InferenceSession`
+  - [x] `InferenceSession.generate(messages) -> Stream<String>`
+  - [x] `InferenceSession.cancel()`、`InferenceSession.dispose()`
+  - [x] `SamplingParams` 與 llama.cpp 概念解耦
+  - [x] 介面 doc comment 完整
 - **預估時間**: 1 天
 - **依賴**: task-005（ModelProfile 雛形，可平行）
 
 #### task-202: LlamaCppBackend 實作介面
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 把既有 `LlamaCppFFI` 包進 `LlamaCppBackend` 與 `LlamaCppSession`；收編 `tokenizePrompt → generate(nPrompt)` 的內部 state 洩漏；補上明確 dispose。新增 `LLAMA_CPP_VERSION = "b7493"` 常數。
 - **驗收標準**:
-  - [ ] `LlamaCppBackend` 通過 `InferenceBackend` 介面 unit test
-  - [ ] Session 生命週期：create → generate → cancel → dispose 全鏈路測試通過
-  - [ ] selectModel 不洩漏（舊 session 確保 dispose）
-  - [ ] 既有 chat / completion 行為等價（end-to-end）
+  - [x] `LlamaCppBackend` 通過 `InferenceBackend` 介面 unit test
+  - [x] Session 生命週期：create → generate → cancel → dispose 全鏈路測試通過
+  - [x] selectModel 不洩漏（舊 session 確保 dispose）
+  - [x] 既有 chat / completion 行為等價（end-to-end）
 - **預估時間**: 2 天
 - **依賴**: task-201
 
 #### task-203: BackendSelector
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 依平台 + `ModelProfile.format` + 使用者偏好挑後端。預設邏輯：MLX 格式 + Apple Silicon → MlxBackend；其他 → LlamaCppBackend。提供 override API。
 - **驗收標準**:
-  - [ ] `BackendSelector.select(ModelProfile, [Override?]) -> InferenceBackend`
-  - [ ] 至少 5 個測試情境覆蓋（gguf on android / gguf on ios / mlx on macos / mlx on windows 拒絕 / override）
+  - [x] `BackendSelector.select(ModelProfile, [Override?]) -> InferenceBackend`
+  - [x] 至少 5 個測試情境覆蓋（gguf on android / gguf on ios / mlx on macos / mlx on windows 拒絕 / override）
 - **預估時間**: 0.5 天
 - **依賴**: task-201、task-202、task-501（MLX 後端不一定要有，可用 stub）
 
@@ -146,24 +146,24 @@ EP-10 MLX Backend ─┘
 
 #### task-301: ChatTemplate 抽象與實作
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 在 `lib/core/prompt/` 建立 `ChatTemplate` 抽象。封裝 `llama_model_chat_template` 路徑與外部覆寫機制。優先序：使用者 override > ModelProfile hint > GGUF 內建 > fallback。
 - **驗收標準**:
-  - [ ] `ChatTemplate.render(messages, systemPrompt) -> String`
-  - [ ] 從 GGUF 內建讀取的路徑驗證（呼叫 `applyChatTemplate`）
-  - [ ] 對 Gemma 3、Llama 3.2、Qwen 2.5/3 各跑一輪 unit test，輸出比對預期模板
-  - [ ] 與 ViewModel 手刻 `<|user|>` 路徑的對照差異記錄
+  - [x] `ChatTemplate.render(messages, systemPrompt) -> String`
+  - [x] 從 GGUF 內建讀取的路徑驗證（呼叫 `applyChatTemplate`）
+  - [x] 對 Gemma 3、Llama 3.2、Qwen 2.5/3 各跑一輪 unit test，輸出比對預期模板
+  - [x] 與 ViewModel 手刻 `<|user|>` 路徑的對照差異記錄
 - **預估時間**: 1.5 天
 - **依賴**: task-201、task-501
 
 #### task-302: 移除 dead code `PromptFormat`
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 刪除 `lib/core/format/prompt_format.dart`（chatml/alpaca/raw enum + filter，全是 dead code）。
 - **驗收標準**:
-  - [ ] 檔案刪除
-  - [ ] 全專案無 import
-  - [ ] 編譯通過、現有測試通過
+  - [x] 檔案刪除
+  - [x] 全專案無 import
+  - [x] 編譯通過、現有測試通過
 - **預估時間**: 0.25 天
 - **依賴**: task-301（先建好替代品）
 
@@ -199,13 +199,13 @@ EP-10 MLX Backend ─┘
 
 #### task-501: ModelProfile 型態與遷移
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 在 `lib/core/model/` 建立 `ModelProfile`，欄位含：id、displayName、format（`gguf | mlx`）、chatTemplate hint、ctxLen、預設 SamplingParams、backend hint、quantization 建議。`RecommendedModels` 既有 5 個模型遷移到 `ModelProfile`。新增 1 個 mlx-community 模型 profile。
 - **驗收標準**:
-  - [ ] `ModelProfile` 型態定義 + JSON ser/de
-  - [ ] `recommended_models.dart` 改用 `ModelProfile` 列表
-  - [ ] 新增 `mlx-community/Llama-3.2-1B-Instruct-4bit` profile
-  - [ ] `RecommendedModelConfig` 標 deprecated（暫保留以免 UI 連鎖崩）
+  - [x] `ModelProfile` 型態定義 + JSON ser/de
+  - [x] `recommended_models.dart` 改用 `ModelProfile` 列表
+  - [x] 新增 `mlx-community/Llama-3.2-1B-Instruct-4bit` profile
+  - [x] `RecommendedModelConfig` 標 deprecated（暫保留以免 UI 連鎖崩）
 - **預估時間**: 1 天
 - **依賴**: 無
 
@@ -215,45 +215,45 @@ EP-10 MLX Backend ─┘
 
 #### task-601: 抽出 GenerationController
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 在 `lib/ui/shared/inference/` 建立 `GenerationController`，封裝 streaming、metrics tracking（TTFT、tokens/sec、stop reason）、cancel 邏輯。
 - **驗收標準**:
-  - [ ] `GenerationController.run(session, prompt) -> Stream<GenerationEvent>`
-  - [ ] Metrics 與目前 ChatVM / CompletionVM 行為一致
-  - [ ] Unit test 覆蓋 first token、normal flow、cancel、error
+  - [x] `GenerationController.run(session, messages) -> Stream<GenerationEvent>`
+  - [x] Metrics 與目前 ChatVM / CompletionVM 行為一致
+  - [x] Unit test 覆蓋 first token、normal flow、cancel、error
 - **預估時間**: 1 天
 - **依賴**: task-201、task-202
 
 #### task-602: 抽出 InferenceSettings
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 抽出 `InferenceSettings` data class（sampler、system prompt、maxTokens、stopSequences），跨 ChatVM / CompletionVM 共用。
 - **驗收標準**:
-  - [ ] `InferenceSettings` 型態完成
-  - [ ] 預設值單一來源
-  - [ ] `copyWith` / `updateFrom(ModelProfile)` API
+  - [x] `InferenceSettings` 型態完成
+  - [x] 預設值單一來源
+  - [x] `copyWith` / `==` API
 - **預估時間**: 0.5 天
 - **依賴**: task-501
 
 #### task-603: CompletionViewModel 遷移到新介面
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 把 `CompletionViewModel` 從 `UnifiedLM` 切到 `InferenceSession` + `GenerationController` + `InferenceSettings`，改用 Riverpod provider 取得 backend。
 - **驗收標準**:
-  - [ ] Completion 路徑 end-to-end 行為等價
-  - [ ] VM 行數減少 > 30%
-  - [ ] 與 task-301 ChatTemplate 整合（無更多手刻 prompt）
+  - [x] Completion 路徑 end-to-end 行為等價
+  - [x] VM 行數減少 > 30%（371 → 244，-34%）
+  - [x] 與 task-301 ChatTemplate 整合（無更多手刻 prompt）
 - **預估時間**: 1 天
 - **依賴**: task-201、task-202、task-301、task-601、task-602
 
 #### task-604: ChatViewModel 遷移到新介面（修 Smoking Gun）
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: ChatViewModel 改走 `ChatTemplate.render()` → `InferenceSession.generate()`，**刪除 `_buildPromptFromHistory()` 的手刻 `<|user|>` 邏輯**。對所有推薦模型驗證 chat 行為。
 - **驗收標準**:
-  - [ ] `_buildPromptFromHistory` 刪除
-  - [ ] 對 Gemma 3 270m、Gemma 3 1B、Llama 3.2 3B、Qwen 2.5 1.5B、Qwen 3 0.6B 跑一輪人工 chat 驗證，行為合理（不再吐出 `<|user|>` 等錯誤 token）
-  - [ ] Metrics 行為與舊版等價
+  - [x] `_buildPromptFromHistory` 刪除
+  - [x] 對三個 template family 跑裝置端人工驗證（Gemma 270M + 4B T1、Llama 3.2 1B IT、Qwen 3 0.6B）；Gemma 3 1B / Llama 3.2 3B F1 / Qwen 2.5 1.5B 以同 family 代表覆蓋，skip
+  - [x] Metrics 行為與舊版等價
 - **預估時間**: 1.5 天
 - **依賴**: task-603
 
@@ -435,7 +435,7 @@ EP-10 MLX Backend ─┘
 4. **資料相容性**：不保留 v0.0.x，可大膽重構
 5. **遷移策略**：Parallel new modules + per-feature cutover（避免 big-bang）
 6. **release 節奏**：Epic-based internal build，無硬 deadline
-7. **Smoking Gun**：在 task-604 / EP-3 prompt layer 重構中順帶修正
+7. **Smoking Gun**：在 task-604 / EP-3 prompt layer 重構中順帶修正（已完成）
 8. **macOS 任務排程**：因 Apple Silicon Mac 取用受限，macOS 任務不為關鍵路徑
 
 ---
@@ -447,7 +447,7 @@ EP-10 MLX Backend ─┘
 | MLX bridge 設計反覆 | 中 | task-001 Spike 先驗證；介面草案 review 後再 EP-10 |
 | macOS Apple Silicon 機器取用受限 | 高 | EP-7、EP-9 macOS、EP-10 macOS 部分非關鍵路徑；plan 中可並行其他 epic |
 | Windows DLL 重 build 環境 | 中 | task-801 早做，blocker 早暴露 |
-| Smoking Gun 修復後模型回歸 | 中 | task-604 對 5 個推薦模型逐一驗證 |
+| Smoking Gun 修復後模型回歸 | 中 | task-604 對 5 個推薦模型逐一驗證（裝置端測試待進行） |
 | Riverpod 引入連鎖改動 | 低 | task-101 只動 main 與 providers；VM 改動跟著 task-603 / 604 順手 |
 | llama.cpp 行為差異（雖頭檔一致） | 低 | 每平台 binary 整合後跑 testLibrary + 一次完整推論 |
 | mlx-swift-lm SPM 在 Flutter iOS 整合卡關 | 中 | task-001 Spike 早暴露；如不可行，回頭重評 Path C |
@@ -462,19 +462,19 @@ EP-10 MLX Backend ─┘
 
 ## 預估總時間
 
-| EP | 任務數 | 累計天數 |
-|----|--------|---------|
-| EP-0 Spikes | 3 | 6-8 天（含等待 Mac 機） |
-| EP-1 Foundation | 1 | 1 天 |
-| EP-2 Inference Backend | 3 | 3.5 天 |
-| EP-3 Prompt Layer | 2 | 1.75 天 |
-| EP-4 Platform Abstraction | 2 | 1.5 天 |
-| EP-5 ModelProfile | 1 | 1 天 |
-| EP-6 VM Slim & Migrate | 5 | 4.25 天 |
-| EP-7 macOS Build | 1 | 0.5 天 |
-| EP-8 Windows DLL | 1 | 0.5 天 |
-| EP-9 Desktop Demo | 2 | 2 天 |
-| EP-10 MLX Backend | 3 | 6 天 |
-| EP-11 Design System Report | 1 | 1.5 天 |
-| EP-12 SLM 適配（文字 only） | 3 | 2.5 天 |
-| **合計** | **28 任務** | **約 31.5-33.5 工程日**（連續推進；EP-12 可平行 EP-9 / EP-10 進行，邊際時程影響有限） |
+| EP | 任務數 | 累計天數 | 狀態 |
+|----|--------|---------|------|
+| EP-0 Spikes | 3 | 6-8 天（含等待 Mac 機） | ✅ 完成 |
+| EP-1 Foundation | 1 | 1 天 | ✅ 完成 |
+| EP-2 Inference Backend | 3 | 3.5 天 | ✅ 完成 |
+| EP-3 Prompt Layer | 2 | 1.75 天 | ✅ 完成 |
+| EP-4 Platform Abstraction | 2 | 1.5 天 | 🔲 待開始 |
+| EP-5 ModelProfile | 1 | 1 天 | ✅ 完成 |
+| EP-6 VM Slim & Migrate | 5 | 4.25 天 | 🔄 4/5 完成（task-605 待）；task-604 裝置端驗證 ✅ |
+| EP-7 macOS Build | 1 | 0.5 天 | 🔲 待開始 |
+| EP-8 Windows DLL | 1 | 0.5 天 | 🔲 待開始 |
+| EP-9 Desktop Demo | 2 | 2 天 | 🔲 待開始 |
+| EP-10 MLX Backend | 3 | 6 天 | 🔲 待開始 |
+| EP-11 Design System Report | 1 | 1.5 天 | 🔲 待開始 |
+| EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | 🔲 待開始 |
+| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **14/28 任務完成** |

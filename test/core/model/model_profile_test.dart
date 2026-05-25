@@ -133,15 +133,15 @@ void main() {
 
   // ── RecommendedModels.profiles ────────────────────────────────────────────
   group('RecommendedModels.profiles', () {
-    test('contains 6 entries', () {
-      expect(RecommendedModels.profiles, hasLength(6));
+    test('contains 7 entries', () {
+      expect(RecommendedModels.profiles, hasLength(7));
     });
 
-    test('first 5 are GGUF', () {
+    test('first 6 are GGUF', () {
       final gguf = RecommendedModels.profiles
           .where((p) => p.format == ModelFormat.gguf)
           .toList();
-      expect(gguf, hasLength(5));
+      expect(gguf, hasLength(6));
     });
 
     test('contains one MLX profile', () {
@@ -197,12 +197,25 @@ void main() {
     test('Gemma profiles have gemma chat template hint', () {
       for (final id in [
         'unsloth/gemma-3-270m-it-GGUF',
-        'unsloth/gemma-3-1b-it-GGUF',
+        'twinkle-ai/gemma-3-4B-T1-it-GGUF',
       ]) {
         expect(
           RecommendedModels.profileById(id)!.chatTemplateHint,
           ChatTemplateHint.gemma,
           reason: '$id should have gemma hint',
+        );
+      }
+    });
+
+    test('Llama profiles have llama3 chat template hint', () {
+      for (final id in [
+        'twinkle-ai/Llama-3.2-3B-F1-Reasoning-Instruct-GGUF',
+        'unsloth/Llama-3.2-1B-Instruct-GGUF',
+      ]) {
+        expect(
+          RecommendedModels.profileById(id)!.chatTemplateHint,
+          ChatTemplateHint.llama3,
+          reason: '$id should have llama3 hint',
         );
       }
     });

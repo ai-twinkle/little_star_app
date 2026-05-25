@@ -14,17 +14,21 @@ class RecommendedModels {
   /// from this for backward compatibility.
   static final List<ModelProfile> profiles = [
     const ModelProfile(
-      id: 'unsloth/gemma-3-270m-it-GGUF',
-      displayName: 'Gemma 3 270M',
+      id: 'twinkle-ai/gemma-3-4B-T1-it-GGUF',
+      displayName: 'Twinkle AI Gemma 3 4B T1 Model',
       format: ModelFormat.gguf,
-      recommendedQuantization: 'Q4_K_M',
+      recommendedQuantization: 'q4_k_m',
       chatTemplateHint: ChatTemplateHint.gemma,
-      ctxLen: 2048,
-      defaultSamplingParams: SamplingParams(topK: 40, topP: 0.95, temperature: 0.8),
+      ctxLen: 4096,
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.7,
+      ),
       backendHint: BackendHint.llamaCpp,
-      quickDescription: 'Ultra-lightweight, perfect for mobile',
-      useCases: ['Chat', 'Quick Tasks'],
-      badge: 'Fastest',
+      quickDescription: 'Latest Twinkle AI model',
+      useCases: ['Chat', 'Analysis'],
+      badge: 'Recommended',
     ),
     const ModelProfile(
       id: 'twinkle-ai/Llama-3.2-3B-F1-Reasoning-Instruct-GGUF',
@@ -33,11 +37,32 @@ class RecommendedModels {
       recommendedQuantization: 'Q4_K_M',
       chatTemplateHint: ChatTemplateHint.llama3,
       ctxLen: 4096,
-      defaultSamplingParams: SamplingParams(topK: 40, topP: 0.95, temperature: 0.7),
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.7,
+      ),
       backendHint: BackendHint.llamaCpp,
       quickDescription: 'Best for reasoning and problem solving',
       useCases: ['Reasoning', 'Chat', 'Analysis'],
       badge: 'Recommended',
+    ),
+    const ModelProfile(
+      id: 'unsloth/gemma-3-270m-it-GGUF',
+      displayName: 'Gemma 3 270M',
+      format: ModelFormat.gguf,
+      recommendedQuantization: 'Q4_K_M',
+      chatTemplateHint: ChatTemplateHint.gemma,
+      ctxLen: 2048,
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.8,
+      ),
+      backendHint: BackendHint.llamaCpp,
+      quickDescription: 'Ultra-lightweight, perfect for mobile',
+      useCases: ['Chat', 'Quick Tasks'],
+      badge: 'Fastest',
     ),
     const ModelProfile(
       id: 'bartowski/Qwen_Qwen3-0.6B-GGUF',
@@ -46,24 +71,32 @@ class RecommendedModels {
       recommendedQuantization: 'Q4_K_M',
       chatTemplateHint: ChatTemplateHint.qwen3,
       ctxLen: 4096,
-      defaultSamplingParams: SamplingParams(topK: 40, topP: 0.95, temperature: 0.8),
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.8,
+      ),
       backendHint: BackendHint.llamaCpp,
       quickDescription: 'Compact with multilingual support',
       useCases: ['Chat', 'Multilingual'],
       badge: 'Efficient',
     ),
     const ModelProfile(
-      id: 'unsloth/gemma-3-1b-it-GGUF',
-      displayName: 'Gemma 3 1B',
+      id: 'unsloth/Llama-3.2-1B-Instruct-GGUF',
+      displayName: 'Llama 3.2 1B Instruct',
       format: ModelFormat.gguf,
       recommendedQuantization: 'Q4_K_M',
-      chatTemplateHint: ChatTemplateHint.gemma,
-      ctxLen: 4096,
-      defaultSamplingParams: SamplingParams(topK: 40, topP: 0.95, temperature: 0.8),
+      chatTemplateHint: ChatTemplateHint.llama3,
+      ctxLen: 131072,
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.8,
+      ),
       backendHint: BackendHint.llamaCpp,
-      quickDescription: 'Balanced performance and efficiency',
+      quickDescription: 'Lightweight Llama 3.2 for fast on-device chat',
       useCases: ['Chat', 'General Tasks'],
-      badge: 'Balanced',
+      badge: 'Lightweight',
     ),
     const ModelProfile(
       id: 'Qwen/Qwen2.5-1.5B-Instruct-GGUF',
@@ -72,7 +105,11 @@ class RecommendedModels {
       recommendedQuantization: 'Q4_K_M',
       chatTemplateHint: ChatTemplateHint.qwen2,
       ctxLen: 4096,
-      defaultSamplingParams: SamplingParams(topK: 40, topP: 0.95, temperature: 0.8),
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.8,
+      ),
       backendHint: BackendHint.llamaCpp,
       quickDescription: 'Enhanced multilingual performance',
       useCases: ['Chat', 'Multilingual', 'General Tasks'],
@@ -86,7 +123,11 @@ class RecommendedModels {
       recommendedQuantization: null,
       chatTemplateHint: ChatTemplateHint.llama3,
       ctxLen: 4096,
-      defaultSamplingParams: SamplingParams(topK: 40, topP: 0.95, temperature: 0.8),
+      defaultSamplingParams: SamplingParams(
+        topK: 40,
+        topP: 0.95,
+        temperature: 0.8,
+      ),
       backendHint: BackendHint.mlx,
       quickDescription: 'Optimised for Apple Neural Engine',
       useCases: ['Chat', 'iOS', 'macOS'],
@@ -107,24 +148,25 @@ class RecommendedModels {
 
   /// @deprecated Use [profiles] instead.
   @Deprecated('Use RecommendedModels.profiles')
-  static final List<RecommendedModelConfig> models = profiles
-      .where((p) => p.format == ModelFormat.gguf)
-      .map(
-        (p) => RecommendedModelConfig(
-          modelInfo: HFModelInfo(
-            id: p.id,
-            author: p.id.split('/').first,
-            modelName: p.id.split('/').last,
-            tags: const [],
-            description: p.quickDescription,
-          ),
-          recommendedQuantization: p.recommendedQuantization ?? '',
-          quickDescription: p.quickDescription,
-          useCases: p.useCases,
-          badge: p.badge,
-        ),
-      )
-      .toList();
+  static final List<RecommendedModelConfig> models =
+      profiles
+          .where((p) => p.format == ModelFormat.gguf)
+          .map(
+            (p) => RecommendedModelConfig(
+              modelInfo: HFModelInfo(
+                id: p.id,
+                author: p.id.split('/').first,
+                modelName: p.id.split('/').last,
+                tags: const [],
+                description: p.quickDescription,
+              ),
+              recommendedQuantization: p.recommendedQuantization ?? '',
+              quickDescription: p.quickDescription,
+              useCases: p.useCases,
+              badge: p.badge,
+            ),
+          )
+          .toList();
 
   /// @deprecated Use [profileById] instead.
   @Deprecated('Use RecommendedModels.profileById')

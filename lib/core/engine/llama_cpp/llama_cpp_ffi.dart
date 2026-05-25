@@ -1177,27 +1177,27 @@ class LlamaCppFFI {
           ..content = contentPtr;
       }
 
-      int newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, ffi.nullptr, 0);
-      int nCtx = llama_n_ctx(_context!);
-      ffi.Pointer<ffi.Char> formatted = calloc<ffi.Char>(nCtx);
-      if (newLen > nCtx) {
-        // Reallocate buffer if needed
-        malloc.free(formatted);
-        formatted = calloc<ffi.Char>(nCtx);
-        newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, formatted, nCtx);
-      } else {
-        newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, formatted, nCtx);
-      }
-      if (newLen < 0) {
-        log.error("error: failed to apply the chat template");
+      // First call with null buffer returns required byte count.
+      final int requiredLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, ffi.nullptr, 0);
+      if (requiredLen < 0) {
         malloc.free(messageData);
+        log.error("error: failed to apply the chat template (size probe)");
         throw Exception('Failed to apply the chat template');
       }
-      malloc.free(messageData);
 
-      // Extract only the new prompt (from prevLen to newLen), like C++ does
+      // Second call renders into an exactly-sized buffer.
+      final ffi.Pointer<ffi.Char> formatted = calloc<ffi.Char>(requiredLen + 1);
+      final int newLen = llama_chat_apply_template(tmplPtr, messageData, messageMaps.length, true, formatted, requiredLen + 1);
+      malloc.free(messageData);
+      if (newLen < 0) {
+        calloc.free(formatted);
+        log.error("error: failed to apply the chat template");
+        throw Exception('Failed to apply the chat template');
+      }
+
       final promptBytes = formatted.cast<ffi.Uint8>().asTypedList(newLen).sublist(0, newLen);
       final prompt = utf8.decode(promptBytes);
+      calloc.free(formatted);
       return prompt;
     } catch (e) {
       log.error('Error applying chat template: $e');
