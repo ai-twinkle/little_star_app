@@ -73,17 +73,17 @@ class NativeLibraryLoader {
       return const OpenSpec(llamaPath: 'libllama.so', ggmlPath: 'libggml.so');
     }
     if (_platform.isWindows) {
-      final dir = Directory.current.path;
+      final exeDir = path.dirname(Platform.resolvedExecutable);
       return OpenSpec(
-        llamaPath: path.join(dir, 'llama.dll'),
-        ggmlPath: path.join(dir, 'ggml.dll'),
+        llamaPath: path.join(exeDir, 'llama.dll'),
+        ggmlPath: path.join(exeDir, 'ggml.dll'),
       );
     }
     if (_platform.isLinux) {
-      final dir = Directory.current.path;
+      final exeDir = path.dirname(Platform.resolvedExecutable);
       return OpenSpec(
-        llamaPath: path.join(dir, 'libllama.so'),
-        ggmlPath: path.join(dir, 'libggml.so'),
+        llamaPath: path.join(exeDir, 'libllama.so'),
+        ggmlPath: path.join(exeDir, 'libggml.so'),
       );
     }
     throw UnsupportedError(

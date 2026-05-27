@@ -106,3 +106,12 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# llama.cpp native DLLs (loaded at runtime via DynamicLibrary.open)
+install(FILES
+  "${CMAKE_CURRENT_SOURCE_DIR}/libs/llama.dll"
+  "${CMAKE_CURRENT_SOURCE_DIR}/libs/ggml.dll"
+  "${CMAKE_CURRENT_SOURCE_DIR}/libs/ggml-base.dll"
+  "${CMAKE_CURRENT_SOURCE_DIR}/libs/ggml-cpu.dll"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)

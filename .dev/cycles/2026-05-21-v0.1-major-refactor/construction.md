@@ -436,9 +436,92 @@ class GenerationController {
 
 **結論：** 三個 template family 全部驗證通過；無 `<|user|>` 等舊 bad token；multi-turn context 正確累積；stop token 乾淨。Smoking Gun 修復確認有效。
 
+### task-605: 刪除 UnifiedLM [DONE]
+
+> Commit: `a40c65a refactor(ep6): task-605 — delete UnifiedLM + fix applyChatTemplate null crash`
+
+- [x] `lib/core/lm.dart` 刪除（`UnifiedLM`、`ModelParams`、`ContextParams` — task-603/604 完成後已全 dead code）
+- [x] 全專案無任何 import 引用 `lm.dart`（`task-302` 已移除最後一個 format import）
+- [x] 全套 **147 tests 通過**
+
+**附帶修復（同 commit）：**
+- `applyChatTemplate` null crash：移除 `_context!` 依賴（在 `createContext` 之前被呼叫）；改為標準兩段式呼叫（第一次 `nullptr` 取得 required size，第二次 render）
+- `recommended_models`：Gemma 3 1B 換為 Llama 3.2 1B Instruct GGUF；修正 twinkle-ai Gemma 3 4B T1 的 `chatTemplateHint`（llama3 → gemma）
+- `model_profile_test`：entry 數 6 → 7，補 Llama3 hint 測試
+
 ---
 
-## 提交歷史（EP-1 ~ EP-6）
+---
+
+## EP-7 macOS llama.cpp 正式整合
+
+### task-701: macOS llama.cpp 正式整合 [DONE]
+
+> Commit: `4f07471 feat(ep7): task-701 — macOS llama.cpp formal integration`
+
+延續 task-002 spike：universal static libs（`libllama.a` + 5 個 `libggml*.a`）已透過 Git LFS 進入 repo；本任務正式啟用 macOS 推論通道。
+
+**變更：**
+- `lib/core/platform/platform_adapter.dart`：`MacOSPlatformAdapter.supportsInference` `false` → `true`（移除 EP-7 placeholder 註解）
+- `scripts/llama.cpp_MacOS_Build.md`：拆分 Verified Results 為「Spike (2026-05-22)」+「EP-7 Integration (2026-05-26)」；移除 `supportsInference = false` Known Issue；Next Steps 改指 EP-9: task-902
+
+**驗證（2026-05-26，Apple Silicon M-series）：**
+
+```
+✅ flutter build macos --debug  →  build succeeded (universal libs via LFS)
+✅ flutter run -d macos         →  app launches, inference pipeline active
+✅ loadModel → generate         →  end-to-end chat verified; tokens streaming normally
+✅ MacOSPlatformAdapter         →  supportsInference = true
+```
+
+**遺留至 EP-9：** tok/s 量測對比 iOS 88.9 baseline、macOS Firebase 配置、`flutter run -d macos` 完整 demo flow（task-902）
+
+---
+
+## EP-8 Windows DLL 升級
+
+### task-801: Windows DLL 重 build 至 b9334 [DONE]
+
+> Branch：`feat/v0.1-cc`
+
+**環境：** Windows 11 + Visual Studio 2022 Community (17.14) + CMake 3.31.6
+
+**執行步驟：**
+
+| # | 描述 | 狀態 |
+|---|------|------|
+| 1 | fetch llama.cpp tags，確認 b9334 存在 | [DONE] |
+| 2 | `git checkout b9334`（detached HEAD @ `192d8ae8b`） | [DONE] |
+| 3 | cmake configure（VS 2022 x64，BUILD_SHARED_LIBS=ON，AVX2+OpenMP） | [DONE] |
+| 4 | cmake build --config Release（llama + ggml + ggml-base + ggml-cpu targets） | [DONE] |
+| 5 | 複製 4 個 DLL 至 `windows/libs/` | [DONE] |
+| 6 | 新增 `windows/CMakeLists.txt` install step 自動複製 DLL 至輸出目錄 | [DONE] |
+| 7 | 修正 `NativeLibraryLoader`：Windows/Linux 改用 `Platform.resolvedExecutable` 目錄 | [DONE] |
+| 8 | `flutter build windows --debug` 驗證；全套 167 tests 通過 | [DONE] |
+
+**CMake 配置：**
+```
+cmake .. -G "Visual Studio 17 2022" -A x64
+  -DBUILD_SHARED_LIBS=ON
+  -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF
+  -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DLLAMA_CURL=OFF
+```
+
+**產出 DLL（windows/libs/）：**
+| 檔案 | 大小 |
+|------|------|
+| llama.dll | 1,989,632 bytes |
+| ggml.dll | 67,072 bytes |
+| ggml-base.dll | 636,416 bytes |
+| ggml-cpu.dll | 882,176 bytes |
+
+**關鍵修正：**
+- `NativeLibraryLoader.resolveSpec()`：Windows 舊用 `Directory.current.path`，改為 `path.dirname(Platform.resolvedExecutable)` — 確保 DLL 從 exe 同目錄載入，在 `flutter run` 與直接執行 exe 兩種情況下路徑一致
+- `windows/CMakeLists.txt`：新增 `install(FILES libs/*.dll ...)` — Flutter Windows build 現在會自動將 4 個 DLL 複製至輸出目錄
+
+---
+
+## 提交歷史（EP-1 ~ EP-8）
 
 | Commit | 日期 | 描述 | 任務 |
 |--------|------|------|------|
@@ -448,4 +531,7 @@ class GenerationController {
 | `fd70f99` | 2026-05-23 | refactor(ep3): task-302 — delete dead PromptFormat code | task-302 |
 | `387995e` | 2026-05-24 | feat(ep6): task-601 — GenerationController with metrics + cancel | task-601 |
 | `7c60863` | 2026-05-25 | feat(ep6): task-603 + task-604 — ViewModel migration + Smoking Gun fix | task-603/604 |
+| `a40c65a` | 2026-05-25 | refactor(ep6): task-605 — delete UnifiedLM + fix applyChatTemplate null crash | task-605 |
+| `4f07471` | 2026-05-26 | feat(ep7): task-701 — macOS llama.cpp formal integration | task-701 |
+| _(pending)_ | 2026-05-27 | feat(ep8): task-801 — Windows DLL b9334 + cmake install + exe-relative path | task-801 |
 

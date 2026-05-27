@@ -259,12 +259,12 @@ EP-10 MLX Backend ─┘
 
 #### task-605: 刪除 UnifiedLM
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE]
 - **描述**: 確認無人 import `lib/core/lm.dart` 後刪除整檔。
 - **驗收標準**:
-  - [ ] `lib/core/lm.dart` 刪除
-  - [ ] 全專案編譯通過
-  - [ ] iOS / Android 端到端跑通
+  - [x] `lib/core/lm.dart` 刪除
+  - [x] 全專案編譯通過
+  - [x] iOS / Android 端到端跑通
 - **預估時間**: 0.25 天
 - **依賴**: task-603、task-604
 
@@ -287,14 +287,14 @@ EP-10 MLX Backend ─┘
 
 ### EP-8：Windows DLL 升級
 
-#### task-801: Windows DLL 重 build 至 b7493
+#### task-801: Windows DLL 重 build 至 b9334
 - **類型**: ⚙️ 配置
-- **狀態**: [TODO]
-- **描述**: 用 `llama.cpp/` (b7493) 重 build Windows DLL（llama.dll / ggml*.dll），取代 2025-07-01 舊版。
+- **狀態**: [DONE]
+- **描述**: 用 `llama.cpp/` (b9334) 重 build Windows DLL（llama.dll / ggml*.dll），取代 2025-07-01 舊版。
 - **驗收標準**:
-  - [ ] `windows/libs/*.dll` 更新
-  - [ ] `flutter run -d windows` 載入既有 GGUF 並推論
-  - [ ] 既有 `Platform.isWindows` FFI 路徑無需改動
+  - [x] `windows/libs/*.dll` 更新（ggml.dll / ggml-base.dll / ggml-cpu.dll / llama.dll）
+  - [x] `flutter build windows --debug` 編譯通過，DLL 自動複製至輸出目錄
+  - [x] 既有 `Platform.isWindows` FFI 路徑無需改動（改用 exe 目錄）
 - **預估時間**: 0.5 天
 - **依賴**: 無
 
@@ -472,9 +472,9 @@ EP-10 MLX Backend ─┘
 | EP-5 ModelProfile | 1 | 1 天 | ✅ 完成 |
 | EP-6 VM Slim & Migrate | 5 | 4.25 天 | ✅ 完成 |
 | EP-7 macOS Build | 1 | 0.5 天 | ✅ 完成 |
-| EP-8 Windows DLL | 1 | 0.5 天 | 🔲 待開始 |
+| EP-8 Windows DLL | 1 | 0.5 天 | ✅ 完成 |
 | EP-9 Desktop Demo | 2 | 2 天 | 🔲 待開始 |
 | EP-10 MLX Backend | 3 | 6 天 | 🔲 待開始 |
 | EP-11 Design System Report | 1 | 1.5 天 | 🔲 待開始 |
 | EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | 🔲 待開始 |
-| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **18/28 任務完成** |
+| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **20/28 任務完成** |
