@@ -92,7 +92,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-300: ADR 模板與索引
 - **類型**: 📄 文檔 + ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: 在 `docs/adr/` 建立 README（索引）與標準 ADR 模板（Context / Decision / Consequences / Status）；不引入外部工具，純 markdown。
 - **建議方式**: 變更 → 驗證 → 部署
 - **驗收標準**:
@@ -103,7 +103,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-301: ADR-0001 MLX 整合路徑 A
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: 採用 mlx-swift-lm via Pigeon（Path A）整合 MLX；vs Path B（mlx-c FFI）/ Path C（Swift wrapper + @\_cdecl + FFI）的三方比較。
 - **建議方式**: 草稿 → 審閱 → 定稿
 - **驗收標準**:
@@ -116,7 +116,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-302: ADR-0002 Native bridge 雙軌策略
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: 為何 v0.1 同時保留 FFI（llama.cpp）與 Pigeon（MLX）兩種 native bridge，而不統一。
 - **建議方式**: 草稿 → 審閱 → 定稿
 - **驗收標準**:
@@ -128,7 +128,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-303: ADR-0003 Pigeon streaming pattern
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: Swift → Dart token-by-token streaming 的 Pigeon channel pattern；涵蓋 callback / EventChannel-like 模式選擇與取消機制。
 - **建議方式**: 草稿 → 審閱 → 定稿
 - **驗收標準**:
@@ -140,7 +140,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-304: ADR-0004 ChatTemplate 抽象化
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: 以 ChatTemplate 取代舊 PromptFormat 的抽象演進；含 Smoking Gun（舊路徑 prompt 模板行為錯誤）修復脈絡。
 - **建議方式**: 草稿 → 審閱 → 定稿
 - **驗收標準**:
@@ -152,7 +152,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-305: ADR-0005 GenerationController 與 ViewModel 邊界
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: 抽出 GenerationController 後，與 ViewModel 的責任邊界劃分。
 - **建議方式**: 草稿 → 審閱 → 定稿
 - **驗收標準**:
