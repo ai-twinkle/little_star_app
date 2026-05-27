@@ -168,7 +168,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-401: docs/development/setup.md
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: 從零起步到能跑通 dev build 的完整步驟；涵蓋 macOS / iOS 兩平台與 llama.cpp build。
 - **建議方式**: 依步驟跑一次新環境 → 記錄 → 審閱
 - **驗收標準**:
