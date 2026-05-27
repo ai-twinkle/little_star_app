@@ -75,7 +75,7 @@ EP-5 [SHOULD] API 註解 / 邊界（dartdoc + @internal）
 
 #### task-201: docs/architecture/overview.md
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅
 - **描述**: v0.1 架構總覽 + 模組參考（A1 + A3 合併）。讀者：未來維護者 / 新貢獻者。
 - **建議方式**: 大綱 → 圖 → 文字 → 審閱
 - **驗收標準**:
