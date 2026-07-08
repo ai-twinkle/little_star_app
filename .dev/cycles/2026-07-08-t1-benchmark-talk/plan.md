@@ -44,7 +44,7 @@
 
 #### task-A03: Pixel 8a 可行性快篩 + 去留判定（早做）
 - **類型**: 🔬 研究
-- **狀態**: [TODO]
+- **狀態**: [IN_PROGRESS] — protocol 定版（docs/benchmark/pixel-8a-quick-screen.md），待裝置實測
 - **描述**: 4B Q4_K_M 在 8GB RAM Android 上是否跑得動。跑得動 → 進 benchmark 矩陣；跑不動 → 試 Q3，仍不行則轉敘事素材（「4B 是旗艦機特權」）。
 - **建議方式**: 快篩 → 判定 → 記錄結論
 - **驗收標準**:
@@ -56,7 +56,7 @@
 
 #### task-B01: mlx_lm.convert 4-bit + 繁中 sanity check
 - **類型**: 🔬 研究 + 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [IN_PROGRESS] — runbook 定版（docs/benchmark/mlx-t1-conversion-runbook.md），待 Mac 執行
 - **描述**: `mlx_lm.convert` 出 4-bit 版，用與 GGUF 同一組 prompt 做繁中輸出品質對照。異常則換 8-bit 或回報社群。
 - **建議方式**: 轉換 → 同 prompt 對照 → 判定
 - **驗收標準**:
@@ -66,7 +66,7 @@
 
 #### task-B02: Twinkle org 上傳協調 + 繁中 model card
 - **類型**: ⚙️ 配置 + 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [IN_PROGRESS] — model card + 協調訊息草稿完成（drafts/），待用戶本週送出
 - **描述**: 與 Twinkle AI org 協調上傳權限，補繁中 model card。上傳時間點抓 talk 前幾天（新鮮度最高），但**協調本週就開口**（時間不可控）。
 - **建議方式**: 本週開口協調 → 撰 model card 草稿 → talk 前上傳
 - **驗收標準**:
