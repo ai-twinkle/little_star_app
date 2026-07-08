@@ -12,10 +12,13 @@
 # Apple Silicon Mac
 python3 -m venv .venv && source .venv/bin/activate
 pip install -U mlx-lm huggingface_hub
-huggingface-cli login   # 若來源 repo 需授權
+huggingface-cli login   # 必要：T1 為 gated（gemma 授權），須先在 HF 網頁接受授權再登入
 ```
 
-來源模型：Twinkle AI 官方 `gemma-3-4B-T1-it`（HF repo id 待 model card 確認；優先用官方 fp16/bf16 權重轉換，而非從 GGUF 反向轉）。
+來源模型：**`twinkle-ai/gemma-3-4B-T1-it`**（base：`google/gemma-3-4b-pt`）。
+用官方權重直接轉，不從 GGUF 反轉。
+⚠️ repo 為 **gated（gemma 授權）**：先到 https://huggingface.co/twinkle-ai/gemma-3-4B-T1-it 接受授權，
+否則 `mlx_lm.convert` 下載會 401。
 
 ---
 
@@ -24,7 +27,7 @@ huggingface-cli login   # 若來源 repo 需授權
 ```bash
 # 以官方 repo 為來源，輸出 4-bit MLX 權重
 python -m mlx_lm.convert \
-  --hf-path <twinkle-ai/gemma-3-4B-T1-it> \
+  --hf-path twinkle-ai/gemma-3-4B-T1-it \
   --mlx-path ./t1-mlx-4bit \
   -q --q-bits 4 --q-group-size 64
 ```
@@ -39,11 +42,12 @@ python -m mlx_lm.convert \
 prompt + system prompt + sampling 參數，並排比對。
 
 ```bash
+# 官方建議 sampling：temperature 0.6, top_p 0.95
 python -m mlx_lm.generate \
   --model ./t1-mlx-4bit \
   --system-prompt "你是台灣的 AI 助理，請一律使用繁體中文與台灣用語回答。" \
   --prompt "請用三句話介紹台灣夜市文化，並推薦三樣必吃小吃。" \
-  --max-tokens 256 --temp 0.7
+  --max-tokens 256 --temp 0.6 --top-p 0.95
 ```
 
 ### 判讀（對齊 prompt set 的判讀重點）

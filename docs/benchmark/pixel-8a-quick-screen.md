@@ -16,7 +16,8 @@
 
 ## 快篩步驟
 
-1. **取得權重**：拉 gemma-3-4B-T1-it-GGUF Q4_K_M（同 task-A01）。
+1. **取得權重**：拉 gemma-3-4B-T1-it 的 GGUF Q4_K_M（同 task-A01）。來源 `twinkle-ai/gemma-3-4B-T1-it`
+   的 Quantizations（llama.cpp/Ollama/LM Studio 可用）。⚠️ T1 為 **gated（gemma 授權）**，下載前需先接受授權並登入。
 2. **佈署到裝置**：透過 App 的 Model Manager 下載，或 `adb push` 到 App 模型資料夾。
 3. **冷載入測試**：App 內載入 T1，觀察是否被 Android low-memory killer 中止。
 4. **短生成測試**：跑 zh-tw-prompt-set Part 1 的 Q1、Q3（短 prompt），確認能穩定輸出不崩。

@@ -25,9 +25,11 @@
 | Q7 | 「這家餐廳 CP 值很高」是稱讚還是抱怨？為什麼台灣人常這樣說？ | 語用理解 |
 | Q8 | 請比較繁體中文和簡體中文在用詞上的三個差異，各舉一例。 | 自我一致：務必用繁體 |
 
-> ⚠️ system prompt 慣例：先查 T1 model card。若無特定慣例，建議用一句繁中定調的 system prompt
-> （例：「你是台灣的 AI 助理，請一律使用繁體中文與台灣用語回答。」）並在兩個 backend 用**完全相同**的 system prompt，
-> 否則 benchmark 對比失真（見 plan.md task-B03）。
+> ⚠️ system prompt 慣例（已查官方 model card, [twinkle-ai/gemma-3-4B-T1-it](https://huggingface.co/twinkle-ai/gemma-3-4B-T1-it)）：
+> T1 **無強制 system prompt**，官方範例的 system 只是選用（如告知知識截止日）。chat template（含 tool-calling）已內嵌於
+> `tokenizer_config` —— 這是 template 的真實來源。benchmark 為求可控，統一用一句繁中定調 system prompt
+> （建議：「你是台灣的 AI 助理，請一律使用繁體中文與台灣用語回答。」），並在兩個 backend 用**完全相同**的 system prompt，
+> 否則對比失真（見 plan.md task-B03）。Gemma 無獨立 system role，system 併入第一個 user turn（repo 內 `GemmaChatTemplate` 已如此處理）。
 
 ---
 
@@ -61,6 +63,9 @@
 - [ ] **組間降溫**（等 `thermalState` 回到 nominal 再跑下一組）
 - [ ] 固定 context 長度（依 task-A02 KV cache 實測結果拍板）
 - [ ] 兩 backend 使用**完全相同**的 system prompt 與 sampling 參數
+
+### 官方建議 sampling（T1 model card）
+`temperature = 0.6`、`top_p = 0.95`（官方範例 max_tokens 1500）。benchmark 全程固定此組，兩 backend 一致。
 
 ### 量測欄位（對齊 C01 harness）
 模型載入時間、TTFT、decode tokens/s、峰值記憶體、`ProcessInfo.thermalState`、電量取樣。

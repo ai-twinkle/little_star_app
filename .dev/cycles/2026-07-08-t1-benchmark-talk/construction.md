@@ -39,14 +39,26 @@
 
 ---
 
+## 官方 model card 已確認事實（2026-07-09，[T1 repo](https://huggingface.co/twinkle-ai/gemma-3-4B-T1-it)）
+
+- 來源 repo：`twinkle-ai/gemma-3-4B-T1-it`；base：`google/gemma-3-4b-pt`
+- 授權：gemma，**HF gated** → 下載/轉換前需接受授權並登入（影響 A01/A03/B01）
+- 語言：繁中 + 英文；聚焦台灣人文社會（法律/教育/對話）
+- system prompt：**無強制**，官方範例為選用 → benchmark 統一用一句台灣定調 system prompt
+- 官方 sampling：`temperature 0.6`、`top_p 0.95`（範例 max_tokens 1500）→ 已寫入 prompt set / runbook
+- chat template（含 **tool-calling**）內嵌於 `tokenizer_config` = template 真實來源
+- context length：card 未載明（Gemma 3 4B 通常長 context，端側需自限；待 A02 依 KV cache 拍板）
+
+⚠️ **A01/B03 注意**：repo 內 `GemmaChatTemplate` 是「純對話」Gemma 模板；T1 官方模板含 tool-calling 結構。
+本次 benchmark/demo 走純對話，純模板即可；但跨 backend 一致性測試（B03）應以 `tokenizer_config` 的官方模板為對照基準。
+
 ## 待用戶回填（回來後回寫此檔 + plan.md 狀態）
 
 | 來源 | 待回填 |
 |------|--------|
 | A03 | Pixel 8a 記憶體實測數字 + 去留判定 |
-| A01/B02 | T1 官方來源 repo id + system prompt 慣例 |
 | B01 | 4-bit vs GGUF 繁中對照結果（達標 / 換 8-bit / 回報） |
-| B02 | 協調請求送出日 + 上傳排程 |
+| B02 | write 權限取得 + 協調請求送出日 + 上傳排程 |
 
 ---
 
@@ -55,4 +67,5 @@
 | 日期 | 提交 | 內容 |
 |------|------|------|
 | 2026-07-08 | `704f9f1` | docs(workflow): 開循環（exploration + plan） |
-| 2026-07-08 | (本次) | benchmark prompt set + B01/A03 runbook + B02 drafts |
+| 2026-07-08 | `98a5985` | benchmark prompt set + B01/A03 runbook + B02 drafts |
+| 2026-07-09 | (本次) | 回填官方 model card 事實（base/gated/sampling/template）到 4 份文件 |

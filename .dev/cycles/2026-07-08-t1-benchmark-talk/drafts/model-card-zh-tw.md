@@ -2,7 +2,8 @@
 license: gemma
 language:
   - zh
-base_model: twinkle-ai/gemma-3-4B-T1-it   # ⚠️ 待 B02 向 org 確認正確 repo id
+  - en
+base_model: twinkle-ai/gemma-3-4B-T1-it   # T1 的 base 為 google/gemma-3-4b-pt
 tags:
   - mlx
   - gemma3
@@ -13,11 +14,12 @@ pipeline_tag: text-generation
 
 # gemma-3-4B-T1-it — MLX 4-bit（繁體中文 Model Card）
 
-> ⚠️ 草稿（task-B02）。上傳前需回填：正確 base_model repo id、實測數據、授權連結、system prompt 慣例。
+> ⚠️ 草稿（task-B02）。上傳前需回填：實測 benchmark 數據、權重大小。
 
-本模型是 [Twinkle AI](https://huggingface.co/twinkle-ai) `gemma-3-4B-T1-it`（Gemma 3 繁體中文微調）的
+本模型是 [Twinkle AI](https://huggingface.co/twinkle-ai) [`gemma-3-4B-T1-it`](https://huggingface.co/twinkle-ai/gemma-3-4B-T1-it)
+（以 `google/gemma-3-4b-pt` 為底、聚焦繁體中文與台灣人文社會脈絡的指令微調）的
 **MLX 4-bit 量化版**，透過 [`mlx-lm`](https://github.com/ml-explore/mlx-examples) 轉換，供 Apple Silicon
-裝置（iPhone / iPad / Mac）端側推論使用。
+裝置（iPhone / iPad / Mac）端側推論使用。原模型支援繁體中文與英文，涵蓋法律、教育、對話等台灣情境應用。
 
 ## 用途
 
@@ -31,8 +33,9 @@ from mlx_lm import load, generate
 
 model, tokenizer = load("twinkle-ai/gemma-3-4B-T1-it-MLX-4bit")
 prompt = "請用三句話介紹台灣夜市文化，並推薦三樣必吃小吃。"
-# 建議 system prompt（待官方 model card 確認）：
+# system prompt 為選用（原模型無強制慣例）。建議台灣情境定調：
 #   你是台灣的 AI 助理，請一律使用繁體中文與台灣用語回答。
+# 官方建議 sampling：temperature 0.6, top_p 0.95
 print(generate(model, tokenizer, prompt=prompt, max_tokens=256))
 ```
 
