@@ -2,42 +2,81 @@
 
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
-> 狀態：🔄 進行中 — A03 / B01 / B02 早期關卡啟動
-> 最後更新：2026-07-09（Windows 開發機；素材已備齊，等實體資源執行）
+> 狀態：🔄 進行中 — A03 / B01 done；B02 待用戶動作；**新發現一個 P0 crash bug 待處理**
+> 最後更新：2026-07-10（Apple Silicon Mac + 實體 Pixel 8a 執行完畢）
 
 ---
 
 ## 🔀 接手快照（換開發環境時先讀這段）
 
-**目前為止**：循環已開，探索/定義完成，A03/B01/B02 的「可在無裝置環境備妥的資產」已全部產出並提交
-（commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card）。三件事都卡在**實體資源**，需在有 Mac /
-Pixel 8a / HF gated 登入的環境執行。
+**目前為止**：B01（MLX 4-bit 轉換 + 繁中 sanity check）與 A03（Pixel 8a 快篩）皆已在實體資源上執行完成，
+判定皆為「達標 / 進矩陣」。過程中發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確
+終止問題（task-B03 待修），以及一個 **llama.cpp Android backend 專屬的 P0 crash bug**：
+`nBatch` 硬編碼 512、無截斷/分批邏輯，累積對話一旦超過 512 token 就會原生崩潰（`GGML_ASSERT` → `SIGABRT`）。
+這會直接命中 C02/C05 的 L512/L1024/L2048 prompt tier，**建議在 C02 開工前先修**（詳見下方 task-A03 段落）。
 
-**前置（一次性）**：到 https://huggingface.co/twinkle-ai/gemma-3-4B-T1-it 接受 gemma 授權，`huggingface-cli login`。
+commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
+（本次）A03 完成 + crash bug 記錄。
 
-**三條待執行線（照文件跑，跑完回寫「待用戶回填」表 + plan.md 狀態）**：
-
-| 任務 | 環境 | 照這份文件執行 | 回填什麼 |
-|------|------|----------------|----------|
-| B02 org 協調 | 任意（送訊息） | [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) | 送出日 + write 權限結果 |
-| B01 MLX 轉換 | **Apple Silicon Mac** | [docs/benchmark/mlx-t1-conversion-runbook.md](../../../docs/benchmark/mlx-t1-conversion-runbook.md) | 4-bit vs GGUF 繁中對照結果 |
-| A03 Pixel 快篩 | **實體 Pixel 8a** | [docs/benchmark/pixel-8a-quick-screen.md](../../../docs/benchmark/pixel-8a-quick-screen.md) | 記憶體數字 + 去留判定 |
+**還剩**：
+| 任務 | 狀態 | 下一步 |
+|------|------|--------|
+| B02 org 協調 | 待用戶本人動作 | 本週送出 [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) 的協調訊息 |
+| ⚠️ nBatch 溢位 crash | 新發現，未修 | 修 `lib/core/inference/llama_cpp_backend.dart` / `llama_cpp_ffi.dart` 的 prompt 分批或長度防護，建議插在 C02 前 |
+| A01 | 尚未動 | T1 GGUF 進 llama.cpp backend 驗 template（可與上面 crash bug 修復一起做） |
+| A02 | 尚未動 | iPhone 記憶體/context 長度決定 |
+| C 線 harness | 尚未動 | C01 先動（不卡裝置），但 C02 執行前必須先解掉 nBatch crash |
+| D 線 | 尚未動 | 待 A/B/C 完成 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
 （sampling 固定 temp 0.6 / top_p 0.95）。
-
-**尚未動的**：A01（T1 GGUF 進 llama.cpp backend 驗 template）、A02（iPhone 記憶體/context）、C 線 harness、D 線。
-下一個純軟體、不卡裝置可推進的是 **C01（harness 埋量測 TDD）**。
 
 ---
 
 ## 進行中任務
 
-### task-A03: Pixel 8a 可行性快篩 — [IN_PROGRESS]
+### task-A03: Pixel 8a 可行性快篩 — [DONE] ✅ 2026-07-10（附帶一個需優先處理的新發現）
 - ✅ 快篩 protocol 定版 → [docs/benchmark/pixel-8a-quick-screen.md](../../../docs/benchmark/pixel-8a-quick-screen.md)
 - ✅ 判定表（進矩陣 / 降 Q3 / 轉敘事）三分支皆對應 talk 素材
-- ⏳ **需在裝置執行**（Windows 主機無法代跑）：拉 Q4_K_M → App/adb 佈署 → 冷載入 + 短生成 + `dumpsys meminfo`
-- ⚠️ 判定要早（7/8–7/11）
+- ✅ **已在實體 Pixel 8a（Android 16, 8GB RAM）執行**：Q4_K_M 透過 `adb push` 佈署到
+  `/storage/emulated/0/Download/LittleStar/models/`（app 以目錄掃描方式發現模型，任意檔名皆可，
+  無需比對推薦清單），MD5 校驗與來源檔一致。
+- **記憶體結果**：
+  | 階段 | App PSS | App RSS | 系統 MemAvailable |
+  |------|---------|---------|-------------------|
+  | 冷啟動（未載模型） | ~0.16 GB | ~0.30 GB | — |
+  | Run 1 冷載入 + 生成（單輪） | 峰值 2.81 GB | 2.96 GB | ~3.42 GB |
+  | Run 2 續第二輪對話 | 峰值 2.85 GB | 3.00 GB | ~3.42 GB |
+  | Run 4（重啟後單輪） | 峰值 3.14 GB | 3.28 GB | ~3.47 GB |
+
+  裝置總 RAM 7.75GB，全程系統可用記憶體維持在 3.4+ GB，**無 OOM / low-memory-killer 介入**（logcat 確認）。
+  純記憶體角度：✅ **進矩陣**。
+- **穩定性**：3 次成功冷/暖生成（Run1/Run2/Run4），繁中/英文 prompt 皆输出連貫、有 Taiwan 語境內容
+  （蚵仔煎/鹽酥雞/珍珠奶茶等在地小吃正確列出）。
+
+- ⚠️ **新發現（P0，建議優先於 C02/C05 處理）：llama.cpp Android backend 有未防護的 context/batch 溢位崩潰**。
+  Run 3（第三輪對話，累積 prompt token 數達 538）觸發原生 crash：
+  `GGML_ASSERT(n_tokens_all <= cparams.n_batch)` → `ggml_abort` → `SIGABRT`，整個 App 行程被系統回收
+  （非記憶體不足，是斷言失敗）。追查結果：
+  - 目前分支 `lib/core/inference/llama_cpp_backend.dart:126-131` 已把 `nCtx` 由舊碼的 512 提高到 2048，
+    但 **`nBatch` 仍硬編碼 512**，且 Dart FFI 層（`llama_cpp_ffi.dart`）從頭到尾**沒有任何長度檢查、截斷、
+    sliding window 或分批 decode 邏輯** —— 任何單次 tokenized prompt（含累積對話歷史）超過 512 token，
+    llama.cpp 原生層會直接 `abort()`，Dart 端的錯誤處理（`if (llama_decode(...) != 0)`）完全來不及攔截。
+  - **這會直接命中 zh-tw-prompt-set Part 2 的 L512/L1024/L2048 tier** —— C02/C05 在 Android/llama.cpp
+    backend 上跑這些 tier 幾乎必定崩潰，不是裝置差異，是全平台適用的 code 層級 bug。
+  - iOS/MLX 側目前沒有等價的固定 context 硬上限（`mlx_channel.dart` 僅設 `maxTokens` 生成上限，非 KV cache
+    上限），此崩潰模式初判為 **Android/llama.cpp backend 專屬**，但長對話下的記憶體/效能劣化仍可能存在，
+    需 A02 一併留意。
+  - **建議**：在 C02（harness）動工前，於 A01 或另立任務修正 llama.cpp FFI 層的 prompt 分批/截斷邏輯
+    （或至少讓 harness 在送出前用 tokenizer 檢查長度、超過 n_batch 就攔下不送），否則效能矩陣的
+    L512 以上 tier 在 Android 端會全數失敗。已回寫 plan.md 風險表。
+
+- 另外也在 Run1/Run2 觀察到與 B01 相同的 **stop-token 未正確終止**現象（回應尾端出現
+  `<|assistant|>` 加一段偽造的下一輪使用者發言），確認這是**跨兩個 backend 共通**的 template/EOS
+  設定問題，非個別 backend 特有，強化 task-B03 的優先度。
+
+- **判定：Q4_K_M 可穩定載入 + 生成 → ✅ 進矩陣**（記憶體面向），
+  但矩陣執行前必須先解決 nBatch 溢位崩潰，否則長 prompt tier 無法完整跑完。
 
 ### task-B01: MLX 4-bit 轉換 + 繁中 sanity check — [DONE] ✅ 2026-07-09
 - ✅ 轉換 + sanity check runbook 定版 → [docs/benchmark/mlx-t1-conversion-runbook.md](../../../docs/benchmark/mlx-t1-conversion-runbook.md)
@@ -106,9 +145,9 @@ Q3 的地名瑕疵屬個案幻覺，非系統性問題，記錄供 D02 demo 選�
 
 | 來源 | 待回填 |
 |------|--------|
-| A03 | Pixel 8a 記憶體實測數字 + 去留判定（等待裝置透過 USB 連接，adb 尚未偵測到） |
+| A03 | ✅ 已完成，見上方（含新發現的 nBatch 溢位崩潰，需優先處理） |
 | B01 | ✅ 已完成，見上方判定表 |
-| B02 | write 權限取得 + 協調請求送出日 + 上傳排程 |
+| B02 | write 權限取得 + 協調請求送出日 + 上傳排程（用戶待辦，本檔未變動） |
 
 ---
 
