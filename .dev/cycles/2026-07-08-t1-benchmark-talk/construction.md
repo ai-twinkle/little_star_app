@@ -3,6 +3,31 @@
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
 > 狀態：🔄 進行中 — A03 / B01 / B02 早期關卡啟動
+> 最後更新：2026-07-09（Windows 開發機；素材已備齊，等實體資源執行）
+
+---
+
+## 🔀 接手快照（換開發環境時先讀這段）
+
+**目前為止**：循環已開，探索/定義完成，A03/B01/B02 的「可在無裝置環境備妥的資產」已全部產出並提交
+（commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card）。三件事都卡在**實體資源**，需在有 Mac /
+Pixel 8a / HF gated 登入的環境執行。
+
+**前置（一次性）**：到 https://huggingface.co/twinkle-ai/gemma-3-4B-T1-it 接受 gemma 授權，`huggingface-cli login`。
+
+**三條待執行線（照文件跑，跑完回寫「待用戶回填」表 + plan.md 狀態）**：
+
+| 任務 | 環境 | 照這份文件執行 | 回填什麼 |
+|------|------|----------------|----------|
+| B02 org 協調 | 任意（送訊息） | [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) | 送出日 + write 權限結果 |
+| B01 MLX 轉換 | **Apple Silicon Mac** | [docs/benchmark/mlx-t1-conversion-runbook.md](../../../docs/benchmark/mlx-t1-conversion-runbook.md) | 4-bit vs GGUF 繁中對照結果 |
+| A03 Pixel 快篩 | **實體 Pixel 8a** | [docs/benchmark/pixel-8a-quick-screen.md](../../../docs/benchmark/pixel-8a-quick-screen.md) | 記憶體數字 + 去留判定 |
+
+**共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
+（sampling 固定 temp 0.6 / top_p 0.95）。
+
+**尚未動的**：A01（T1 GGUF 進 llama.cpp backend 驗 template）、A02（iPhone 記憶體/context）、C 線 harness、D 線。
+下一個純軟體、不卡裝置可推進的是 **C01（harness 埋量測 TDD）**。
 
 ---
 
