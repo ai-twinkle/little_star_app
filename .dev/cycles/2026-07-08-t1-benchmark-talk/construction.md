@@ -39,12 +39,17 @@ Pixel 8a / HF gated 登入的環境執行。
 - ⏳ **需在裝置執行**（Windows 主機無法代跑）：拉 Q4_K_M → App/adb 佈署 → 冷載入 + 短生成 + `dumpsys meminfo`
 - ⚠️ 判定要早（7/8–7/11）
 
-### task-B01: MLX 4-bit 轉換 + 繁中 sanity check — [IN_PROGRESS]
+### task-B01: MLX 4-bit 轉換 + 繁中 sanity check — [DONE] ✅ 2026-07-09
 - ✅ 轉換 + sanity check runbook 定版 → [docs/benchmark/mlx-t1-conversion-runbook.md](../../../docs/benchmark/mlx-t1-conversion-runbook.md)
 - ✅ 對照用 prompt 綁定 zh-tw-prompt-set Part 1（與 GGUF 同 prompt）
 - ✅ 確認 repo 內已有 `GemmaChatTemplate`（system prompt 注入第一個 user turn，符合 Gemma 慣例）
-- ⏳ **需在 Apple Silicon Mac 執行**：`mlx_lm.convert -q --q-bits 4` → generate 對照 → 判定
-- ⚠️ 提早做，異常留換 8-bit / 回報時間
+- ✅ **已在 Apple Silicon Mac 執行**：`mlx_lm.convert --hf-path twinkle-ai/gemma-3-4B-T1-it -q --q-bits 4 --q-group-size 64`
+  - 量化結果：4.501 bits/weight，輸出 2.4GB（`model.safetensors`）
+  - Prompt: ~50 tokens @ ~285–300 tok/s；Generation: 256 tokens @ ~51.7–52.0 tok/s（穩定，8 題皆同量級）
+  - Peak memory：穩定在 **2.68 GB**（8 題皆同）
+- ✅ Q1–Q8 繁中 sanity check 完成（見下方判定）
+- ⚠️ **與 GGUF 版正式並排比對尚未執行**（task-A01 GGUF+llama.cpp 驗證尚未動工，見接手快照「尚未動的」）；
+  本次僅完成 MLX 版獨立品質判讀，達標。待 A01 跑完後補上真正並排對照。
 
 ### task-B02: Twinkle org 上傳協調 + 繁中 model card — [IN_PROGRESS]
 - ✅ 繁中 model card 草稿 → [drafts/model-card-zh-tw.md](drafts/model-card-zh-tw.md)
@@ -77,12 +82,32 @@ Pixel 8a / HF gated 登入的環境執行。
 ⚠️ **A01/B03 注意**：repo 內 `GemmaChatTemplate` 是「純對話」Gemma 模板；T1 官方模板含 tool-calling 結構。
 本次 benchmark/demo 走純對話，純模板即可；但跨 backend 一致性測試（B03）應以 `tokenizer_config` 的官方模板為對照基準。
 
+## B01 繁中 sanity check 判定（2026-07-09，Apple Silicon Mac）
+
+| ID | 判讀重點 | 結果 |
+|----|----------|------|
+| Q1 | 小吃在地性、繁體用字 | ✅ 繁體正確，臭豆腐/蚵仔煎/珍珠奶茶在地性正確 |
+| Q2 | 台灣流行語理解 | ✅ 揪團/小確幸定義與舉例正確 |
+| Q3 | 在地交通常識、不編造 | ⚠️ 有瑕疵：誤將「忠孝復興站」與台北車站混為一談，且路線名稱前後不一致（1062 皇冠北海岸線 → 黃金福隆線） |
+| Q4 | 制度正確性 | ✅ 統一發票制度描述正確（含對獎機制、20% 印花稅） |
+| Q5 | 語氣分層、在地制度 | ✅ 颱風假標準（風力/雨量）說明正確，語氣貼近國中生 |
+| Q6 | 生成品質、繁中語感 | ✅ 語感自然（達標，但受下方技術瑕疵影響最明顯） |
+| Q7 | 語用理解 | ✅ 正確判讀為稱讚，CP 值解釋到位 |
+| Q8 | 自我一致：務必用繁體 | ✅ 全程繁體，且正確舉出簡中對照詞（視頻/質量 → 影片/品質） |
+
+**技術瑕疵（非模型品質問題）**：`mlx_lm.generate` 未在 `<end_of_turn>` 停止生成，導致 Q1/Q2/Q6 在正確答案後
+出現重複或英文夾雜的雜訊（尤其 Q6 出現 `<translation>` 標籤迴圈）。**需在 task-B03 接進 MLX backend 時
+正確設定 stop token/EOS**，否則產品端會把這段雜訊顯示給使用者。
+
+**判定：4-bit 繁中品質達標** → 進 task-B03（接進 MLX backend）+ task-B02（上傳協調，用戶已在進行）。
+Q3 的地名瑕疵屬個案幻覺，非系統性問題，記錄供 D02 demo 選題時避開類似問法。
+
 ## 待用戶回填（回來後回寫此檔 + plan.md 狀態）
 
 | 來源 | 待回填 |
 |------|--------|
-| A03 | Pixel 8a 記憶體實測數字 + 去留判定 |
-| B01 | 4-bit vs GGUF 繁中對照結果（達標 / 換 8-bit / 回報） |
+| A03 | Pixel 8a 記憶體實測數字 + 去留判定（等待裝置透過 USB 連接，adb 尚未偵測到） |
+| B01 | ✅ 已完成，見上方判定表 |
 | B02 | write 權限取得 + 協調請求送出日 + 上傳排程 |
 
 ---

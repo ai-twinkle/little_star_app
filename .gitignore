@@ -4,6 +4,9 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Benchmark cycle scratch workspace (model weights, venvs — not source)
+.dev/cycles/**/mlx-workspace/
 .atom/
 .build/
 .buildlog/

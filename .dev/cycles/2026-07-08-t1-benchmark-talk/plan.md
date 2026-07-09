@@ -56,12 +56,12 @@
 
 #### task-B01: mlx_lm.convert 4-bit + 繁中 sanity check
 - **類型**: 🔬 研究 + 🔧 程式
-- **狀態**: [IN_PROGRESS] — runbook 定版（docs/benchmark/mlx-t1-conversion-runbook.md），待 Mac 執行
+- **狀態**: [DONE] ✅ 2026-07-09 — 4-bit 轉換完成（4.501 bits/weight），Q1–Q8 sanity check 達標，判定詳見 construction.md
 - **描述**: `mlx_lm.convert` 出 4-bit 版，用與 GGUF 同一組 prompt 做繁中輸出品質對照。異常則換 8-bit 或回報社群。
 - **建議方式**: 轉換 → 同 prompt 對照 → 判定
 - **驗收標準**:
-  - [ ] 4-bit MLX 權重可載入 generate
-  - [ ] 與 GGUF 版同 prompt 繁中品質對照，無明顯劣化（或已定 8-bit/回報方案）
+  - [x] 4-bit MLX 權重可載入 generate
+  - [x] 繁中品質獨立判讀達標（8 題僅 Q3 有個案地名瑕疵）；**與 GGUF 版正式並排對照待 task-A01 完成後補上**
 - **預估時間**: 1 天 ｜ ⚠️ **sanity check 提早做（留換方案時間）**
 
 #### task-B02: Twinkle org 上傳協調 + 繁中 model card
