@@ -2,32 +2,36 @@
 
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
-> 狀態：🔄 進行中 — A03 / B01 done；nBatch crash **已修復並在實機驗證**；B02 待用戶動作
+> 狀態：🔄 進行中 — A01 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；B02 待用戶動作
 > 最後更新：2026-07-10（Apple Silicon Mac + 實體 Pixel 8a 執行完畢）
 
 ---
 
 ## 🔀 接手快照（換開發環境時先讀這段）
 
-**目前為止**：B01（MLX 4-bit 轉換 + 繁中 sanity check）與 A03（Pixel 8a 快篩）皆已在實體資源上執行完成，
-判定皆為「達標 / 進矩陣」。過程中發現並**當場修復**了一個 **llama.cpp Android backend 的 P0 crash bug**：
-`nBatch` 硬編碼 512、無截斷/分批邏輯，累積對話一旦超過 512 token 就會原生崩潰（`GGML_ASSERT` → `SIGABRT`）。
-修復方式：prompt 改成依 `llama_n_batch(ctx)` 分批 decode，詳見下方「nBatch 溢位崩潰修復」章節。
-**已用同一組會觸發舊崩潰的 3 輪對話在實機重建 + 重跑驗證，確認不再崩潰。**
+**目前為止**：A01（GGUF+template 驗證）、B01（MLX 4-bit 轉換 + 繁中 sanity check）、A03（Pixel 8a 快篩）
+皆已在實體資源上執行完成，判定皆為「達標」。過程中發現並**當場修復**了一個 **llama.cpp Android backend
+的 P0 crash bug**：`nBatch` 硬編碼 512、無截斷/分批邏輯，累積對話一旦超過 512 token 就會原生崩潰
+（`GGML_ASSERT` → `SIGABRT`）。修復方式：prompt 改成依 `llama_n_batch(ctx)` 分批 decode，詳見下方
+「nBatch 溢位崩潰修復」章節。**已用同一組會觸發舊崩潰的 3 輪對話在實機重建 + 重跑驗證，確認不再崩潰。**
+
+A01 另外釐清了一個容易誤解的細節：llama.cpp backend 實際上**不執行** GGUF 內嵌的完整 Jinja 模板，
+而是用字串偵測+寫死格式化（legacy API），但純對話情境下語意與官方模板等價，已驗證無虞
+（工具呼叫情境有已知落差，本輪不需要）。
 
 另外還發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確終止問題（task-B03 待修，
-非阻塞性，僅影響輸出尾端有雜訊）。
+非阻塞性，僅影響輸出尾端有雜訊；A01 這輪測試反而沒重現，可能與對話輪數/長度有關，留意但不升級為阻塞項）。
 
 commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
-`1261d39` A03 完成 + crash bug 記錄、（本次）nBatch crash 修復 + 實機驗證。
+`1261d39` A03 完成 + crash bug 記錄、`1394e46` nBatch crash 修復 + 實機驗證、（本次）A01 完成。
 
 **還剩**：
 | 任務 | 狀態 | 下一步 |
 |------|------|--------|
 | B02 org 協調 | 待用戶本人動作 | 本週送出 [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) 的協調訊息 |
 | ~~nBatch 溢位 crash~~ | ✅ 已修復並實機驗證 | — |
+| ~~A01~~ | ✅ 已完成 | — |
 | task-B03 stop-token | 尚未動 | 兩 backend 加正確 EOS/stop token 設定 |
-| A01 | 尚未動 | T1 GGUF 進 llama.cpp backend 驗 template |
 | A02 | 尚未動 | iPhone 記憶體/context 長度決定 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -125,6 +129,50 @@ commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card�
   （KV cache 滿），現有 Dart 錯誤處理已經接得住（`if (llama_decode(...) != 0) { ...; break; }`），
   不會崩潰，因此不在本次「修 nBatch 崩潰」的範圍內；但長 context 的使用者體驗（例如更明確的
   「對話過長」提示）仍可留給 A02/C02 一併考慮。
+
+### task-A01: 拉官方 T1 GGUF + chat template 驗證 — [DONE] ✅ 2026-07-10
+
+- ✅ **權重載入/生成**：Q4_K_M 已在 llama.cpp backend（實體 Pixel 8a）反覆載入並成功生成
+  （沿用 task-A03 + nBatch 修復驗證時的同一份權重與部署）。
+
+- ✅ **chat template 套用正確性**（GGUF 內嵌 template vs 官方 template vs 實際套用邏輯）：
+  1. 用 Python `gguf` 套件從 `twinkle-ai-gemma-3-4b-t1-it-q4_k_m.gguf` 抓出
+     `tokenizer.chat_template` metadata，`diff` 與官方 repo 的 `tokenizer_config.json`/
+     `chat_template.jinja`（B01 下載時已取得）——**逐 byte 完全一致（4280 bytes）**。
+     社群 GGUF 轉換忠實保留了官方模板（含 tool-calling 結構）。
+  2. **但**追查 vendored `llama.cpp/src/llama.cpp:467` 的 `llama_chat_apply_template()`
+     （app 實際呼叫的 API）發現：它**不會執行**模型內嵌的完整 Jinja 模板，而是呼叫
+     `llm_chat_detect_template()`（`llama-chat.cpp:88`）用字串比對偵測「模板家族」，
+     偵測到含 `<start_of_turn>` 子字串就判定為 `LLM_CHAT_TEMPLATE_GEMMA`，接著用
+     **寫死的 C++ 格式化邏輯**（`llama-chat.cpp:375-396`）產生輸出，完全略過真正的
+     Jinja 條件邏輯。
+  3. 逐行比對寫死的 GEMMA 格式化邏輯 vs 官方模板的「無 tools」分支（`gguf-chat-template.jinja`
+     第 84-121 行）：**純對話情境下語意完全等價**——system prompt 併入第一個 user turn
+     （`{content}\n\n`），`assistant`→`model` role 改名，`<start_of_turn>{role}\n...
+     <end_of_turn>\n` 輪次標記皆正確，`add_generation_prompt`/`add_ass` 皆補上
+     `<start_of_turn>model\n`。BOS token 由 `llama_tokenize(..., add_special=true)` 在
+     tokenizer 層處理，非重複疊加，屬正常 llama.cpp 用法。
+  4. ⚠️ **已知限制（明確排除在本次範圍外）**：若情境含 `tools`，寫死的 GEMMA 格式化器**不會**
+     重現官方模板的 `<tools>`/`<tool_call>`/`<tool_response>` XML 協定，會直接把系統/工具內容當
+     一般文字處理。本次 benchmark/demo 走純對話（見接手快照與官方 model card 事實段落），
+     純模板已驗證正確；工具呼叫路徑若未來要用，需另外評估（可能需改用 llama.cpp 較新的
+     minja-based `common_chat_templates_apply`，而非現在用的 legacy API）。
+
+- ✅ **繁中輸出品質人工判讀**：先前 A03 因 `adb shell input text` 對 CJK 字元丟
+  `NullPointerException`，只能用英文對應句測試。本次徵得用戶同意，安裝
+  [senzhk/ADBKeyBoard](https://github.com/senzhk/ADBKeyBoard)（開源 ADB Unicode 輸入 IME，
+  透過 `ADB_INPUT_B64` broadcast intent 送出 base64 編碼文字）解決，實際送出 zh-tw-prompt-set
+  Part 1 的 Q1、Q3：
+  - Q1（夜市文化+推薦小吃）：繁體用字正確、鹽酥雞/蚵仔煎/珍珠奶茶描述在地且準確，乾淨結束
+    （這次**沒有**出現 B01/A03 觀察到的 stop-token 溢出雜訊）。
+  - Q3（台北車站→九份交通）：**火車轉公車（台鐵台北→瑞芳 + 基隆客運1062瑞芳→九份）路線正確**，
+    這次**沒有**重現 B01 MLX 版測同題時的「忠孝復興站」地名混淆——單次抽樣，非嚴謹統計比較，
+    但方向上顯示 llama.cpp backend 在這題上的表現不劣於 MLX 版。
+  - 小瑕疵：回應中出現 `$\rightarrow$`（LaTeX 語法字面重現，未渲染成箭頭符號）——屬 UI
+    markdown 渲染細節，非模型內容問題，記錄供 D 線 demo 畫面留意。
+
+- **判定：三項驗收標準皆達標** → A01 完成。GGUF 忠實保留官方模板，llama.cpp 實際套用邏輯在
+  純對話情境下語意等價（工具呼叫情境有已知落差，本輪不需要）；繁中輸出品質經人工判讀達標。
 
 ### task-B01: MLX 4-bit 轉換 + 繁中 sanity check — [DONE] ✅ 2026-07-09
 - ✅ 轉換 + sanity check runbook 定版 → [docs/benchmark/mlx-t1-conversion-runbook.md](../../../docs/benchmark/mlx-t1-conversion-runbook.md)

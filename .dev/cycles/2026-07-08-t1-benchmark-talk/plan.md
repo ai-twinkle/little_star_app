@@ -22,13 +22,16 @@
 
 #### task-A01: 拉官方 T1 GGUF + chat template 驗證
 - **類型**: 🔬 研究 + ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-07-10
 - **描述**: 拉 gemma-3-4B-T1-it-GGUF Q4_K_M，查 model card 的 system prompt 慣例（Gemma 3 template 特性），確認在 Little Star llama.cpp backend 下 template 套用正確。
 - **建議方式**: 調查 model card → 配置 → 繁中輸出驗證
 - **驗收標準**:
-  - [ ] Q4_K_M 權重可在 llama.cpp backend 載入並 generate
-  - [ ] chat template（含 T1/Gemma 3 特定 system prompt 慣例）套用正確
-  - [ ] 一組繁中 prompt 輸出品質經人工判讀達標
+  - [x] Q4_K_M 權重可在 llama.cpp backend 載入並 generate
+  - [x] chat template 套用正確：GGUF 內嵌模板與官方 tokenizer_config 逐 byte一致；llama.cpp
+        實際呼叫的 legacy `llama_chat_apply_template` 不執行完整 Jinja，改用字串偵測+寫死格式化，
+        但純對話情境下語意與官方模板等價（system 併入首個 user turn、輪次標記正確）。
+        工具呼叫情境有已知落差，本輪不需要，記錄供未來參考
+  - [x] 繁中 prompt（Q1/Q3，透過 ADBKeyBoard 送出真實 CJK）輸出品質人工判讀達標
 - **預估時間**: 1 天
 
 #### task-A02: iPhone 17 Pro 記憶體驗證 + context 長度決定
