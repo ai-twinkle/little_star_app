@@ -1,6 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:ffi/ffi.dart';
 
 import '../../platform/native_library_loader.dart';
@@ -500,6 +501,7 @@ class LlamaCppFFI {
   ffi.Pointer<llama_context>? _context;
   ffi.Pointer<llama_sampler>? _sampler;
   llama_batch? _batch;
+  ffi.Pointer<llama_token>? _promptTokens;
   bool logVerbose = false;
   
   ffi.Pointer<llama_model>? get model => _model;
@@ -803,12 +805,44 @@ class LlamaCppFFI {
       // Free the prompt memory now that we're done with it
       malloc.free(promptUtf8);
 
-      _batch = llama_batch_get_one(tokens, nPrompt);
+      // Keep the raw token buffer around — it's consumed in chunks (each no
+      // larger than the context's n_batch) by _prefillPrompt, rather than
+      // handed to llama_decode as a single oversized batch. llama_decode
+      // hard-aborts the process (GGML_ASSERT) if a batch exceeds n_batch,
+      // so any prompt longer than n_batch tokens would otherwise crash.
+      _promptTokens = tokens;
       return nPrompt;
     } catch (e) {
       log.error('Error tokenizing prompt: $e');
       return 0;
     }
+  }
+
+  /// Decodes [nPrompt] tokens from [_promptTokens] in chunks that each
+  /// respect the context's configured n_batch, so no single llama_decode
+  /// call ever receives more tokens than the context can accept.
+  ///
+  /// Returns true once the whole prompt has been decoded, false if any
+  /// chunk fails (logged; caller should abort generation).
+  bool _prefillPrompt(int nPrompt) {
+    final promptTokens = _promptTokens;
+    if (promptTokens == null || promptTokens == ffi.nullptr) {
+      log.warn('No prompt tokens to prefill');
+      return false;
+    }
+
+    final nBatchLimit = llama_n_batch(_context!);
+    int pos = 0;
+    while (pos < nPrompt) {
+      final chunkSize = math.min(nBatchLimit, nPrompt - pos);
+      _batch = llama_batch_get_one(promptTokens + pos, chunkSize);
+      if (llama_decode(_context!, _batch!) != 0) {
+        log.error('Error: failed to decode prompt chunk at pos $pos (size $chunkSize)');
+        return false;
+      }
+      pos += chunkSize;
+    }
+    return true;
   }
 
   // Create context for inference
@@ -907,18 +941,13 @@ class LlamaCppFFI {
         return '';
       }
 
-      if (_batch == null || _batch == ffi.nullptr) {
-        log.warn('Batch not initialized');
+      if (_promptTokens == null || _promptTokens == ffi.nullptr) {
+        log.warn('Prompt not tokenized');
         return '';
       }
 
       if (_sampler == null || _sampler == ffi.nullptr) {
         log.warn('Sampler not initialized');
-        return '';
-      }
-
-      if (_context == null || _context == ffi.nullptr) {
-        log.warn('Context not initialized');
         return '';
       }
 
@@ -932,11 +961,10 @@ class LlamaCppFFI {
       // Print prompt tokens
       for (int i = 0; i < nPrompt; i++) {
         final buf = malloc<ffi.Char>(128);
-        int n = llama_token_to_piece(vocab, _batch!.token[i], buf, 128, 0, true);
+        int n = llama_token_to_piece(vocab, (_promptTokens! + i).value, buf, 128, 0, true);
         if (n < 0) {
           log.error("error: failed to convert token to piece");
           malloc.free(buf);
-          malloc.free(_batch!.token);
           return '';
         }
         String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
@@ -944,19 +972,18 @@ class LlamaCppFFI {
         malloc.free(buf);
       }
 
-      // Main generation loop
+      // Decode the prompt in chunks no larger than n_batch before sampling —
+      // a single oversized llama_decode call hard-aborts the process.
+      if (!_prefillPrompt(nPrompt)) {
+        return '';
+      }
+
+      // Main generation loop — one new token decoded per iteration.
       final sb = StringBuffer();
       int newTokenId;
       final tokenPtr = malloc<llama_token>();
 
-      for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
-        if (llama_decode(_context!, _batch!) != 0) {
-          log.error("Error: failed to decode batch");
-          break;
-        }
-
-        nPos += _batch!.n_tokens;
-
+      for (int nPos = nPrompt; nPos < nPrompt + maxTokens; nPos++) {
         // Sample next token
         newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
 
@@ -980,9 +1007,13 @@ class LlamaCppFFI {
         sb.write(piece);
         malloc.free(buf);
 
-        // Prepare next batch
+        // Decode the sampled token so the next iteration can sample its successor.
         tokenPtr.value = newTokenId;
         _batch = llama_batch_get_one(tokenPtr, 1);
+        if (llama_decode(_context!, _batch!) != 0) {
+          log.error("Error: failed to decode batch");
+          break;
+        }
       }
 
       malloc.free(tokenPtr);
@@ -1002,8 +1033,8 @@ class LlamaCppFFI {
         return;
       }
 
-      if (_batch == null || _batch == ffi.nullptr) {
-        log.warn('Batch not initialized');
+      if (_promptTokens == null || _promptTokens == ffi.nullptr) {
+        log.warn('Prompt not tokenized');
         return;
       }
 
@@ -1019,20 +1050,19 @@ class LlamaCppFFI {
         return;
       }
 
+      // Decode the prompt in chunks no larger than n_batch before sampling —
+      // a single oversized llama_decode call hard-aborts the process.
+      if (!_prefillPrompt(nPrompt)) {
+        return;
+      }
+
       final tokenPtr = malloc<llama_token>();
       final byteBuffer = <int>[];
 
       try {
         int newTokenId;
 
-        for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
-          if (llama_decode(_context!, _batch!) != 0) {
-            log.error("Error: failed to decode batch");
-            break;
-          }
-
-          nPos += _batch!.n_tokens;
-
+        for (int nPos = nPrompt; nPos < nPrompt + maxTokens; nPos++) {
           // Sample next token
           newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
 
@@ -1072,9 +1102,13 @@ class LlamaCppFFI {
             }
           }
 
-          // Prepare next batch
+          // Decode the sampled token so the next iteration can sample its successor.
           tokenPtr.value = newTokenId;
           _batch = llama_batch_get_one(tokenPtr, 1);
+          if (llama_decode(_context!, _batch!) != 0) {
+            log.error("Error: failed to decode batch");
+            break;
+          }
 
           // Keep UI responsive
           await Future.delayed(Duration.zero);

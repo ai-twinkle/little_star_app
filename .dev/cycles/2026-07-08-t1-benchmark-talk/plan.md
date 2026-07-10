@@ -50,9 +50,10 @@
 - **驗收標準**:
   - [x] Pixel 8a 上 Q4_K_M 載入/生成結果有明確結論：3 次成功生成，峰值 PSS 2.81–3.14GB，系統 MemAvailable 全程 3.4+GB，無 OOM
   - [x] 「進矩陣」判定拍板並寫入循環（construction.md task-A03 段落）
-  - [x] **額外發現**：`nBatch=512` 硬編碼 + 無分批/截斷邏輯，累積對話超過 512 token 會觸發原生 `SIGABRT`
-        崩潰（非 OOM）。此問題會直接影響 C02/C05 的 L512+ prompt tier，建議在 C02 前修復
-        （`lib/core/inference/llama_cpp_backend.dart:126-131`、`llama_cpp_ffi.dart`）
+  - [x] **額外發現並已修復**：`nBatch=512` 硬編碼 + 無分批/截斷邏輯，累積對話超過 512 token 曾觸發原生
+        `SIGABRT` 崩潰（非 OOM）。已在 `llama_cpp_ffi.dart` 加入依 `llama_n_batch(ctx)` 的 prompt 分批
+        prefill，並用同一組崩潰重現步驟在實機重建+重跑驗證不再崩潰（見 construction.md「nBatch 溢位
+        崩潰修復」章節）
 - **預估時間**: 0.5 天 ｜ ⚠️ **判定要早（7/8–7/11 內）**
 
 ### B 線｜MLX 轉換與社群貢獻
@@ -202,7 +203,7 @@
 | 風險 | 影響 | 緩解措施 |
 |------|------|----------|
 | Pixel 8a 記憶體不足 | 少一台裝置的矩陣數據 | ~~試 Q3 量化~~ → **已解除**：A03 實測記憶體充足，進矩陣 |
-| **llama.cpp Android backend nBatch=512 溢位崩潰**（A03 新發現） | **C02/C05 的 L512+ prompt tier 在 Android 上會全數 crash，矩陣跑不完** | 在 C02 開工前修復 prompt 分批/截斷邏輯（`llama_cpp_backend.dart`/`llama_cpp_ffi.dart`），或至少讓 harness 送出前用 tokenizer 檢查長度並攔截 |
+| ~~llama.cpp Android backend nBatch=512 溢位崩潰~~（A03 新發現） | ~~C02/C05 的 L512+ prompt tier 在 Android 上會全數 crash~~ | **已解除**：`llama_cpp_ffi.dart` 加入 prompt 分批 prefill，實機驗證不再崩潰 |
 | 兩 backend stop-token 未正確終止（B01/A03 共同觀察） | 回應尾端出現雜訊/偽造下一輪對話，demo 錄影會露餡 | task-B03 加正確 EOS/stop token 設定，兩 backend 一致 |
 | MLX 轉換後繁中品質異常 | benchmark/demo 失真 | ~~sanity check 提早做~~ → **已解除**：B01 達標 |
 | Twinkle org 上傳協調時間不可控 | 「發佈」時刻落空 | 本週就開口（B02）；上傳排 talk 前幾天 |

@@ -2,7 +2,7 @@
 
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
-> 狀態：🔄 進行中 — A03 / B01 done；B02 待用戶動作；**新發現一個 P0 crash bug 待處理**
+> 狀態：🔄 進行中 — A03 / B01 done；nBatch crash **已修復並在實機驗證**；B02 待用戶動作
 > 最後更新：2026-07-10（Apple Silicon Mac + 實體 Pixel 8a 執行完畢）
 
 ---
@@ -10,22 +10,26 @@
 ## 🔀 接手快照（換開發環境時先讀這段）
 
 **目前為止**：B01（MLX 4-bit 轉換 + 繁中 sanity check）與 A03（Pixel 8a 快篩）皆已在實體資源上執行完成，
-判定皆為「達標 / 進矩陣」。過程中發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確
-終止問題（task-B03 待修），以及一個 **llama.cpp Android backend 專屬的 P0 crash bug**：
+判定皆為「達標 / 進矩陣」。過程中發現並**當場修復**了一個 **llama.cpp Android backend 的 P0 crash bug**：
 `nBatch` 硬編碼 512、無截斷/分批邏輯，累積對話一旦超過 512 token 就會原生崩潰（`GGML_ASSERT` → `SIGABRT`）。
-這會直接命中 C02/C05 的 L512/L1024/L2048 prompt tier，**建議在 C02 開工前先修**（詳見下方 task-A03 段落）。
+修復方式：prompt 改成依 `llama_n_batch(ctx)` 分批 decode，詳見下方「nBatch 溢位崩潰修復」章節。
+**已用同一組會觸發舊崩潰的 3 輪對話在實機重建 + 重跑驗證，確認不再崩潰。**
+
+另外還發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確終止問題（task-B03 待修，
+非阻塞性，僅影響輸出尾端有雜訊）。
 
 commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
-（本次）A03 完成 + crash bug 記錄。
+`1261d39` A03 完成 + crash bug 記錄、（本次）nBatch crash 修復 + 實機驗證。
 
 **還剩**：
 | 任務 | 狀態 | 下一步 |
 |------|------|--------|
 | B02 org 協調 | 待用戶本人動作 | 本週送出 [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) 的協調訊息 |
-| ⚠️ nBatch 溢位 crash | 新發現，未修 | 修 `lib/core/inference/llama_cpp_backend.dart` / `llama_cpp_ffi.dart` 的 prompt 分批或長度防護，建議插在 C02 前 |
-| A01 | 尚未動 | T1 GGUF 進 llama.cpp backend 驗 template（可與上面 crash bug 修復一起做） |
+| ~~nBatch 溢位 crash~~ | ✅ 已修復並實機驗證 | — |
+| task-B03 stop-token | 尚未動 | 兩 backend 加正確 EOS/stop token 設定 |
+| A01 | 尚未動 | T1 GGUF 進 llama.cpp backend 驗 template |
 | A02 | 尚未動 | iPhone 記憶體/context 長度決定 |
-| C 線 harness | 尚未動 | C01 先動（不卡裝置），但 C02 執行前必須先解掉 nBatch crash |
+| C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
@@ -77,6 +81,50 @@ commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card�
 
 - **判定：Q4_K_M 可穩定載入 + 生成 → ✅ 進矩陣**（記憶體面向），
   但矩陣執行前必須先解決 nBatch 溢位崩潰，否則長 prompt tier 無法完整跑完。
+
+---
+
+### 🔧 nBatch 溢位崩潰修復 — [DONE] ✅ 2026-07-10
+
+**問題**：見上方 task-A03。`llama_batch_get_one(tokens, nPrompt)` 把整段 prompt（含累積對話歷史）
+包成單一 batch 直接丟給 `llama_decode`，一旦 token 數超過 `n_batch`（硬編碼 512）就會觸發
+`GGML_ASSERT(n_tokens_all <= cparams.n_batch)` → `ggml_abort` → 整個 App 行程 `SIGABRT`。
+
+**修法**：`lib/core/engine/llama_cpp/llama_cpp_ffi.dart`
+- `tokenizePrompt()` 不再把整段 prompt 立刻包成一個大 batch，改成只保留 raw token 指標
+  （新欄位 `_promptTokens`）。
+- 新增 `_prefillPrompt(nPrompt)`：用 `llama_n_batch(ctx)`（執行時實際的 n_batch，不寫死常數）
+  把 prompt 切成多個 ≤ n_batch 的 chunk，逐一呼叫 `llama_decode`，直到整段 prompt 進完 KV cache
+  才開始取樣——這是 llama.cpp 官方 prefill 慣例（prompt 分批餵、只在最後一批後取樣）。
+- `generate()` / `generateStream()` 都先呼叫 `_prefillPrompt`，再進入逐 token 生成迴圈；
+  逐 token 生成迴圈本身（每次 decode 1 個 token）不受影響，本來就在 n_batch 限制內。
+- 初始 guard 從檢查 `_batch == null` 改成檢查 `_promptTokens == null`（因為 `tokenizePrompt`
+  不再預先設定 `_batch`）。
+
+**驗證**：
+1. `fvm flutter analyze` — 0 errors（僅既有的 FFI 命名慣例 info，非本次修改引入）。
+2. `fvm flutter test test/core/inference/llama_cpp_backend_test.dart` — 18/18 通過
+   （這層測試 mock 掉 FFI，驗證的是 `LlamaCppSession`/`LlamaCppBackend` 的邏輯不受影響；
+   實際的原生 decode 分批邏輯無法用 Dart 單元測試覆蓋，只能上機驗證）。
+3. **實機重現測試**：`fvm flutter build apk --debug` 重新編譯、`adb install -r` 裝到同一台
+   Pixel 8a，用**與崩潰當下完全相同**的 3 輪對話（夜市文化 → 九份交通 → 臭豆腐）重跑。
+   - Turn 2 累積 269 tokens（log 實測：`nPrompt: 269`），順利生成。
+   - Turn 3（原本觸發 538 token 崩潰的那輪）**未崩潰**，App 行程全程存活
+     （`dumpsys meminfo` 持續回應，PSS ~3.2GB），logcat 全文搜尋 `ggml_abort`/`GGML_ASSERT`/
+     `SIGABRT`/`has died` 均只出現在**舊**崩潰時間戳（23:57:42-43），新測試時間窗（00:2x起）
+     完全乾淨。
+   - 該輪生成最終以 `[Generation stopped]`（UI 顯示）結束，logcat 對應 `End of generation reached`
+     —— 是模型自然吐出 EOG token 提早結束，非本次修法引入的新問題，屬內容面觀察，記錄供
+     B03/內容品質追蹤參考。
+
+**尚未處理（明確排除在本次修法範圍外）**：
+- `tokenizePrompt` 配置的 token buffer（`_promptTokens`）在 `freeContext()`/`freeModel()` 未被
+  釋放——這是修法前就存在的既有記憶體洩漏（原本包在 `_batch.token` 裡，同樣沒被釋放），
+  本次沒有讓它變得更糟，但也沒有一併修掉，留待需要時另開任務處理。
+- `nCtx=2048` 本身仍是硬編碼；對話總長度超過 2048 token 時 `llama_decode` 會**優雅地**回傳非 0
+  （KV cache 滿），現有 Dart 錯誤處理已經接得住（`if (llama_decode(...) != 0) { ...; break; }`），
+  不會崩潰，因此不在本次「修 nBatch 崩潰」的範圍內；但長 context 的使用者體驗（例如更明確的
+  「對話過長」提示）仍可留給 A02/C02 一併考慮。
 
 ### task-B01: MLX 4-bit 轉換 + 繁中 sanity check — [DONE] ✅ 2026-07-09
 - ✅ 轉換 + sanity check runbook 定版 → [docs/benchmark/mlx-t1-conversion-runbook.md](../../../docs/benchmark/mlx-t1-conversion-runbook.md)
