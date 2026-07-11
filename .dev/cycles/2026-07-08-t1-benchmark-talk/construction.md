@@ -2,16 +2,17 @@
 
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
-> 狀態：🔄 進行中 — A01 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；B02 待用戶動作
-> 最後更新：2026-07-10（Apple Silicon Mac + 實體 Pixel 8a 執行完畢）
+> 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；B02 待用戶動作
+> 最後更新：2026-07-12（Apple Silicon Mac + 實體 Pixel 8a + 實體 iPhone 17 Pro 皆執行完畢）
 
 ---
 
 ## 🔀 接手快照（換開發環境時先讀這段）
 
-**目前為止**：A01（GGUF+template 驗證）、B01（MLX 4-bit 轉換 + 繁中 sanity check）、A03（Pixel 8a 快篩）
-皆已在實體資源上執行完成，判定皆為「達標」。過程中發現並**當場修復**了一個 **llama.cpp Android backend
-的 P0 crash bug**：`nBatch` 硬編碼 512、無截斷/分批邏輯，累積對話一旦超過 512 token 就會原生崩潰
+**目前為止**：A01（GGUF+template 驗證）、A02（iPhone 記憶體/context 長度決定）、
+B01（MLX 4-bit 轉換 + 繁中 sanity check）、A03（Pixel 8a 快篩）皆已在實體資源上執行完成，
+判定皆為「達標」。過程中發現並**當場修復**了一個 **llama.cpp Android backend 的 P0 crash bug**：
+`nBatch` 硬編碼 512、無截斷/分批邏輯，累積對話一旦超過 512 token 就會原生崩潰
 （`GGML_ASSERT` → `SIGABRT`）。修復方式：prompt 改成依 `llama_n_batch(ctx)` 分批 decode，詳見下方
 「nBatch 溢位崩潰修復」章節。**已用同一組會觸發舊崩潰的 3 輪對話在實機重建 + 重跑驗證，確認不再崩潰。**
 
@@ -19,11 +20,20 @@ A01 另外釐清了一個容易誤解的細節：llama.cpp backend 實際上**�
 而是用字串偵測+寫死格式化（legacy API），但純對話情境下語意與官方模板等價，已驗證無虞
 （工具呼叫情境有已知落差，本輪不需要）。
 
+**A02 推翻了 A01 的一個假設**：原本從 GGUF metadata 推導「Gemma 3 sliding-window attention 應該能省
+KV cache 記憶體」，但實機測 4K vs 8K context 的記憶體差距後發現：目前綁定的 llama.cpp（b7493）**沒有**
+SWA-aware KV cache 支援，記憶體吃法是 dense（全部 34 層都當全 context 算），每 1024 token 一律
+多耗 ~136MB。已據此把 benchmark context 長度拍板為 **nCtx=4096**（`llama_cpp_backend.dart` 已改，
+跨 iOS/Android 共用），理由詳見 construction.md task-A02 段落。iOS 側另外設好了
+`increased-memory-limit` entitlement（`ios/Runner/Runner.entitlements` + pbxproj），全程測試無 OOM。
+
 另外還發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確終止問題（task-B03 待修，
-非阻塞性，僅影響輸出尾端有雜訊；A01 這輪測試反而沒重現，可能與對話輪數/長度有關，留意但不升級為阻塞項）。
+非阻塞性，僅影響輸出尾端有雜訊；A01/A02 這幾輪測試時有時沒重現，可能與對話輪數/長度有關，留意但不升級
+為阻塞項）。
 
 commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
-`1261d39` A03 完成 + crash bug 記錄、`1394e46` nBatch crash 修復 + 實機驗證、（本次）A01 完成。
+`1261d39` A03 完成 + crash bug 記錄、`1394e46` nBatch crash 修復 + 實機驗證、`3886493` A01 完成、
+（本次）A02 完成 + entitlement 設定 + context 長度拍板。
 
 **還剩**：
 | 任務 | 狀態 | 下一步 |
@@ -31,8 +41,9 @@ commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card�
 | B02 org 協調 | 待用戶本人動作 | 本週送出 [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) 的協調訊息 |
 | ~~nBatch 溢位 crash~~ | ✅ 已修復並實機驗證 | — |
 | ~~A01~~ | ✅ 已完成 | — |
+| ~~A02~~ | ✅ 已完成 | Pixel 8a 在 nCtx=4096 下的記憶體是外推估計，非實測；C01/C02 跑起來後建議補測一次確認 |
 | task-B03 stop-token | 尚未動 | 兩 backend 加正確 EOS/stop token 設定 |
-| A02 | 尚未動 | iPhone 記憶體/context 長度決定 |
+| C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
 
@@ -129,6 +140,63 @@ commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card�
   （KV cache 滿），現有 Dart 錯誤處理已經接得住（`if (llama_decode(...) != 0) { ...; break; }`），
   不會崩潰，因此不在本次「修 nBatch 崩潰」的範圍內；但長 context 的使用者體驗（例如更明確的
   「對話過長」提示）仍可留給 A02/C02 一併考慮。
+
+### task-A02: iPhone 17 Pro 記憶體驗證 + context 長度決定 — [DONE] ✅ 2026-07-12
+
+- ✅ **entitlement 設定**：`ios/Runner/Runner.entitlements` 新增
+  `com.apple.developer.kernel.increased-memory-limit = true`，並在 `ios/Runner.xcodeproj/project.pbxproj`
+  的 Runner target 三組 build config（Debug/Release/Profile）加上 `CODE_SIGN_ENTITLEMENTS`。過程中卡了
+  三關都是 Xcode 帳號/簽章面的一次性障礙，非技術問題：Xcode 未登入 Apple ID → 登入後帳密被拒 → 開發者帳號
+  有待簽署的 Program License Agreement。用戶處理完這三關後，automatic signing 成功重新產生含
+  Increased Memory Limit 能力的 provisioning profile。
+
+- ✅ **T1 在實體 iPhone 17 Pro（iOS 26.5.1）載入 + 生成，entitlement 生效下無 OOM/jetsam kill**：
+  T1 GGUF 透過 AirDrop + App 內 file-picker 匯入（`ModelManagerViewModel.importModels()`），跨多次
+  重新 build（測試不同 nCtx）皆穩定載入生成，無崩潰。
+
+- ✅ **4K / 8K context 的 KV cache 記憶體差距，實測數字**（`xcrun xctrace record --template "Activity Monitor"`
+  attach 到 `Runner` process，讀 `memory-physical-footprint`（jetsam 相關指標）與 `memory-resident-size`）：
+
+  | nCtx | Physical Footprint（穩定態） | Resident Size | 測試方式 |
+  |------|------------------------------|----------------|----------|
+  | 2048 | ~640–651 MiB | ~3.29–3.30 GiB | 單輪短 prompt，生成後靜置 |
+  | 4096 | ~920–950 MiB | ~3.58–3.59 GiB | 雙輪對話（第二輪 prompt 543 token） |
+  | 8192 | ~1.45–1.47 GiB | ~4.05–4.09 GiB | 雙輪對話（第二輪 prompt 543 token，同一組對話腳本） |
+
+  4096→8192 的實測差距（~535MB）幾乎完全對上**無 SWA 優化的 dense KV cache 公式**：
+  `34 層 × 2(K+V) × 4(kv_heads) × 256(head_dim) × 2 bytes(F16) × Δn_ctx`，
+  Δ4096 tokens → 544 MiB（理論）vs ~535MB（實測）。這推翻了先前（A01 階段）從 GGUF metadata
+  分析 Gemma 3 sliding-window attention（`n_swa=1024`, 5:1 pattern）推導出的「大部分層可省記憶體」
+  假設——**App 目前綁定的 llama.cpp 版本（b7493）並未啟用 SWA-aware KV cache
+  （`llama_kv_cache_iswa`，較新版本才有），每多 1024 token context 一律吃掉 ~136MB**，不分
+  local/global 層。這是本次最重要的技術修正：**日後如果 bump llama.cpp 版本納入 SWA-aware KV cache
+  支援，同樣 context 長度的記憶體成本可望大幅下降**，值得記錄成未來優化方向。
+
+  另外意外發現一個很有意思的 iOS 記憶體會計現象：`memory-physical-footprint`（jetsam 判死依據）
+  遠低於 `memory-resident-size`（~640MB vs ~3.3GB @2048）——因為 llama.cpp 用 mmap 載入 GGUF 權重，
+  乾淨（clean）、可從硬碟重新讀取的檔案背頁不計入 jetsam footprint，只有 KV cache/compute
+  buffer/framework overhead 等「dirty」記憶體才算數。這代表 2.5GB 級模型權重本身幾乎不佔 iOS 的
+  OOM 判死額度，實際吃緊的是 KV cache 與運算暫存。
+
+- ✅ **benchmark context 長度拍板：4096**（原計畫詢問的是 2048/4096/8192 三選一，最終選 4096，理由）：
+  1. **功能性下限**：zh-tw-prompt-set.md 的 L2048 tier（~2048 input token）若配 `nCtx=2048`，扣掉
+     input 後**完全沒有生成空間**（`maxTokens=512`），2048 本身已不足以支撐既定的 benchmark 設計，
+     這是比記憶體更硬的約束——nCtx 至少要 ≥ 2048+512=2560。
+  2. **iPhone 17 Pro 記憶體成本可接受**：4096 下 footprint ~920–950MB，resident ~3.58GB，entitlement
+     生效下全程無 OOM，有餘裕。
+  3. **Pixel 8a（無 entitlement）成本可控（外推，未在 Android 重測）**：以 dense KV cache 公式外推，
+     4096 相對 A03 已驗證安全的 2048 基準（PSS ~2.8–3.1GB）多花 ~272MB，估計 PSS 落在 ~3.1–3.4GB，
+     仍在 A03 觀測到的 3GB+ MemAvailable 安全邊際內；**此為外推估計，非實測，建議 C01/C02 harness
+     跑起來後在 Pixel 8a 補一次 4096 的實測驗證**。
+  4. 8192 已實測（iPhone 上安全），但目前 prompt tier 設計不需要用到超過 4096 的容量，且對 Android
+     （無 entitlement 緩衝）風險/效益比不如 4096 划算，故不選。
+  - 已將 `nCtx: 2048` 改為 `nCtx: 4096`（`lib/core/inference/llama_cpp_backend.dart`，跨 iOS/Android
+    共用同一份程式碼，兩平台同時受益/受限於此設定）。
+
+- **過程觀察（非本任務核心，記錄供 C 線效能量測參考）**：生成速度明顯偏慢，CPU 使用率穩定在
+  ~32–34%（非 100%），512 token 生成耗時遠超預期（單輪對話有時需要數分鐘）。可能是 `nThreads=8`
+  未被有效利用、Metal shader 首次編譯開銷、或 Instruments attach 本身的觀測開銷。建議 C01/C02
+  harness 埋 TTFT/decode tokens-per-second 量測時順便查明原因。
 
 ### task-A01: 拉官方 T1 GGUF + chat template 驗證 — [DONE] ✅ 2026-07-10
 

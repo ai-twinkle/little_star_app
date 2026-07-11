@@ -36,13 +36,17 @@
 
 #### task-A02: iPhone 17 Pro 記憶體驗證 + context 長度決定
 - **類型**: 🔬 研究 + ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-07-12
 - **描述**: 開 `increased-memory-limit` entitlement，量 2.5GB 權重 + KV cache 峰值；量 4K vs 8K context 的 KV cache 記憶體差距，決定 benchmark 的 context 長度。
 - **建議方式**: 配置 entitlement → 量測 → 決策
 - **驗收標準**:
-  - [ ] entitlement 開啟後 T1 可穩定載入不被 OOM kill
-  - [ ] 4K / 8K KV cache 峰值記憶體各有實測數字
-  - [ ] benchmark context 長度拍板（含理由）
+  - [x] entitlement 開啟後 T1 可穩定載入不被 OOM kill（實體 iPhone 17 Pro，2048/4096/8192 三種 nCtx 皆測過，全程無 OOM）
+  - [x] 4K / 8K KV cache 峰值記憶體各有實測數字：4096 → footprint ~920–950MB／resident ~3.58GB；
+        8192 → footprint ~1.45–1.47GB／resident ~4.05–4.09GB。實測差距對上 dense（非 SWA-aware）KV
+        cache 公式，推翻先前 A01 對 Gemma3 SWA 記憶體優化的假設——目前綁定的 llama.cpp 版本未啟用
+        `llama_kv_cache_iswa`，詳見 construction.md task-A02 段落
+  - [x] benchmark context 長度拍板：**4096**（L2048 tier 功能性下限 + iPhone 記憶體無虞 + Android
+        外推安全 + 8192 對現有 prompt 設計無必要），已寫入 `llama_cpp_backend.dart`
 - **預估時間**: 1 天
 
 #### task-A03: Pixel 8a 可行性快篩 + 去留判定（早做）
@@ -186,7 +190,11 @@
 - C 線 harness = 內部量測工具（對外跑分頁 UI 留後續循環）
 - 量測掛在推論後端抽象層 `lib/core/inference/`，兩 backend 共用（避免對比失真）
 - 全程同一份繁中 prompt 集跑 2 backend × 2 裝置 → 單一矩陣圖，資訊密度最高
-- benchmark context 長度待 task-A02 實測 KV cache 後拍板
+- **benchmark context 長度：nCtx=4096**（task-A02 已拍板，2026-07-12）——L2048 prompt tier 的功能性
+  下限、iPhone 17 Pro 實測記憶體無虞、Pixel 8a 外推安全（未實測，C01/C02 執行時建議補測）。
+  llama.cpp 目前綁定版本（b7493）KV cache 為 dense（非 SWA-aware），每 1024 token context 一律
+  多耗 ~136MB，與模型架構的 sliding-window 設計無關——future work：升級 llama.cpp 納入
+  `llama_kv_cache_iswa` 可望大幅降低同 context 長度的記憶體成本
 
 ---
 

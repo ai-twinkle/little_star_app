@@ -124,7 +124,14 @@ class LlamaCppSession implements InferenceSession {
 
     final sp = _settings.samplingParams;
     _driver.createContext(
-      nCtx: 2048,
+      // 4096 chosen in task-A02 (2026-07-08-t1-benchmark-talk): the benchmark's
+      // own L2048 prompt tier needs 2048 input + up to 512 generated tokens
+      // (2560 total), and on-device measurement showed no SWA-aware KV cache
+      // savings for Gemma 3 in the bundled llama.cpp build -- every 1024 tokens
+      // of context costs ~136MB uniformly across all layers, so this is the
+      // smallest value that comfortably covers the benchmark's needs on both
+      // the iPhone 17 Pro (increased-memory-limit entitlement) and Pixel 8a.
+      nCtx: 4096,
       nBatch: 512,
       nThreads: 8,
       nThreadsBatch: 8,
