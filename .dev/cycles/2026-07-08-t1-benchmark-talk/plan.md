@@ -86,15 +86,17 @@
   - [ ] 上傳排程定於 talk 前幾天
 - **預估時間**: 0.5 天（撰寫）+ 協調等待 ｜ ⚠️ **本週就要開口**
 
-#### task-B03: 接進 MLX backend + 兩 backend template 一致性驗證
+#### task-B03: 接進 MLX backend + 兩 backend template 一致性驗證 + stop-token 防護
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
-- **描述**: 把 T1 MLX 版接進 Little Star MLX backend，確認兩個 backend 的 chat template 處理一致（否則 benchmark 對比失真）。
+- **狀態**: [IN_PROGRESS] — llama.cpp 側 stop-token 文字層防護已完成（2026-07-15），MLX 接進仍是 TODO
+- **描述**: 把 T1 MLX 版接進 Little Star MLX backend，確認兩個 backend 的 chat template 處理一致（否則 benchmark 對比失真）；並修正兩 backend 皆觀察到的 stop-token/EOS 未正確終止問題。
 - **建議方式**: Red-Green-Refactor（template 一致性測試）
 - **驗收標準**:
+  - [x] llama.cpp backend：加入文字層 turn-marker 防護（`_TurnMarkerFilter`，`llama_cpp_backend.dart`），偵測不到 EOG token 但模型幻覺出下一輪對話時仍能截斷輸出；4 個單元測試佐證，尚未上機驗證
   - [ ] T1 可透過 MLX backend 載入並 streaming generate
   - [ ] 同 prompt 下兩 backend 的 template 組出的實際輸入序列一致（有測試佐證）
-- **預估時間**: 1.5 天
+  - [ ] MLX 側等價的 stop-token 防護（待 MLX 接進後評估是否需要，或 mlx-swift-lm 的 tokenizer EOS 解析已足夠）
+- **預估時間**: 1.5 天（stop-token 防護部分已完成，剩餘為 MLX 接進 + 一致性測試）
 
 ### C 線｜Benchmark Harness（進 App 本體 · 內部量測工具）
 
@@ -215,7 +217,7 @@
 |------|------|----------|
 | Pixel 8a 記憶體不足 | 少一台裝置的矩陣數據 | ~~試 Q3 量化~~ → **已解除**：A03 實測記憶體充足，進矩陣 |
 | ~~llama.cpp Android backend nBatch=512 溢位崩潰~~（A03 新發現） | ~~C02/C05 的 L512+ prompt tier 在 Android 上會全數 crash~~ | **已解除**：`llama_cpp_ffi.dart` 加入 prompt 分批 prefill，實機驗證不再崩潰 |
-| 兩 backend stop-token 未正確終止（B01/A03 共同觀察） | 回應尾端出現雜訊/偽造下一輪對話，demo 錄影會露餡 | task-B03 加正確 EOS/stop token 設定，兩 backend 一致 |
+| 兩 backend stop-token 未正確終止（B01/A03 共同觀察） | 回應尾端出現雜訊/偽造下一輪對話，demo 錄影會露餡 | **llama.cpp 側已解除**（2026-07-15 文字層 turn-marker 防護，見 construction.md）；MLX 側待 T1 接進 MLX backend 後一併評估 |
 | MLX 轉換後繁中品質異常 | benchmark/demo 失真 | ~~sanity check 提早做~~ → **已解除**：B01 達標 |
 | Twinkle org 上傳協調時間不可控 | 「發佈」時刻落空 | 本週就開口（B02）；上傳排 talk 前幾天 |
 | 兩 backend template 不一致 | 對比失真 | B03 加一致性測試 |

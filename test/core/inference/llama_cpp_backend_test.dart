@@ -223,6 +223,52 @@ void main() {
     });
   });
 
+  // --- LlamaCppSession: turn-marker guard -----------------------------------
+  group('LlamaCppSession turn-marker guard', () {
+    test('truncates output at a fabricated <start_of_turn>user marker', () async {
+      final driver = _FakeDriver(tokens: [
+        'Sure, here', ' is the answer.',
+        '<start_of_turn>user', 'What about tomorrow?',
+      ]);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'Sure, here is the answer.');
+      session.dispose();
+    });
+
+    test('truncates output at a fabricated <|assistant|> marker', () async {
+      final driver = _FakeDriver(tokens: [
+        'The answer is 42.', '<|assistant|>', 'Fabricated follow-up',
+      ]);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'The answer is 42.');
+      session.dispose();
+    });
+
+    test('detects a marker split across multiple token chunks', () async {
+      final driver = _FakeDriver(tokens: [
+        'Answer text', '<start_of', '_turn>user', 'garbage',
+      ]);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'Answer text');
+      session.dispose();
+    });
+
+    test('does not truncate or drop normal output with no marker', () async {
+      final driver = _FakeDriver(tokens: ['tok1', ' tok2', ' tok3']);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'tok1 tok2 tok3');
+      session.dispose();
+    });
+  });
+
   // --- LlamaCppSession: cancel ---------------------------------------------
   group('LlamaCppSession cancel', () {
     test('stops generation early', () async {

@@ -2,8 +2,9 @@
 
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
-> 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；B02 待用戶動作
-> 最後更新：2026-07-12（Apple Silicon Mac + 實體 Pixel 8a + 實體 iPhone 17 Pro 皆執行完畢）
+> 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
+> task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；B02 待用戶動作
+> 最後更新：2026-07-15（llama.cpp turn-marker guard，開發機純程式修改，尚未上機驗證）
 
 ---
 
@@ -27,13 +28,15 @@ SWA-aware KV cache 支援，記憶體吃法是 dense（全部 34 層都當全 co
 跨 iOS/Android 共用），理由詳見 construction.md task-A02 段落。iOS 側另外設好了
 `increased-memory-limit` entitlement（`ios/Runner/Runner.entitlements` + pbxproj），全程測試無 OOM。
 
-另外還發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確終止問題（task-B03 待修，
-非阻塞性，僅影響輸出尾端有雜訊；A01/A02 這幾輪測試時有時沒重現，可能與對話輪數/長度有關，留意但不升級
-為阻塞項）。
+另外還發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確終止問題（task-B03，
+非阻塞性，僅影響輸出尾端有雜訊；A01/A02 這幾輪測試時有時沒重現，可能與對話輪數/長度有關）。
+**2026-07-15 已針對 llama.cpp 側完成文字層防護**，詳見下方「task-B03（部分）」章節；MLX 側因
+T1 尚未接進 app 內 MLX backend（B03 的「接進 MLX backend」子項仍是 TODO），暫無對應程式碼可修。
 
 commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
 `1261d39` A03 完成 + crash bug 記錄、`1394e46` nBatch crash 修復 + 實機驗證、`3886493` A01 完成、
-（本次）A02 完成 + entitlement 設定 + context 長度拍板。
+`c72114c` A02 完成 + entitlement 設定 + context 長度拍板、（本次，尚未提交）
+llama.cpp turn-marker 防護 + 4 個單元測試。
 
 **還剩**：
 | 任務 | 狀態 | 下一步 |
@@ -42,7 +45,8 @@ commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card�
 | ~~nBatch 溢位 crash~~ | ✅ 已修復並實機驗證 | — |
 | ~~A01~~ | ✅ 已完成 | — |
 | ~~A02~~ | ✅ 已完成 | Pixel 8a 在 nCtx=4096 下的記憶體是外推估計，非實測；C01/C02 跑起來後建議補測一次確認 |
-| task-B03 stop-token | 尚未動 | 兩 backend 加正確 EOS/stop token 設定 |
+| task-B03（llama.cpp 文字層防護） | ✅ 已完成（單元測試驗證） | 建議錄 demo 前找一次容易重現的長對話在實機/模擬環境跑一輪，肉眼確認尾端不再有 `<start_of_turn>user`/`<\|assistant\|>` 雜訊 |
+| task-B03（接進 MLX backend + 兩 backend template 一致性） | 尚未動 | T1 尚未接進 app 內 MLX backend；接進後再視情況決定是否也需要 MLX 側的等價防護 |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -53,6 +57,49 @@ commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card�
 ---
 
 ## 進行中任務
+
+### task-B03（部分）：llama.cpp 側 turn-marker 文字層防護 — [DONE] ✅ 2026-07-15（純程式碼，未上機驗證）
+
+**釐清問題範圍**：追查後發現 llama.cpp backend 的 EOG 判斷（`llama_vocab_is_eog`，
+`llama_cpp_ffi.dart:991/1070`）其實已經正確存在——每採樣一個 token 就檢查，命中就立刻 break，
+不會多吐出任何文字。B01/A03 觀察到的尾端雜訊，實際成因是**模型偶爾不會採樣到 EOG token，
+而是自己接著「幻覺」出下一輪對話**（例如吐出 `<start_of_turn>user` 或 `<|assistant|>` 後接一段
+偽造發言）——這不是漏檢查的 bug，屬於模型取樣行為，純靠 token-id 層級的 EOG 檢查無法攔截。
+
+另外確認 **MLX 側目前沒有對應程式碼可修**：T1 尚未接進 app 內的 `MlxInferenceBridge.swift`/
+`mlx_channel.dart`（`recommended_models.dart` 只註冊了 T1 的 GGUF 版本），B01 觀察到的 MLX 雜訊
+來自轉換階段用的 Python `mlx_lm.generate` CLI（獨立於 app），不是 app 程式碼路徑。task-B03 完整
+的「接進 MLX backend + 兩 backend template 一致性驗證」（plan.md 原定 ~1.5 天）仍是 TODO，本次
+只完成其中「stop-token 防護」這一部分，且只做得到 llama.cpp 那一側。
+
+**修法**：`lib/core/inference/llama_cpp_backend.dart`
+- 新增 `_TurnMarkerFilter`：在 `LlamaCppSession._runGeneration` 消費 `driver.generateStream()`
+  的每個 token 時，把文字餵進 filter。filter 偵測到 `<start_of_turn>user`、`<start_of_turn>model`、
+  `<|user|>`、`<|assistant|>`、`<|system|>` 任一 marker 完整出現，就在該處截斷輸出並停止生成。
+- **不會拖慢正常輸出**：filter 只在文字尾端「看起來像某個 marker 的開頭」時才暫緩送出（例如
+  尾端剛好是 `<start_of`），一般文字（不含 `<`）會立即照原樣往下游送，避免每個 token 都被迫等待
+  一個固定視窗長度。
+- 同時處理 **marker 跨多個 token chunk 被拆開**的情況（例如 `<start_of` 和 `_turn>user` 分兩個
+  token 送達）——filter 的暫緩緩衝區會把兩段拼起來後才判斷。
+- 若整段生成正常結束都沒有出現 marker，`flush()` 會把暫緩緩衝區裡剩下的文字（不管它長得再像
+  marker 開頭）一起送出，避免真正的正常結尾文字被誤吞。
+
+**驗證**：
+1. `fvm flutter analyze lib/core/inference/llama_cpp_backend.dart test/core/inference/llama_cpp_backend_test.dart` — 0 issues。
+2. `fvm flutter test test/core/inference/` — 53/53 通過，含新增 4 個 turn-marker guard 測試
+   （完整 marker 截斷、`<|assistant|>` 截斷、marker 跨 chunk 偵測、無 marker 時原樣通過）；
+   既有 22 個測試（含 cancel、dispose、chunk 順序）**全數不需修改就通過**，證明對正常輸出的
+   時序/分段行為無副作用。
+3. **尚未上機驗證**：目前只有 Dart 單元測試（fake driver 模擬文字輸出），沒有在實體裝置上用
+   會觸發雜訊的真實對話重新測試。建議錄 demo 前找一次容易重現的長對話（可參考 A03 記錄的
+   夜市文化→九份交通→臭豆腐那組）在實機/模擬環境跑一輪，肉眼確認尾端不再出現雜訊。
+
+**尚未處理（明確排除在本次範圍外）**：
+- MLX 側的等價防護，待 T1 實際接進 MLX backend（task-B03 剩餘部分）後再評估是否需要。
+- 本次只覆蓋目前觀察到的 marker 清單；若之後在其他 prompt 上看到別種格式的偽造發言標記
+  （例如 ChatML 的 `<|im_start|>`），需要把新 marker 加進 `_TurnMarkerFilter._markers`。
+
+---
 
 ### task-A03: Pixel 8a 可行性快篩 — [DONE] ✅ 2026-07-10（附帶一個需優先處理的新發現）
 - ✅ 快篩 protocol 定版 → [docs/benchmark/pixel-8a-quick-screen.md](../../../docs/benchmark/pixel-8a-quick-screen.md)
