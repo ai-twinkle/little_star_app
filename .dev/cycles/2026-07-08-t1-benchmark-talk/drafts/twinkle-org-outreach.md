@@ -1,28 +1,32 @@
-# B02 — Twinkle AI Org 上傳協調（本週開口）
+# B02 — 上傳到自己 HF repo + 通知 Twinkle org（2026-07-16 改案）
 
-> 任務 task-B02 · ⚠️ 時間不可控，**本週（7/8–7/11）就要提出**，上傳排 talk 前幾天。
+> 任務 task-B02 · **已改案**：不再等 Twinkle org 的 write 權限（時間不可控、卡住了 task-B03）。
+> 改成上傳到自己的 HF repo `Bbson/gemma-3-4B-T1-it-MLX-4bit`，org 那邊只發一則禮貌性通知
+> （不要求任何權限），維持社群能見度即可。**上傳排 talk 前幾天（約 7/21–7/23）。**
 
-## 要向 org 取得的東西
-1. Twinkle AI HF org 的 **write 權限**（或請 org admin 代為建立 repo 並授權）—— 唯一真正的阻塞點
-2. 確認目標 repo 命名（建議 `twinkle-ai/gemma-3-4B-T1-it-MLX-4bit`）
+## 目標 repo
 
-> ✅ 已從官方 model card 確認（不需再問 org）：來源 `twinkle-ai/gemma-3-4B-T1-it`（base `google/gemma-3-4b-pt`）；
-> 授權 gemma（gated）；無強制 system prompt；官方 sampling temperature 0.6 / top_p 0.95。
+`Bbson/gemma-3-4B-T1-it-MLX-4bit` —— 你自己的 HF 帳號，不需要 org 權限，隨時可以上傳。
 
-## 建議訊息草稿（可貼 Discord / 私訊 org admin）
+> ✅ 已從官方 model card 確認：來源 `twinkle-ai/gemma-3-4B-T1-it`（base `google/gemma-3-4b-pt`）；
+> 授權 gemma（gated，衍生模型需沿用 Gemma Terms of Use 並標明來源）；無強制 system prompt；
+> 官方 sampling temperature 0.6 / top_p 0.95。model card 已在 `drafts/model-card-zh-tw.md` 標明
+> 原模型出處與致謝，符合 Gemma 授權對衍生作品的標示要求。
+
+## 給 Twinkle org 的通知訊息草稿（禮貌性，不要求任何權限）
+
+可貼 Discord / 私訊 org admin，純粹是社群禮貌 + 保持能見度，不卡在對方回覆與否：
 
 ---
 
 嗨 [admin]，我是 [名字]，在做一場 7/25–26 的分享，主題是端側 LLM 推論與社群模型生態，會用 Little Star App 實測 Twinkle 的 gemma-3-4B-T1-it。
 
-我打算用 `mlx_lm.convert` 出一個 **4-bit MLX 版**，方便在 Apple Silicon 裝置上跑，並補一份**繁中 model card**。想上傳到 Twinkle AI org 底下（想的命名是 `gemma-3-4B-T1-it-MLX-4bit`），方便社群直接取用。可以給我上傳權限，或由你們開 repo 我提 PR / 上傳嗎？
-
-時間點上，我想抓在 talk 前幾天上傳（新鮮度最高），所以想先把權限/流程敲定。感謝！
+想跟你們說一聲：我把它轉了一個 **4-bit MLX 版**方便在 Apple Silicon 裝置上跑，補了一份**繁中 model card**，上傳到我自己的 HF 帳號了：`Bbson/gemma-3-4B-T1-it-MLX-4bit`。model card 裡有清楚標明原模型出處是你們的 `gemma-3-4B-T1-it`。如果你們之後想收進 org 底下或有其他想法都歡迎說，不用特別回覆也沒關係，就是想讓你們知道一下 😄
 
 ---
 
 ## 追蹤
-- [ ] 已送出請求（日期：______）
-- [ ] 取得 write 權限 / 確認上傳流程
 - [x] ~~確認官方來源 repo id 與 system prompt 慣例~~ → 已從 model card 確認（見上）
+- [ ] 上傳到 `Bbson/gemma-3-4B-T1-it-MLX-4bit`（日期：______）
+- [ ] 通知訊息已送出（日期：______，可選——不影響上傳排程，不需等回覆）
 - [ ] 排定上傳日（talk 前幾天：約 7/21–7/23）

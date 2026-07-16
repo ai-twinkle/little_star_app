@@ -5,7 +5,7 @@
 > 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
 > task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；
 > task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證，未接模型/未上機）；
-> B02 待用戶本人動作
+> B02 **已完成** — T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)（2026-07-16），task-B03 卡點解除
 > 最後更新：2026-07-16（MlxBackend 骨架，開發機純程式修改，尚未上機驗證）
 
 ---
@@ -43,13 +43,13 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 **還剩**：
 | 任務 | 狀態 | 下一步 |
 |------|------|--------|
-| B02 org 協調 | 待用戶本人動作 | 本週送出 [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md) 的協調訊息 |
+| ~~B02 上傳~~ | ✅ 已完成 2026-07-16 → [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit) | （可選）通知訊息（[drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md)）尚未確認是否送出，不影響其他排程 |
 | ~~nBatch 溢位 crash~~ | ✅ 已修復並實機驗證 | — |
 | ~~A01~~ | ✅ 已完成 | — |
 | ~~A02~~ | ✅ 已完成 | Pixel 8a 在 nCtx=4096 下的記憶體是外推估計，非實測；C01/C02 跑起來後建議補測一次確認 |
 | task-B03（llama.cpp 文字層防護） | ✅ 已完成（單元測試驗證） | 建議錄 demo 前找一次容易重現的長對話在實機/模擬環境跑一輪，肉眼確認尾端不再有 `<start_of_turn>user`/`<\|assistant\|>` 雜訊 |
 | task-B03（MlxBackend/MlxSession 最小骨架） | ✅ 已完成（單元測試驗證） | 見下方新章節；T1 模型本身尚未接上、未上機測試 |
-| task-B03（T1 模型接上 MLX backend + 兩 backend template 一致性） | 尚未動，卡在 B02 | T1 MLX 權重目前只在本機 `.dev/cycles/.../mlx-workspace/t1-mlx-4bit/`，尚未上傳 HF（B02 待用戶協調），沒有可下載的正式來源；且目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入流程還沒做。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
+| task-B03（T1 模型接上 MLX backend + 兩 backend template 一致性） | **B02 卡點已解除**，可以開工 | T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)，有正式下載來源了；但目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入流程還沒做，這部分仍需要新工作。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -118,13 +118,13 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 - `ModelManagerViewModel`（搜尋/下載/匯入/本地模型清單）目前**只認得單檔 `.gguf`**
   （`loadLocalModels()`/`importModels()` 都寫死 `.gguf` 副檔名判斷），MLX 需要的多檔目錄完全沒有對應
   的匯入 UI，只有 spike 畫面那個獨立、手動貼路徑的下載器。
-- T1 的 MLX 權重目前只存在使用者 Mac 本機的 `.dev/cycles/2026-07-08-t1-benchmark-talk/mlx-workspace/t1-mlx-4bit/`，
-  尚未上傳到 HuggingFace（task-B02 上傳協調還在等使用者本人動作），所以就算 MLX backend 就緒，也還沒有
-  正式的下載來源可以測。
+- T1 的 MLX 權重當時（2026-07-16 動工時）只存在使用者 Mac 本機，尚未上傳，所以就算 MLX backend
+  就緒，也還沒有正式的下載來源可以測。**此點已解除**：task-B02 已於同日完成上傳，見
+  [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)。
 
 **與使用者討論後的範圍決定**：先只做最小可測試的骨架（純 Dart、不需裝置），把 T1 模型真正接上、
 模型匯入 UI、以及需要在 Mac 用 Xcode 跑 Swift 層的 template 一致性驗證，都明確排除在本次之外，
-留給 B02 上傳完成之後再處理。
+留給 B02 上傳完成之後再處理（B02 現已完成，見上）。
 
 **做了什麼**：新增 `lib/core/inference/mlx_backend.dart`
 - `MlxBackend implements InferenceBackend`：`canHandle` 判斷 `ModelFormat.mlx`；`createSession` 驗證
@@ -154,9 +154,11 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 3. **尚未上機驗證**：這些都是 Dart 端用 fake driver 做的邏輯測試，沒有實際接真正的 T1 MLX 權重、
    沒有在 iOS/macOS 上跑過。
 
-**尚未處理（明確排除在本次範圍外，留給 B02 上傳完成後的下一輪）**：
-- T1 MLX 權重的正式下載/匯入來源——等 B02 上傳到 HF 之後才有東西可測。
-- `ModelManagerViewModel` 擴充支援 MLX 多檔目錄的下載/匯入/本地清單，目前完全沒有對應 UI。
+**尚未處理（明確排除在本次範圍外，B02 完成後的下一輪）**：
+- ~~T1 MLX 權重的正式下載/匯入來源~~ → **已解除** 2026-07-16：已上傳到
+  [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)。
+- `ModelManagerViewModel` 擴充支援 MLX 多檔目錄的下載/匯入/本地清單，目前完全沒有對應 UI——
+  這是接下來要做 T1 真正接上 MLX backend 時仍然要處理的部分。
 - 兩 backend 的 chat template 一致性測試（plan.md task-B03 原定驗收標準之一）：需要在 Mac 上用
   Xcode 跑 Swift 層（`MlxInferenceBridge.swift` 走真正的 Jinja），無法從目前這個開發環境驗證，
   也還沒設計出比較兩邊輸出的具體測試方法。
@@ -366,11 +368,22 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 - ⚠️ **與 GGUF 版正式並排比對尚未執行**（task-A01 GGUF+llama.cpp 驗證尚未動工，見接手快照「尚未動的」）；
   本次僅完成 MLX 版獨立品質判讀，達標。待 A01 跑完後補上真正並排對照。
 
-### task-B02: Twinkle org 上傳協調 + 繁中 model card — [IN_PROGRESS]
-- ✅ 繁中 model card 草稿 → [drafts/model-card-zh-tw.md](drafts/model-card-zh-tw.md)
-- ✅ org 協調訊息草稿 + 追蹤清單 → [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md)
-- ⏳ **需用戶本人動作**：本週送出協調請求；取得 write 權限；確認官方 repo id + system prompt 慣例
-- ⚠️ 本週就要開口
+### task-B02: 上傳到自己 HF repo + 繁中 model card — [DONE] ✅ 2026-07-16（2026-07-16 改案，同日完成）
+
+**改案原因**：原計畫要向 Twinkle org 要 write 權限，但協調時間不可控，卡住了 task-B03（T1 接進
+MLX backend）。跟使用者確認後改成**直接上傳到使用者自己的 HF repo**（`Bbson/gemma-3-4B-T1-it-MLX-4bit`），
+不再需要等 org 回覆；改成單向發一則禮貌性通知訊息給 Twinkle org（不要求任何權限，附上連結保持
+社群能見度即可），不影響上傳排程。
+
+- ✅ 繁中 model card 草稿 → [drafts/model-card-zh-tw.md](drafts/model-card-zh-tw.md)（已改用
+  `Bbson/gemma-3-4B-T1-it-MLX-4bit` repo id，致謝段落同步更新）
+- ✅ org 通知訊息草稿 + 追蹤清單 → [drafts/twinkle-org-outreach.md](drafts/twinkle-org-outreach.md)
+  （已改寫為禮貌性通知，不再要求 write 權限）
+- ✅ **4-bit MLX 權重已上傳** → [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)
+  （2026-07-16）。過程中遇到一次 `hf upload` 403（fine-grained token 沒有 write/LFS 權限），
+  換成有 write 權限的 token 後上傳成功。
+- ⏳ 尚餘（不影響其他任務，可隨時做）：（可選）送出通知訊息給 Twinkle org，不需等回覆
+- **task-B03 卡點已解除**：T1 現在有正式的 MLX 下載來源了。
 
 ---
 
@@ -414,7 +427,7 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 出現重複或英文夾雜的雜訊（尤其 Q6 出現 `<translation>` 標籤迴圈）。**需在 task-B03 接進 MLX backend 時
 正確設定 stop token/EOS**，否則產品端會把這段雜訊顯示給使用者。
 
-**判定：4-bit 繁中品質達標** → 進 task-B03（接進 MLX backend）+ task-B02（上傳協調，用戶已在進行）。
+**判定：4-bit 繁中品質達標** → 進 task-B03（接進 MLX backend）+ task-B02（已完成，見上方 task-B02 章節）。
 Q3 的地名瑕疵屬個案幻覺，非系統性問題，記錄供 D02 demo 選題時避開類似問法。
 
 ## 待用戶回填（回來後回寫此檔 + plan.md 狀態）
@@ -423,7 +436,7 @@ Q3 的地名瑕疵屬個案幻覺，非系統性問題，記錄供 D02 demo 選�
 |------|--------|
 | A03 | ✅ 已完成，見上方（含新發現的 nBatch 溢位崩潰，需優先處理） |
 | B01 | ✅ 已完成，見上方判定表 |
-| B02 | write 權限取得 + 協調請求送出日 + 上傳排程（用戶待辦，本檔未變動） |
+| B02 | ✅ 已完成 2026-07-16，見上方 task-B02 章節；（可選）org 通知訊息送出日仍待補 |
 
 ---
 

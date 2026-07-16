@@ -75,29 +75,30 @@
   - [x] 繁中品質獨立判讀達標（8 題僅 Q3 有個案地名瑕疵）；**與 GGUF 版正式並排對照待 task-A01 完成後補上**
 - **預估時間**: 1 天 ｜ ⚠️ **sanity check 提早做（留換方案時間）**
 
-#### task-B02: Twinkle org 上傳協調 + 繁中 model card
+#### task-B02: 上傳到自己 HF repo + 繁中 model card（2026-07-16 改案）
 - **類型**: ⚙️ 配置 + 📄 文檔
-- **狀態**: [IN_PROGRESS] — model card + 協調訊息草稿完成（drafts/），待用戶本週送出
-- **描述**: 與 Twinkle AI org 協調上傳權限，補繁中 model card。上傳時間點抓 talk 前幾天（新鮮度最高），但**協調本週就開口**（時間不可控）。
-- **建議方式**: 本週開口協調 → 撰 model card 草稿 → talk 前上傳
+- **狀態**: [DONE] ✅ 2026-07-16 — 4-bit MLX 權重已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)（過程中遇到一次 `hf upload` 403，fine-grained token 缺 write/LFS 權限，換 write token 後成功）
+- **描述**: 原計畫與 Twinkle AI org 協調 write 權限，但協調時間不可控、卡住了 task-B03；改成直接上傳到使用者自己的 HF repo，org 那邊只發一則禮貌性通知（不要求權限），不影響上傳排程。
+- **建議方式**: 上傳到 `Bbson/gemma-3-4B-T1-it-MLX-4bit` → （可選）發通知訊息 → talk 前上傳完成
 - **驗收標準**:
-  - [ ] 本週已向 Twinkle org 提出上傳權限請求
-  - [ ] 繁中 model card 草稿完成
-  - [ ] 上傳排程定於 talk 前幾天
-- **預估時間**: 0.5 天（撰寫）+ 協調等待 ｜ ⚠️ **本週就要開口**
+  - [x] 4-bit MLX 權重已上傳到 `Bbson/gemma-3-4B-T1-it-MLX-4bit`
+  - [x] 繁中 model card 草稿完成（repo id 已更新）
+  - [x] 上傳完成日 2026-07-16，早於 talk 前幾天的目標窗口
+  - [ ]（可選，不影響驗收）Twinkle org 通知訊息已送出，不需等回覆
+- **預估時間**: 0.5 天（撰寫）+ 上傳本身 — 實際皆已完成
 
 #### task-B03: 接進 MLX backend + 兩 backend template 一致性驗證 + stop-token 防護
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [IN_PROGRESS] — llama.cpp 側 stop-token 防護（2026-07-15）+ 最小 MlxBackend/MlxSession 骨架（2026-07-16）已完成；T1 真正接上 MLX 卡在 B02（上傳未完成，沒有正式下載來源），且需要 MLX 多檔模型匯入 UI（目前完全沒有，是更早的 task-1001/task-1003 遺留的未完成項，不是本循環新發現）
+- **狀態**: [IN_PROGRESS] — llama.cpp 側 stop-token 防護（2026-07-15）+ 最小 MlxBackend/MlxSession 骨架（2026-07-16）已完成；**B02 卡點已解除**（T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)），但仍需要 MLX 多檔模型匯入 UI（目前完全沒有，是更早的 task-1001/task-1003 遺留的未完成項，不是本循環新發現）才能真正把 T1 接進 app
 - **描述**: 把 T1 MLX 版接進 Little Star MLX backend，確認兩個 backend 的 chat template 處理一致（否則 benchmark 對比失真）；並修正兩 backend 皆觀察到的 stop-token/EOS 未正確終止問題。
 - **建議方式**: Red-Green-Refactor（template 一致性測試）
 - **驗收標準**:
   - [x] llama.cpp backend：加入文字層 turn-marker 防護（`_TurnMarkerFilter`，`llama_cpp_backend.dart`），偵測不到 EOG token 但模型幻覺出下一輪對話時仍能截斷輸出；4 個單元測試佐證，尚未上機驗證
   - [x] 建立 `MlxBackend`/`MlxSession implements InferenceBackend/InferenceSession`（`lib/core/inference/mlx_backend.dart`），接進 `BackendSelector`；17 個單元測試佐證（fake driver，不需裝置）；T1 模型本身尚未接上、未上機驗證
-  - [ ] T1 可透過 MLX backend 載入並 streaming generate（卡在 B02：MLX 權重尚未上傳 HF，且 `ModelManagerViewModel` 還不支援 MLX 多檔目錄匯入）
+  - [ ] T1 可透過 MLX backend 載入並 streaming generate（B02 已解除；仍卡在 `ModelManagerViewModel` 不支援 MLX 多檔目錄匯入）
   - [ ] 同 prompt 下兩 backend 的 template 組出的實際輸入序列一致（有測試佐證）——需要在 Mac 用 Xcode 跑 Swift 層，尚未設計測試方法
   - [ ] MLX 側等價的 stop-token 防護（mlx-swift-lm 本身的 `eosTokenIds`/`extraEOSTokens` 機制理論上更完整，待 T1 接上後才能實測是否需要額外防護）
-- **預估時間**: 1.5 天（stop-token 防護 + MlxBackend 骨架已完成；剩餘的「T1 真正接上 + 一致性測試」在 B02 完成前無法繼續，且比原估更大）
+- **預估時間**: 1.5 天（stop-token 防護 + MlxBackend 骨架已完成；B02 卡點解除，剩餘的「MLX 模型匯入 UI + T1 真正接上 + 一致性測試」比原估更大）
 
 ### C 線｜Benchmark Harness（進 App 本體 · 內部量測工具）
 
@@ -205,10 +206,12 @@
 
 | 期間 | 里程碑 | 對應任務 |
 |------|--------|----------|
-| 7/8–7/11 | A+B 完成；Pixel 8a 去留判定 | A01, A02, A03, B01, B02(開口), B03 |
+| 7/8–7/11 | A+B 完成；Pixel 8a 去留判定 | A01, A02, A03, B01, B02(開口，已於 7/16 改案為自建 repo), B03 |
 | 7/12–7/15 | harness 可用；pilot 修方法論 | C01, C02, C03, C04 |
 | 7/16–7/19 | 正式跑矩陣 + demo footage；FM 去留 | C05, D02, D03 |
-| 7/20–7/24 | 圖表/簡報/講稿 + ≥2 次計時排練 | D01, D04, B02(上傳) |
+| 7/20–7/24 | 圖表/簡報/講稿 + ≥2 次計時排練 | D01, D04 |
+
+> B02 已於 7/16 完成上傳，比原排程（talk 前幾天）提早許多。
 
 ---
 
@@ -220,7 +223,7 @@
 | ~~llama.cpp Android backend nBatch=512 溢位崩潰~~（A03 新發現） | ~~C02/C05 的 L512+ prompt tier 在 Android 上會全數 crash~~ | **已解除**：`llama_cpp_ffi.dart` 加入 prompt 分批 prefill，實機驗證不再崩潰 |
 | 兩 backend stop-token 未正確終止（B01/A03 共同觀察） | 回應尾端出現雜訊/偽造下一輪對話，demo 錄影會露餡 | **llama.cpp 側已解除**（2026-07-15 文字層 turn-marker 防護，見 construction.md）；MLX 側待 T1 接進 MLX backend 後一併評估 |
 | MLX 轉換後繁中品質異常 | benchmark/demo 失真 | ~~sanity check 提早做~~ → **已解除**：B01 達標 |
-| Twinkle org 上傳協調時間不可控 | 「發佈」時刻落空 | 本週就開口（B02）；上傳排 talk 前幾天 |
+| ~~Twinkle org 上傳協調時間不可控~~ | ~~「發佈」時刻落空~~ | **已解除**（2026-07-16）：B02 改案為上傳到使用者自己的 HF repo `Bbson/gemma-3-4B-T1-it-MLX-4bit`，不再需要 org write 權限；org 只發禮貌性通知，不卡排程 |
 | 兩 backend template 不一致 | 對比失真 | B03 加一致性測試 |
 | 時程壓縮吃掉排練 buffer | 語速失控（主敵） | harness 限內部範圍；D03 硬 timebox |
 

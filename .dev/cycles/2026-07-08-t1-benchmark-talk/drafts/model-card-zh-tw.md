@@ -31,7 +31,7 @@ pipeline_tag: text-generation
 ```python
 from mlx_lm import load, generate
 
-model, tokenizer = load("twinkle-ai/gemma-3-4B-T1-it-MLX-4bit")
+model, tokenizer = load("Bbson/gemma-3-4B-T1-it-MLX-4bit")
 prompt = "請用三句話介紹台灣夜市文化，並推薦三樣必吃小吃。"
 # system prompt 為選用（原模型無強制慣例）。建議台灣情境定調：
 #   你是台灣的 AI 助理，請一律使用繁體中文與台灣用語回答。
@@ -65,6 +65,6 @@ print(generate(model, tokenizer, prompt=prompt, max_tokens=256))
 
 ## 致謝
 
-- 原模型：Twinkle AI
-- 量化與繁中 model card：[你的名字 / handle]
+- 原模型：[Twinkle AI](https://huggingface.co/twinkle-ai)（`gemma-3-4B-T1-it`）
+- 量化與繁中 model card：[Bbson](https://huggingface.co/Bbson)
 - 端側整合與 benchmark：Little Star App
