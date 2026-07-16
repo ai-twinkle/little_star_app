@@ -88,15 +88,16 @@
 
 #### task-B03: 接進 MLX backend + 兩 backend template 一致性驗證 + stop-token 防護
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [IN_PROGRESS] — llama.cpp 側 stop-token 文字層防護已完成（2026-07-15），MLX 接進仍是 TODO
+- **狀態**: [IN_PROGRESS] — llama.cpp 側 stop-token 防護（2026-07-15）+ 最小 MlxBackend/MlxSession 骨架（2026-07-16）已完成；T1 真正接上 MLX 卡在 B02（上傳未完成，沒有正式下載來源），且需要 MLX 多檔模型匯入 UI（目前完全沒有，是更早的 task-1001/task-1003 遺留的未完成項，不是本循環新發現）
 - **描述**: 把 T1 MLX 版接進 Little Star MLX backend，確認兩個 backend 的 chat template 處理一致（否則 benchmark 對比失真）；並修正兩 backend 皆觀察到的 stop-token/EOS 未正確終止問題。
 - **建議方式**: Red-Green-Refactor（template 一致性測試）
 - **驗收標準**:
   - [x] llama.cpp backend：加入文字層 turn-marker 防護（`_TurnMarkerFilter`，`llama_cpp_backend.dart`），偵測不到 EOG token 但模型幻覺出下一輪對話時仍能截斷輸出；4 個單元測試佐證，尚未上機驗證
-  - [ ] T1 可透過 MLX backend 載入並 streaming generate
-  - [ ] 同 prompt 下兩 backend 的 template 組出的實際輸入序列一致（有測試佐證）
-  - [ ] MLX 側等價的 stop-token 防護（待 MLX 接進後評估是否需要，或 mlx-swift-lm 的 tokenizer EOS 解析已足夠）
-- **預估時間**: 1.5 天（stop-token 防護部分已完成，剩餘為 MLX 接進 + 一致性測試）
+  - [x] 建立 `MlxBackend`/`MlxSession implements InferenceBackend/InferenceSession`（`lib/core/inference/mlx_backend.dart`），接進 `BackendSelector`；17 個單元測試佐證（fake driver，不需裝置）；T1 模型本身尚未接上、未上機驗證
+  - [ ] T1 可透過 MLX backend 載入並 streaming generate（卡在 B02：MLX 權重尚未上傳 HF，且 `ModelManagerViewModel` 還不支援 MLX 多檔目錄匯入）
+  - [ ] 同 prompt 下兩 backend 的 template 組出的實際輸入序列一致（有測試佐證）——需要在 Mac 用 Xcode 跑 Swift 層，尚未設計測試方法
+  - [ ] MLX 側等價的 stop-token 防護（mlx-swift-lm 本身的 `eosTokenIds`/`extraEOSTokens` 機制理論上更完整，待 T1 接上後才能實測是否需要額外防護）
+- **預估時間**: 1.5 天（stop-token 防護 + MlxBackend 骨架已完成；剩餘的「T1 真正接上 + 一致性測試」在 B02 完成前無法繼續，且比原估更大）
 
 ### C 線｜Benchmark Harness（進 App 本體 · 內部量測工具）
 

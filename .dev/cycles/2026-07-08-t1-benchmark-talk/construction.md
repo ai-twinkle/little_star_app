@@ -3,8 +3,10 @@
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
 > 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
-> task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；B02 待用戶動作
-> 最後更新：2026-07-15（llama.cpp turn-marker guard，開發機純程式修改，尚未上機驗證）
+> task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；
+> task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證，未接模型/未上機）；
+> B02 待用戶本人動作
+> 最後更新：2026-07-16（MlxBackend 骨架，開發機純程式修改，尚未上機驗證）
 
 ---
 
@@ -46,7 +48,8 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 | ~~A01~~ | ✅ 已完成 | — |
 | ~~A02~~ | ✅ 已完成 | Pixel 8a 在 nCtx=4096 下的記憶體是外推估計，非實測；C01/C02 跑起來後建議補測一次確認 |
 | task-B03（llama.cpp 文字層防護） | ✅ 已完成（單元測試驗證） | 建議錄 demo 前找一次容易重現的長對話在實機/模擬環境跑一輪，肉眼確認尾端不再有 `<start_of_turn>user`/`<\|assistant\|>` 雜訊 |
-| task-B03（接進 MLX backend + 兩 backend template 一致性） | 尚未動 | T1 尚未接進 app 內 MLX backend；接進後再視情況決定是否也需要 MLX 側的等價防護 |
+| task-B03（MlxBackend/MlxSession 最小骨架） | ✅ 已完成（單元測試驗證） | 見下方新章節；T1 模型本身尚未接上、未上機測試 |
+| task-B03（T1 模型接上 MLX backend + 兩 backend template 一致性） | 尚未動，卡在 B02 | T1 MLX 權重目前只在本機 `.dev/cycles/.../mlx-workspace/t1-mlx-4bit/`，尚未上傳 HF（B02 待用戶協調），沒有可下載的正式來源；且目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入流程還沒做。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -98,6 +101,68 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 - MLX 側的等價防護，待 T1 實際接進 MLX backend（task-B03 剩餘部分）後再評估是否需要。
 - 本次只覆蓋目前觀察到的 marker 清單；若之後在其他 prompt 上看到別種格式的偽造發言標記
   （例如 ChatML 的 `<|im_start|>`），需要把新 marker 加進 `_TurnMarkerFilter._markers`。
+
+---
+
+### task-B03（部分）：最小 MlxBackend/MlxSession 骨架 — [DONE] ✅ 2026-07-16（純 Dart，未接模型/未上機）
+
+**釐清問題範圍（重要，改變了 B03 剩餘工作量的估計）**：原本 plan.md 把「接進 MLX backend」估 1.5 天，
+前提似乎是假設 MLX 的 `InferenceBackend` 早就存在、只差把 T1 接上去。實際追查發現**這個假設不成立**：
+
+- `lib/core/inference/backend_selector.dart` 跟 `lib/core/model/model_profile.dart` 的文件註解明講
+  「MlxBackend（task-1001）」「MLX 多檔下載（task-1003）」都還沒做——這是更早的
+  [2026-05-21-v0.1-major-refactor](../2026-05-21-v0.1-major-refactor/) 循環留下的未完成項，不是本循環
+  才發現的新工作。
+- 目前 app 內唯一會呼叫 `MlxChannel` 的地方是 `lib/debug/mlx_spike_screen.dart`——一個獨立的除錯畫面，
+  直接繞過 `InferenceBackend`/`InferenceSession` 這層抽象，不會被真正的聊天 UI 呼叫到。
+- `ModelManagerViewModel`（搜尋/下載/匯入/本地模型清單）目前**只認得單檔 `.gguf`**
+  （`loadLocalModels()`/`importModels()` 都寫死 `.gguf` 副檔名判斷），MLX 需要的多檔目錄完全沒有對應
+  的匯入 UI，只有 spike 畫面那個獨立、手動貼路徑的下載器。
+- T1 的 MLX 權重目前只存在使用者 Mac 本機的 `.dev/cycles/2026-07-08-t1-benchmark-talk/mlx-workspace/t1-mlx-4bit/`，
+  尚未上傳到 HuggingFace（task-B02 上傳協調還在等使用者本人動作），所以就算 MLX backend 就緒，也還沒有
+  正式的下載來源可以測。
+
+**與使用者討論後的範圍決定**：先只做最小可測試的骨架（純 Dart、不需裝置），把 T1 模型真正接上、
+模型匯入 UI、以及需要在 Mac 用 Xcode 跑 Swift 層的 template 一致性驗證，都明確排除在本次之外，
+留給 B02 上傳完成之後再處理。
+
+**做了什麼**：新增 `lib/core/inference/mlx_backend.dart`
+- `MlxBackend implements InferenceBackend`：`canHandle` 判斷 `ModelFormat.mlx`；`createSession` 驗證
+  `profile.localPath` 已設定，回傳 `MlxSession`。與 `LlamaCppBackend` 的介面/驗證邏輯對齊。
+- `MlxSession implements InferenceSession`：
+  - **延遲載入模型**：`MlxChannel.loadModel()` 是跨 Pigeon platform channel 的非同步呼叫，但
+    `InferenceBackend.createSession` 這個介面規定必須同步回傳——所以模型改成在**第一次呼叫
+    `generate()` 時**才真正 `await loadModel()`，之後同一個 session 不會重複載入。這跟
+    `LlamaCppSession`（FFI 呼叫本身是同步的，可以在 `createSession` 當下就載入）刻意不同，是兩個
+    backend 底層 API 形狀差異造成的，不是不一致的 bug。
+  - **system prompt 處理方式跟 llama.cpp 側不同**：`GemmaChatTemplate`（llama.cpp 用）把 system prompt
+    塞進第一個 user turn的字串（因為 llama.cpp 呼叫的是寫死格式化，不支援 system role）；MLX 這邊直接
+    送一個獨立的 `role: 'system'` 訊息，因為 Swift 端（`MlxInferenceBridge.swift` → mlx-swift-lm →
+    swift-transformers）跑的是模型 tokenizer_config.json 裡**真正的 Jinja 模板**，該模板原生支援
+    system role，不需要在 Dart 端手動塞。這個差異本身就是 task-B03 剩餘的「兩 backend template
+    一致性驗證」需要處理的核心問題——目前只是把差異明確記在程式碼註解裡，還沒有測試佐證兩邊語意等價。
+  - **可測試性**：仿照 `LlamaFfiDriver` 的模式，抽出 `MlxChannelDriver` 介面，讓單元測試可以注入 fake、
+    不需要真正的 platform channel。
+- 接進 `BackendSelector`：`lib/providers/service_providers.dart` 的 `backendSelectorProvider` 現在會
+  傳入 `mlxBackendFactory: MlxBackend.new`（原本是 `null`，選到 MLX 模型會丟 `UnimplementedError`）。
+
+**驗證**：
+1. `fvm flutter analyze lib/core/inference/mlx_backend.dart lib/providers/service_providers.dart test/core/inference/mlx_backend_test.dart` — 0 issues。
+2. `fvm flutter test` — 全專案 188 個測試全數通過，新增 17 個 `mlx_backend_test.dart` 測試
+   （canHandle/createSession 驗證、token 串流、延遲載入且不重複載入、sampling 參數映射、seed=-1→null、
+   system prompt 映射、user/assistant role 映射、cancel、dispose 生命週期），既有測試不需修改。
+3. **尚未上機驗證**：這些都是 Dart 端用 fake driver 做的邏輯測試，沒有實際接真正的 T1 MLX 權重、
+   沒有在 iOS/macOS 上跑過。
+
+**尚未處理（明確排除在本次範圍外，留給 B02 上傳完成後的下一輪）**：
+- T1 MLX 權重的正式下載/匯入來源——等 B02 上傳到 HF 之後才有東西可測。
+- `ModelManagerViewModel` 擴充支援 MLX 多檔目錄的下載/匯入/本地清單，目前完全沒有對應 UI。
+- 兩 backend 的 chat template 一致性測試（plan.md task-B03 原定驗收標準之一）：需要在 Mac 上用
+  Xcode 跑 Swift 層（`MlxInferenceBridge.swift` 走真正的 Jinja），無法從目前這個開發環境驗證，
+  也還沒設計出比較兩邊輸出的具體測試方法。
+- MLX 側的 stop-token/turn-marker 等價防護（見上一節）：mlx-swift-lm 函式庫本身已經有
+  `modelConfiguration.eosTokenIds` + `tokenizer.eosTokenId` + `extraEOSTokens` 的多重 EOS 偵測機制，
+  理論上比 llama.cpp 更完整，但要等 T1 真的接上才能實測是否還會出現尾端雜訊。
 
 ---
 
