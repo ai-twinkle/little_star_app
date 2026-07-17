@@ -99,6 +99,45 @@ class HuggingFaceService {
     }
   }
 
+  /// Get list of MLX weight/config files in a repository (a multi-file
+  /// snapshot rather than a single `.gguf` file).
+  ///
+  /// [repoId] - Repository ID (e.g., "Bbson/gemma-3-4B-T1-it-MLX-4bit")
+  Future<List<HFModelFile>> getMlxModelFiles(String repoId) async {
+    try {
+      _log.debug('Fetching MLX files for repo: $repoId');
+
+      final response = await _dio.get('/models/$repoId/tree/main');
+
+      if (response.statusCode == 200 && response.data is List) {
+        final allFiles = response.data as List;
+
+        final mlxFiles = allFiles
+            .where((file) {
+              final filePath = (file['path'] as String? ?? '').toLowerCase();
+              return filePath.endsWith('.safetensors') ||
+                  filePath == 'config.json' ||
+                  filePath == 'tokenizer.json' ||
+                  filePath == 'tokenizer_config.json' ||
+                  filePath == 'special_tokens_map.json' ||
+                  filePath == 'generation_config.json' ||
+                  filePath == 'tokenizer.model';
+            })
+            .map((json) => HFModelFile.fromTreeEntry(
+                json as Map<String, dynamic>, repoId))
+            .toList();
+
+        _log.info('Found ${mlxFiles.length} MLX files in $repoId');
+        return mlxFiles;
+      }
+
+      return [];
+    } on DioException catch (e) {
+      _log.error('Failed to get MLX model files: ${e.message}');
+      rethrow;
+    }
+  }
+
   /// Get detailed information about a specific model.
   ///
   /// [repoId] - Repository ID (e.g., "TheBloke/Llama-2-7B-GGUF")

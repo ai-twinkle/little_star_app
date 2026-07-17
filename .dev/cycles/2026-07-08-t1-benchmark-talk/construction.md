@@ -5,10 +5,12 @@
 > 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
 > task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；
 > task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證）；
-> **已在實體 iPhone 上用真正的 T1 MLX 權重跑通**（透過臨時 debug 探針 `MlxBackendProbeScreen`）——
+> **已在實體 iPhone 上用真正的 T1 MLX 權重跑通**（透過臨時 debug 探針，現已刪除並被正式 UI 取代）——
 > 成功建立 session、載入模型、串流生成繁中回覆，TTFT ~3.2s、總時間 ~13.1s（單次觀察值，非正式 benchmark）
+> task-B03 **`ChatViewModel`/`BackendSelector` 正式接線已完成**、**MLX 多檔匯入 UI 已完成**
+> （皆為單元測試驗證，匯入 UI 尚未上機）；剩兩 backend template 一致性驗證未開工
 > B02 **已完成** — T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)（2026-07-16），task-B03 卡點解除
-> 最後更新：2026-07-17（MlxBackend 已在實機驗證可跑通 T1；ChatViewModel/BackendSelector 真實接線仍是 TODO）
+> 最後更新：2026-07-17（MLX 匯入 UI 完成，debug 探針已移除；仍待上機驗證 Download→Chat 全流程）
 
 ---
 
@@ -52,8 +54,9 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 | task-B03（llama.cpp 文字層防護） | ✅ 已完成（單元測試驗證） | 建議錄 demo 前找一次容易重現的長對話在實機/模擬環境跑一輪，肉眼確認尾端不再有 `<start_of_turn>user`/`<\|assistant\|>` 雜訊 |
 | task-B03（MlxBackend/MlxSession 最小骨架） | ✅ 已完成（單元測試驗證） | 見下方新章節 |
 | task-B03（debug 探針上機驗證 T1 真的能跑） | ✅ 已完成 2026-07-17（實機驗證） | 見下方新章節；中途遇到一次 `SIGKILL`（懷疑 cold-start 記憶體尖峰，未再重現），第二次重跑成功 |
-| task-B03（`ChatViewModel`/`BackendSelector` 正式接線） | ✅ 已完成 2026-07-17（單元測試驗證） | 見下方新章節；正式聊天 UI 現在能跑 MLX，但仍無法選到 MLX 模型（見下一行） |
-| task-B03（MLX 多檔匯入 UI + 兩 backend template 一致性） | 尚未開工 | 目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入/選擇流程還沒做，所以正式 Chat 畫面實際上還選不到 MLX 模型。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
+| task-B03（`ChatViewModel`/`BackendSelector` 正式接線） | ✅ 已完成 2026-07-17（單元測試驗證） | 見下方新章節 |
+| task-B03（MLX 多檔匯入 UI） | ✅ 已完成 2026-07-17（單元測試驗證，未上機） | 見下方新章節；`MlxBackendProbeScreen` 已依其自身文件註解的條件刪除（功能已被此畫面取代） |
+| task-B03（兩 backend template 一致性驗證） | 尚未開工 | 需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -218,10 +221,61 @@ T1 權重上跑通，task-B03 剩餘工作（`ChatViewModel`/`BackendSelector` �
   MLX profile 真的會呼叫到對應 backend 的 `createSession`。原有 24 個測試全數維持通過
   （都用 `sessionFactory` 繞過 `_openSession`，不受影響）。
 
-**仍未解決**：正式 Chat 畫面目前完全沒有選擇/匯入 MLX 模型的入口——`ModelSelectionDialog`
-只掃描 `.gguf` 檔（`GGUFRepository`），所以即使 `ChatViewModel` 現在能正確處理 mlx profile，
-使用者實際上還是選不到 T1 MLX 模型。下一步是 MLX 多檔目錄匯入 UI（另開工，估計是 B03 剩餘
-工作量最大的一塊）。
+**仍未解決（當時）**：正式 Chat 畫面完全沒有選擇/匯入 MLX 模型的入口——見下一節已解決。
+
+---
+
+### task-B03（部分）：MLX 多檔匯入 UI — [DONE] ✅ 2026-07-17（單元測試驗證，未上機）
+
+**範圍決策**：跟使用者確認後，選擇「獨立最小畫面」而非把現有 `ModelManagerViewModel`/
+`GGUFRepository`/`DownloadTask` 那一整套 GGUF 專用的搜尋/可續傳下載/本地清單基礎設施改造成
+format-agnostic（後者工程量大很多，且會動到現有 GGUF 功能的程式碼路徑，不符合這次的最小改動
+需求）。
+
+**新增檔案**：
+- `lib/data/services/huggingface_service.dart`：新增 `getMlxModelFiles(repoId)`，用同一個
+  `/models/$repoId/tree/main` API，篩選條件換成 `.safetensors`/`config.json`/`tokenizer.json`
+  等 MLX 權重檔（而非 `.gguf`）。
+- `lib/data/services/mlx_repo_fetcher.dart`：新增 `MlxRepoFetcher` 介面 +
+  `HttpMlxRepoFetcher` 真實實作（包 `HuggingFaceService` + `Dio`）。抽介面純粹是為了讓
+  `MlxModelViewModel` 的下載邏輯可以在單元測試裡注入 fake、不必真的打網路——沿用
+  `MlxChannelDriver`/`LlamaFfiDriver` 已經在用的同一種 driver 抽象模式。
+- `lib/models/mlx_model_info.dart`：本地已下載 MLX 模型的資料類別（`repoId`/`directoryPath`/
+  `totalSizeBytes`）。
+- `lib/ui/models/view_model/mlx_model_viewmodel.dart`：下載/列出/刪除本地 MLX 模型快照的
+  `ChangeNotifier`。每個 repo 對應一個以 slugified repo id 命名的資料夾；資料夾內另外寫一個
+  `.repo_id` 標記檔記錄原始 repo id（slug 化是不可逆的——owner 名稱理論上可能含底線——標記檔
+  可以正確還原，slug 反解只當作沒有標記檔時的向下相容 fallback，例如舊版 debug 探針留下的
+  快照）。
+- `lib/ui/models/widgets/mlx_models_screen.dart`：UI——貼 HF repo id（預設值填
+  `Bbson/gemma-3-4B-T1-it-MLX-4bit`）、下載按鈕 + 進度條、本地已下載模型清單，每個項目可以
+  直接「Chat」（導到 `ChatScreen(initialModelPath: model.directoryPath)`，會被上一節接好的
+  `ChatViewModel` 正確辨識成 mlx profile）或刪除。
+- 下載目的地沿用 debug 探針原本的位置（`ApplicationSupportDirectory/Models/mlx/<slug>`），
+  刻意不透過 `DirectoryService.getModelsDirectory()`（iOS 上那個是 Documents 目錄，是特地為了
+  讓使用者在「檔案」App 看到單一 GGUF 檔案而選的；MLX 是多檔目錄，不需要也不適合暴露在
+  使用者可見的 Documents，且沿用同路徑代表使用者手機上已經下載好的 T1 權重不必重新下載）。
+
+**入口**：`home_screen.dart` 新增一張正式（非 debug-only）導覽卡片「MLX Models
+(Apple Silicon)」，`Platform.isIOS || Platform.isMacOS` 才顯示。
+
+**順手清理**：刪除 `lib/debug/mlx_backend_probe_screen.dart` 及其在 `home_screen.dart` 的
+debug icon 入口——該檔案自己的文件註解就寫明「一旦 ChatViewModel/BackendSelector 接線 +
+真正的 MLX 模型選擇入口完成，這個檔案可以刪除」，兩個條件本次都已滿足，且它能顯示的
+TTFT/token 數等 metrics，正式 Chat 畫面（`message_bubble.dart` + `ChatViewModel.MessageMetrics`）
+本來就有。
+
+**測試**：`test/ui/models/view_model/mlx_model_viewmodel_test.dart` 9 個新單元測試（用注入的
+fake `MlxRepoFetcher` + 真實暫存目錄，不需要 mock 網路或 path_provider 平台 channel），涵蓋：
+本地目錄不存在、標記檔還原 repoId、無標記檔 fallback 反解 slug、只有標記檔沒有權重檔要跳過、
+成功下載多檔並寫入標記檔、repo 沒有 MLX 檔案時回傳失敗訊息、fetcher 拋例外時回傳失敗訊息、
+空白 repo id 直接忽略、刪除本地模型後清單刷新。`flutter analyze` 全部乾淨、既有 200 個測試
+全數維持通過。
+
+**仍未驗證**：這批程式碼還沒有在實體裝置上跑過（沒有實際觸發 Download 按鈕測試真正從
+Hugging Face 下載、也還沒點過 Chat 按鈕確認能不能正確從這個路徑接上 T1 生成）。下次拿到裝置
+時建議先跑一輪：Download（若手機上已有舊 debug 探針下載的 T1 快照，這次改用同一個目錄，
+理論上會直接被辨識成本地模型不必重下）→ 點清單裡的 Chat → 確認能正常對話。
 
 ---
 

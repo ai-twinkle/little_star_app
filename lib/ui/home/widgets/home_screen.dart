@@ -18,8 +18,8 @@ import 'package:little_star_app/ui/home/widgets/recommended_model_card.dart';
 import 'package:little_star_app/ui/home/widgets/skeleton_loader.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
+import 'package:little_star_app/ui/models/widgets/mlx_models_screen.dart';
 import 'package:little_star_app/ui/about/about_screen.dart';
-import 'package:little_star_app/debug/mlx_backend_probe_screen.dart';
 import 'package:little_star_app/debug/mlx_spike_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -94,15 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(builder: (_) => const MlxSpikeScreen()),
                       ),
                     ),
-                  if (kDebugMode && (Platform.isIOS || Platform.isMacOS))
-                    IconButton(
-                      icon: const Icon(Icons.biotech_outlined),
-                      tooltip: 'MLX Backend Probe (task-B03)',
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MlxBackendProbeScreen()),
-                      ),
-                    ),
                   IconButton(
                     icon: const Icon(Icons.info_outline),
                     onPressed: () => _openAboutScreen(context),
@@ -173,6 +164,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Colors.orange,
                         onTap: () => _openModelManager(context),
                       ),
+                      if (Platform.isIOS || Platform.isMacOS) ...[
+                        const SizedBox(height: 16),
+                        _buildNavigationCard(
+                          context: context,
+                          title: 'MLX Models (Apple Silicon)',
+                          subtitle: 'Download and chat with MLX models on-device',
+                          icon: Icons.memory,
+                          color: Colors.deepPurple,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const MlxModelsScreen()),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                     ],
                   ),
