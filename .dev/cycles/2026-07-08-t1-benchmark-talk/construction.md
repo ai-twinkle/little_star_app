@@ -52,7 +52,8 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 | task-B03（llama.cpp 文字層防護） | ✅ 已完成（單元測試驗證） | 建議錄 demo 前找一次容易重現的長對話在實機/模擬環境跑一輪，肉眼確認尾端不再有 `<start_of_turn>user`/`<\|assistant\|>` 雜訊 |
 | task-B03（MlxBackend/MlxSession 最小骨架） | ✅ 已完成（單元測試驗證） | 見下方新章節 |
 | task-B03（debug 探針上機驗證 T1 真的能跑） | ✅ 已完成 2026-07-17（實機驗證） | 見下方新章節；中途遇到一次 `SIGKILL`（懷疑 cold-start 記憶體尖峰，未再重現），第二次重跑成功 |
-| task-B03（T1 模型接上 MLX backend + 兩 backend template 一致性） | 探針驗證已通過，可以開工正式接線 | 目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入流程還沒做；`ChatViewModel` 仍硬編碼 GGUF，沒有走 `BackendSelector`。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
+| task-B03（`ChatViewModel`/`BackendSelector` 正式接線） | ✅ 已完成 2026-07-17（單元測試驗證） | 見下方新章節；正式聊天 UI 現在能跑 MLX，但仍無法選到 MLX 模型（見下一行） |
+| task-B03（MLX 多檔匯入 UI + 兩 backend template 一致性） | 尚未開工 | 目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入/選擇流程還沒做，所以正式 Chat 畫面實際上還選不到 MLX 模型。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -194,6 +195,33 @@ task-B03 後續工作的 blocker；若未來在 C01/C02 harness 或正式接線�
 **結論**：`MlxBackend`/`MlxSession` 的抽象設計（lazy load、串流、cancel/dispose）在真實
 T1 權重上跑通，task-B03 剩餘工作（`ChatViewModel`/`BackendSelector` 正式接線、MLX 多檔匯入 UI、
 兩 backend template 一致性驗證）可以開工，探針本身待正式接線完成後可以刪除。
+
+---
+
+### task-B03（部分）：`ChatViewModel`/`BackendSelector` 正式接線 — [DONE] ✅ 2026-07-17（單元測試驗證）
+
+**問題**：`ChatViewModel._buildProfile` 之前寫死 `format: ModelFormat.gguf`，且 `_openSession`
+自己 new 一個沒有 `mlxBackendFactory` 的 `BackendSelector()`——即使 profile.format 是 mlx，
+也會直接丟 `UnimplementedError`。`service_providers.dart` 裡早就配好的
+`backendSelectorProvider`（帶 `mlxBackendFactory: MlxBackend.new`）其實從未被 `ChatViewModel`
+用到，是個沒人接的孤兒 provider。`CompletionViewModel` 有一模一樣的寫死問題，但這次範圍
+只處理 `ChatViewModel`（使用者明確指定），`CompletionViewModel` 留待之後需要時再修。
+
+**修法**：`lib/ui/chat/view_model/chat_viewmodel.dart`
+- `_buildProfile` 改用新的 `_detectFormat(modelPath)`：副檔名 `.gguf` → `ModelFormat.gguf`，
+  其他（MLX 下載下來是一個資料夾，沒有單一副檔名）→ `ModelFormat.mlx`。
+- 建構子新增 `@visibleForTesting BackendSelector? backendSelector` 參數，預設值改成
+  `BackendSelector(mlxBackendFactory: MlxBackend.new)`（原本是每次呼叫都 new 一個空的
+  `BackendSelector()`）。`_openSession` 改用這個實例欄位而非現場 new。
+- 4 個新單元測試（`test/ui/chat/view_model/chat_viewmodel_test.dart`）：`.gguf` 路徑→gguf
+  profile、無副檔名路徑→mlx profile、注入 fake `BackendSelector`/`InferenceBackend` 驗證
+  MLX profile 真的會呼叫到對應 backend 的 `createSession`。原有 24 個測試全數維持通過
+  （都用 `sessionFactory` 繞過 `_openSession`，不受影響）。
+
+**仍未解決**：正式 Chat 畫面目前完全沒有選擇/匯入 MLX 模型的入口——`ModelSelectionDialog`
+只掃描 `.gguf` 檔（`GGUFRepository`），所以即使 `ChatViewModel` 現在能正確處理 mlx profile，
+使用者實際上還是選不到 T1 MLX 模型。下一步是 MLX 多檔目錄匯入 UI（另開工，估計是 B03 剩餘
+工作量最大的一塊）。
 
 ---
 

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_star_app/core/inference/backend_selector.dart';
+import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
@@ -311,4 +313,58 @@ void main() {
       expect(first.disposed, isTrue);
     });
   });
+
+  group('ChatViewModel — backend/format wiring', () {
+    test('.gguf path builds a gguf ModelProfile', () {
+      ModelProfile? captured;
+      final vm = ChatViewModel(
+        modelPath: '/fake/model.gguf',
+        sessionFactory: (profile, __) {
+          captured = profile;
+          return _FakeSession();
+        },
+      );
+      addTearDown(vm.dispose);
+
+      expect(captured?.format, ModelFormat.gguf);
+    });
+
+    test('extensionless (MLX snapshot directory) path builds an mlx ModelProfile', () {
+      ModelProfile? captured;
+      final vm = ChatViewModel(
+        modelPath: '/fake/Models/mlx/some-repo',
+        sessionFactory: (profile, __) {
+          captured = profile;
+          return _FakeSession();
+        },
+      );
+      addTearDown(vm.dispose);
+
+      expect(captured?.format, ModelFormat.mlx);
+    });
+
+    test('mlx profile is routed through the injected BackendSelector', () {
+      final fakeBackend = _FakeMlxBackend();
+      final vm = ChatViewModel(
+        modelPath: '/fake/Models/mlx/some-repo',
+        backendSelector: BackendSelector(mlxBackendFactory: () => fakeBackend),
+      );
+      addTearDown(vm.dispose);
+
+      expect(fakeBackend.createSessionCallCount, 1);
+    });
+  });
+}
+
+class _FakeMlxBackend implements InferenceBackend {
+  int createSessionCallCount = 0;
+
+  @override
+  bool canHandle(ModelProfile profile) => profile.format == ModelFormat.mlx;
+
+  @override
+  InferenceSession createSession(ModelProfile profile, InferenceSettings settings) {
+    createSessionCallCount++;
+    return _FakeSession();
+  }
 }
