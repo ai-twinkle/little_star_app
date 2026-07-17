@@ -84,8 +84,10 @@ class CompletionViewModel extends ChangeNotifier {
   })  : _settings = const InferenceSettings(maxTokens: 256),
         _selectedModelPath = modelPath,
         _sessionFactory = sessionFactory {
-    _profile = _buildProfile(modelPath);
-    _session = _openSession();
+    if (modelPath.isNotEmpty) {
+      _profile = _buildProfile(modelPath);
+      _session = _openSession();
+    }
   }
 
   final InferenceSession Function(ModelProfile, InferenceSettings)? _sessionFactory;

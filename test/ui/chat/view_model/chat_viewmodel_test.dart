@@ -353,6 +353,27 @@ void main() {
 
       expect(fakeBackend.createSessionCallCount, 1);
     });
+
+    test('empty modelPath does not eagerly open a session (regression)', () {
+      // Constructing with no model selected must not throw even though a
+      // real BackendSelector (with no fake session/backend injected) is used
+      // — this is exactly the path chat_screen.dart takes when opened
+      // without an initialModelPath.
+      expect(
+        () => ChatViewModel(modelPath: ''),
+        returnsNormally,
+      );
+    });
+
+    test('sendMessage does not crash and never starts generating when no '
+        'model was ever selected', () async {
+      final vm = ChatViewModel(modelPath: '');
+      addTearDown(vm.dispose);
+
+      await vm.sendMessage('hello');
+
+      expect(vm.isGenerating, isFalse);
+    });
   });
 }
 

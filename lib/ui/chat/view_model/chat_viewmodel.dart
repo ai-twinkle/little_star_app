@@ -66,8 +66,10 @@ class ChatViewModel extends ChangeNotifier {
         _sessionFactory = sessionFactory,
         _backendSelector =
             backendSelector ?? BackendSelector(mlxBackendFactory: MlxBackend.new) {
-    _profile = _buildProfile(modelPath);
-    _session = _openSession();
+    if (modelPath.isNotEmpty) {
+      _profile = _buildProfile(modelPath);
+      _session = _openSession();
+    }
   }
 
   final InferenceSession Function(ModelProfile, InferenceSettings)? _sessionFactory;

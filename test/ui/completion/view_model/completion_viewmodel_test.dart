@@ -237,6 +237,28 @@ void main() {
       expect(first.disposed, isTrue);
     });
   });
+
+  group('CompletionViewModel — no model selected (regression)', () {
+    test('empty modelPath does not eagerly open a session', () {
+      // Constructing with no model selected must not throw even though a
+      // real BackendSelector (no fake session injected) is used — this is
+      // the path completion_screen.dart takes when opened without an
+      // initialModelPath.
+      expect(
+        () => CompletionViewModel(modelPath: ''),
+        returnsNormally,
+      );
+    });
+
+    test('startCompletion is a no-op when no model was ever selected', () async {
+      final vm = CompletionViewModel(modelPath: '');
+      addTearDown(vm.dispose);
+
+      await vm.startCompletion('hello');
+
+      expect(vm.isRunning, isFalse);
+    });
+  });
 }
 
 // Custom matcher for approximate double equality.
