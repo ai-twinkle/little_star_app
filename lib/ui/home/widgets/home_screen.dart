@@ -19,6 +19,7 @@ import 'package:little_star_app/ui/home/widgets/skeleton_loader.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
 import 'package:little_star_app/ui/about/about_screen.dart';
+import 'package:little_star_app/debug/mlx_backend_probe_screen.dart';
 import 'package:little_star_app/debug/mlx_spike_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -84,13 +85,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 elevation: 0,
                 actions: [
-                  if (kDebugMode && Platform.isIOS)
+                  if (kDebugMode && (Platform.isIOS || Platform.isMacOS))
                     IconButton(
                       icon: const Icon(Icons.science_outlined),
                       tooltip: 'MLX Spike',
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const MlxSpikeScreen()),
+                      ),
+                    ),
+                  if (kDebugMode && (Platform.isIOS || Platform.isMacOS))
+                    IconButton(
+                      icon: const Icon(Icons.biotech_outlined),
+                      tooltip: 'MLX Backend Probe (task-B03)',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MlxBackendProbeScreen()),
                       ),
                     ),
                   IconButton(

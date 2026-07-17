@@ -4,9 +4,11 @@
 > 階段：Construction
 > 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
 > task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；
-> task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證，未接模型/未上機）；
+> task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證）；
+> **已在實體 iPhone 上用真正的 T1 MLX 權重跑通**（透過臨時 debug 探針 `MlxBackendProbeScreen`）——
+> 成功建立 session、載入模型、串流生成繁中回覆，TTFT ~3.2s、總時間 ~13.1s（單次觀察值，非正式 benchmark）
 > B02 **已完成** — T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)（2026-07-16），task-B03 卡點解除
-> 最後更新：2026-07-16（MlxBackend 骨架，開發機純程式修改，尚未上機驗證）
+> 最後更新：2026-07-17（MlxBackend 已在實機驗證可跑通 T1；ChatViewModel/BackendSelector 真實接線仍是 TODO）
 
 ---
 
@@ -48,8 +50,9 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 | ~~A01~~ | ✅ 已完成 | — |
 | ~~A02~~ | ✅ 已完成 | Pixel 8a 在 nCtx=4096 下的記憶體是外推估計，非實測；C01/C02 跑起來後建議補測一次確認 |
 | task-B03（llama.cpp 文字層防護） | ✅ 已完成（單元測試驗證） | 建議錄 demo 前找一次容易重現的長對話在實機/模擬環境跑一輪，肉眼確認尾端不再有 `<start_of_turn>user`/`<\|assistant\|>` 雜訊 |
-| task-B03（MlxBackend/MlxSession 最小骨架） | ✅ 已完成（單元測試驗證） | 見下方新章節；T1 模型本身尚未接上、未上機測試 |
-| task-B03（T1 模型接上 MLX backend + 兩 backend template 一致性） | **B02 卡點已解除**，可以開工 | T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)，有正式下載來源了；但目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入流程還沒做，這部分仍需要新工作。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
+| task-B03（MlxBackend/MlxSession 最小骨架） | ✅ 已完成（單元測試驗證） | 見下方新章節 |
+| task-B03（debug 探針上機驗證 T1 真的能跑） | ✅ 已完成 2026-07-17（實機驗證） | 見下方新章節；中途遇到一次 `SIGKILL`（懷疑 cold-start 記憶體尖峰，未再重現），第二次重跑成功 |
+| task-B03（T1 模型接上 MLX backend + 兩 backend template 一致性） | 探針驗證已通過，可以開工正式接線 | 目前模型管理 UI（`ModelManagerViewModel`）只認得單檔 `.gguf`，MLX 多檔目錄的匯入流程還沒做；`ChatViewModel` 仍硬編碼 GGUF，沒有走 `BackendSelector`。template 一致性測試需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -165,6 +168,32 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 - MLX 側的 stop-token/turn-marker 等價防護（見上一節）：mlx-swift-lm 函式庫本身已經有
   `modelConfiguration.eosTokenIds` + `tokenizer.eosTokenId` + `extraEOSTokens` 的多重 EOS 偵測機制，
   理論上比 llama.cpp 更完整，但要等 T1 真的接上才能實測是否還會出現尾端雜訊。
+
+---
+
+### task-B03（部分）：debug 探針上機驗證 T1 真的能跑 — [DONE] ✅ 2026-07-17（實機驗證，iPhone）
+
+**做法**：新增臨時 debug 專用畫面 `lib/debug/mlx_backend_probe_screen.dart`（`kDebugMode` +
+iOS/macOS 才顯示的入口圖示，`home_screen.dart`），直接呼叫真正的 `MlxBackend`/`MlxSession`
+（跳過還沒接線的 `ChatViewModel`/`BackendSelector`），對 `Bbson/gemma-3-4B-T1-it-MLX-4bit`
+下載 → 建立 session → 送出繁中 prompt → 串流接收輸出，全程用實體 iPhone 測試。
+
+**過程中的一次 `SIGKILL`**：第一輪測試（Create Session → Send）app 被系統以 `SIGKILL` 強制關閉。
+用 lldb 附加的 log 確認是訊號終止（非 Dart 可捕捉的例外），懷疑是 MLX 首次載入模型時的
+Metal shader JIT 編譯 + 4-bit 權重（~2.4GB）+ KV cache 疊加造成的 cold-start 記憶體尖峰
+（`increased-memory-limit` entitlement 確認仍在生效，`ios/Runner/Runner.entitlements`）。
+未能從 macOS 端 unified log（`/usr/bin/log stream`，過濾 jetsam/memorystatus/killed）
+或 app 內 log 抓到決定性的「記憶體不足被殺」證據，只能記錄為懷疑而非確診。
+
+**第二輪重跑（同一支 app、同一台手機、模型檔案已在本地）**：Create Session → Send **成功**，
+無崩潰，串流生成出正確的繁體中文內容，`TTFT≈3.2s`、總耗時 `≈13.1s`（單次觀察值，非正式
+benchmark，取樣數=1）。判斷第一次的 `SIGKILL` **非穩定重現的系統性問題**，暫不視為阻塞
+task-B03 後續工作的 blocker；若未來在 C01/C02 harness 或正式接線後又重現，需要回頭正式量測
+記憶體曲線（例如 Xcode Instruments）而非只靠 log 猜測。
+
+**結論**：`MlxBackend`/`MlxSession` 的抽象設計（lazy load、串流、cancel/dispose）在真實
+T1 權重上跑通，task-B03 剩餘工作（`ChatViewModel`/`BackendSelector` 正式接線、MLX 多檔匯入 UI、
+兩 backend template 一致性驗證）可以開工，探針本身待正式接線完成後可以刪除。
 
 ---
 
