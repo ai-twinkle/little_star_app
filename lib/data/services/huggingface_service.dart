@@ -121,7 +121,14 @@ class HuggingFaceService {
                   filePath == 'tokenizer_config.json' ||
                   filePath == 'special_tokens_map.json' ||
                   filePath == 'generation_config.json' ||
-                  filePath == 'tokenizer.model';
+                  filePath == 'tokenizer.model' ||
+                  // Newer HF repos (incl. mlx_lm.convert output) split the
+                  // chat template out of tokenizer_config.json into its own
+                  // file; swift-transformers looks for it on disk, so it
+                  // must be downloaded or chat formatting silently falls
+                  // back to plain text.
+                  filePath == 'chat_template.jinja' ||
+                  filePath == 'chat_template.json';
             })
             .map((json) => HFModelFile.fromTreeEntry(
                 json as Map<String, dynamic>, repoId))

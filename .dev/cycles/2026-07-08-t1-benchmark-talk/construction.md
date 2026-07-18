@@ -279,6 +279,90 @@ Hugging Face 下載、也還沒點過 Chat 按鈕確認能不能正確從這個�
 
 ---
 
+### task-B03（部分）：Completion 頁面 MLX 支援 + GGUF prefill/prompt token 統計 — [DONE] ✅ 2026-07-18（已上機驗證，iPhone 17 Pro）
+
+**背景**：上一節完成的 MLX 匯入 UI 只接了 Chat；使用者這次要求 Completion 頁面也要能選 MLX
+模型。順便補上 Completion 頁一直缺的 prefill/prompt token 統計（先前只有 Decode tps 有值）。
+
+**程式碼變更**：
+- `CompletionViewModel` 套用跟 `ChatViewModel` 相同的 MLX 接線修正：`_buildProfile` 改用
+  副檔名判斷格式（`.gguf` → gguf，其餘（MLX 多檔目錄）→ mlx），並注入
+  `BackendSelector(mlxBackendFactory: MlxBackend.new)` 取代原本沒接 MLX factory 的預設
+  `BackendSelector()`。
+- `mlx_models_screen.dart` 本地模型清單新增「Completion」圖示按鈕（`Icons.edit_note_outlined`），
+  導到 `CompletionScreen(initialModelPath: model.directoryPath)`。
+- Completion 畫面「Select GGUF」按鈕文案改成通用的「Change」（MLX 模型也會經過這裡，原文案
+  誤導）。
+- 新增 `PromptMetricsSource` 能力介面（`lastPromptTokenCount`/`lastPrefillDuration`，用
+  `is`/`as` 動態偵測，而非塞進 `InferenceSession` 本體）；`LlamaCppSession` 實作它，
+  `GenerationController`/`CompletionViewModel.MetricsData` 跟著把這兩個值透出。**`MlxSession`
+  目前未實作**，故 MLX 跑起來 Prefill tps 顯示 `-`、Prompt tokens 顯示 `0`（見下方數據，非 bug）。
+- **架構修正（連帶發現）**：原本 `LlamaCppSession` 每次呼叫 `generate()` 都重新
+  `createContext()`/`createSampler()`（重新配置 4096-token KV cache），這段 ~300ms 的一次性
+  成本被算進 TTFT，導致跟公開 benchmark 的 TTFT 定義對不齊（公開數據的 TTFT 只算
+  tokenize+prefill+首字，不含 session 建置）。改成 `createContext`/`createSampler` 只在
+  session 建構時跑一次，之後每次生成前改用新增的 FFI binding `llama_get_memory` +
+  `llama_memory_clear`（對照 vendored `llama.cpp/include/llama.h:701-705` 確認存在）把 KV
+  cache 歸零，不重建整個 context。副作用：同一 session 重複按 Run 也變快了。
+- 另修了一個先前發現的既有 bug：`ChatViewModel`/`CompletionViewModel` 建構子在
+  `modelPath` 為空字串時仍會 eager 開 session，導致沒選模型就點進 Chat/Completion 直接
+  crash（`ModelProfile.localPath must be set before creating a session`）；兩者建構子都加上
+  `if (modelPath.isNotEmpty)` 防呆。
+
+**測試**：新增/更新測試涵蓋 MLX profile 偵測、`BackendSelector` 注入、
+`createContext`/`createSampler` 只跑一次、`resetForNewGeneration` 每次生成呼叫一次、
+context/sampler 建置失敗時安全跳過。全專案 221 個測試通過，`flutter analyze` 乾淨。
+
+**commits**：`43cf841` 空 modelPath 不 eager 開 session、`5ec9e49` GGUF prefill/prompt-token
+統計 + session 只建置一次、（本次 Completion MLX 接線，尚未提交）。
+
+#### 實機數據（iPhone 17 Pro，2026-07-18，單次觀察值，非正式 benchmark）
+
+Prompt 統一用「很盤是什麼意思？"（14 prompt tokens／GGUF tokenizer 計數），`maxTokens=256`，
+`temperature=0.8`／預設 sampling（非官方 T1 建議的 0.6/0.95，這次是隨手測試，非正式 A/B）。
+
+| 項目 | GGUF（llama.cpp，`twinkle-ai-gemma-3-4b-t1-it-q4_k_m.gguf`） | MLX（`Bbson/gemma-3-4B-T1-it-MLX-4bit`，session 建立後第一次生成／冷啟動） | MLX（同一 session 第二次生成／熱啟動） |
+|------|------|------|------|
+| TTFT | 360ms | 3.75s | **552ms**（-85%） |
+| Prefill tps | 2639.02（≈5.3ms，僅算 batch decode，不含 tokenize/context 建置，見下方口徑說明） | `-`（`MlxSession` 未實作 `PromptMetricsSource`） | `-` |
+| Decode tps | 21.54 | 27.32 | 未截圖，數量級應與冷啟動相近 |
+| Prompt tokens | 14 | 0（同上，非真的 0 token，是統計缺口） | 0 |
+| Gen tokens | 256 | 256 | — |
+
+**冷啟動 3.75s → 熱啟動 552ms 的落差**：判斷是 MLX 的 lazy-evaluation 計算圖在第一次生成時
+做 JIT 編譯的一次性成本，屬 MLX runtime 內建行為，跟上面 GGUF 那筆「context 每次重建」是
+不同成因、也沒有對應的 app 層 API 可以繞過。之後量 MLX 效能建議固定用「熱啟動」（同一
+session 第二次以後）的數字，比較有代表性。
+
+**GGUF Prefill tps 口徑提醒**：2639.02 是套用 session-only-once 修正*之前*截圖記錄的數字
+（当時 createContext/createSampler 還是每次生成都重跑，TTFT 360ms 裡有 ~300ms 是這段建置
+成本，不算在 Prefill 裡）。架構修正後在 log 上確認過 createContext/createSampler 確實只跑
+一次（見 commit `5ec9e49`），但還沒有重新截圖記錄修正後的 TTFT 具體數字——下次上機測試建議
+補一次，預期 TTFT 會顯著下降、更貼近 Prefill+首字的理論值。
+
+**缺 chat template 問題 — 已診斷、已修復 2026-07-18**：`MlxInferenceBridge.swift` 載入
+`Bbson/gemma-3-4B-T1-it-MLX-4bit` 時，log 印出 `No chat template was included or provided,
+so converting messages to simple text format`（來自 swift-transformers `Tokenizers` 套件，
+`MlxInferenceBridge.swift:45-56` 的 `applyChatTemplate` 呼叫鏈）。
+
+- **根因**：不是 swift-transformers 版本問題（已確認 1.3.3 是目前最新版），也不是模型/repo
+  本身沒有模板。用 `huggingface.co/api/models/Bbson/gemma-3-4B-T1-it-MLX-4bit` 查檔案清單，
+  確認 repo 裡有獨立的 `chat_template.jinja`（4280 bytes，內容跟原始來源模型
+  `twinkle-ai/gemma-3-4B-T1-it` 的 `tokenizer_config.json` 內嵌 `chat_template` 欄位逐字元
+  相同——`mlx_lm.convert`/新版 HF 慣例把 chat template 從 `tokenizer_config.json` 拆成獨立檔案）。
+  真正問題出在**我們自己的下載清單**：`huggingface_service.dart` 的 `getMlxModelFiles()`
+  白名單過濾只認舊式檔名（`tokenizer_config.json`/`tokenizer.json`/... ），沒有把
+  `chat_template.jinja` 算進「MLX 需要的檔案」，導致 app 下載模型時**根本沒把這個檔案抓下來**，
+  手機上的本地快照資料夾裡就是缺這一檔，swift-transformers 在磁碟上找不到才回報缺模板。
+- **修法**：`getMlxModelFiles()` 篩選條件新增 `chat_template.jinja`（及 `chat_template.json`
+  作為另一種可能慣例的保險）。`flutter analyze` 乾淨，既有 221 個測試全數維持通過（這個
+  service 本來就沒有既有單元測試——是薄 Dio wrapper，跟現有測試慣例一致，未新增測試基礎設施）。
+- **仍需動作**：這個修正只影響**之後新下載**的 MLX 模型；使用者手機上已經下載好的
+  `Bbson_gemma-3-4B-T1-it-MLX-4bit` 快照缺這個檔案，需要在 MLX Models 畫面刪除該模型後
+  重新下載一次，才會補齊 `chat_template.jinja`，之後 log 裡的警告訊息才會消失。
+
+---
+
 ### task-A03: Pixel 8a 可行性快篩 — [DONE] ✅ 2026-07-10（附帶一個需優先處理的新發現）
 - ✅ 快篩 protocol 定版 → [docs/benchmark/pixel-8a-quick-screen.md](../../../docs/benchmark/pixel-8a-quick-screen.md)
 - ✅ 判定表（進矩陣 / 降 Q3 / 轉敘事）三分支皆對應 talk 素材

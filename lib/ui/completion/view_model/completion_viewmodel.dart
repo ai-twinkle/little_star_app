@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:little_star_app/core/inference/backend_selector.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
+import 'package:little_star_app/core/inference/mlx_backend.dart';
 import 'package:little_star_app/core/inference/sampling_params.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/models/chat_message.dart';
@@ -81,9 +82,12 @@ class CompletionViewModel extends ChangeNotifier {
   CompletionViewModel({
     required String modelPath,
     @visibleForTesting InferenceSession Function(ModelProfile, InferenceSettings)? sessionFactory,
+    @visibleForTesting BackendSelector? backendSelector,
   })  : _settings = const InferenceSettings(maxTokens: 256),
         _selectedModelPath = modelPath,
-        _sessionFactory = sessionFactory {
+        _sessionFactory = sessionFactory,
+        _backendSelector =
+            backendSelector ?? BackendSelector(mlxBackendFactory: MlxBackend.new) {
     if (modelPath.isNotEmpty) {
       _profile = _buildProfile(modelPath);
       _session = _openSession();
@@ -91,6 +95,7 @@ class CompletionViewModel extends ChangeNotifier {
   }
 
   final InferenceSession Function(ModelProfile, InferenceSettings)? _sessionFactory;
+  final BackendSelector _backendSelector;
 
   // ── Public getters ────────────────────────────────────────────────────────
 
@@ -230,16 +235,21 @@ class CompletionViewModel extends ChangeNotifier {
     final profile = _profile;
     if (profile == null) return null;
     if (_sessionFactory != null) return _sessionFactory(profile, _settings);
-    final backend = BackendSelector().select(profile);
+    final backend = _backendSelector.select(profile);
     return backend.createSession(profile, _settings);
   }
 
   static ModelProfile _buildProfile(String modelPath) => ModelProfile(
         id: modelPath,
         displayName: modelPath.split('/').last,
-        format: ModelFormat.gguf,
+        format: _detectFormat(modelPath),
         localPath: modelPath,
       );
+
+  /// MLX models are downloaded as a directory of weight/config files (no
+  /// single-file extension); GGUF models are always a single `.gguf` file.
+  static ModelFormat _detectFormat(String modelPath) =>
+      modelPath.toLowerCase().endsWith('.gguf') ? ModelFormat.gguf : ModelFormat.mlx;
 
   void _resetRunState() {
     outputTextNotifier.value = '';

@@ -164,7 +164,7 @@ class _CompletionScreenState extends State<CompletionScreen> {
                                 TextButton.icon(
                                   onPressed: () => _showModelSelection(context),
                                   icon: const Icon(Icons.swap_horiz, size: 12),
-                                  label: const Text('Select GGUF'),
+                                  label: const Text('Change'),
                                   style: TextButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   ),

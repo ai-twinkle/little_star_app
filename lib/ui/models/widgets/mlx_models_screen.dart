@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:little_star_app/models/mlx_model_info.dart';
 import 'package:little_star_app/ui/chat/widgets/chat_screen.dart';
+import 'package:little_star_app/ui/completion/widgets/completion_screen.dart';
 import 'package:little_star_app/ui/models/view_model/mlx_model_viewmodel.dart';
 
 /// Lets the user download an MLX model (a multi-file Hugging Face repo,
@@ -54,6 +55,15 @@ class _MlxModelsScreenState extends State<MlxModelsScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => ChatScreen(initialModelPath: model.directoryPath),
+      ),
+    );
+  }
+
+  void _openCompletion(MlxModelInfo model) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CompletionScreen(initialModelPath: model.directoryPath),
       ),
     );
   }
@@ -169,6 +179,11 @@ class _MlxModelsScreenState extends State<MlxModelsScreen> {
                                             icon: const Icon(Icons.chat_outlined),
                                             tooltip: 'Chat',
                                             onPressed: () => _openChat(model),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.edit_note_outlined),
+                                            tooltip: 'Completion',
+                                            onPressed: () => _openCompletion(model),
                                           ),
                                           IconButton(
                                             icon: const Icon(Icons.delete_outline),
