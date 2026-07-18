@@ -7,10 +7,12 @@
 > task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證）；
 > **已在實體 iPhone 上用真正的 T1 MLX 權重跑通**（透過臨時 debug 探針，現已刪除並被正式 UI 取代）——
 > 成功建立 session、載入模型、串流生成繁中回覆，TTFT ~3.2s、總時間 ~13.1s（單次觀察值，非正式 benchmark）
-> task-B03 **`ChatViewModel`/`BackendSelector` 正式接線已完成**、**MLX 多檔匯入 UI 已完成**
-> （皆為單元測試驗證，匯入 UI 尚未上機）；剩兩 backend template 一致性驗證未開工
+> task-B03 **`ChatViewModel`/`BackendSelector` 正式接線已完成**、**MLX 多檔匯入 UI 已完成**、
+> **Completion 頁面 MLX 支援已完成**、**MLX 缺 chat template 下載 bug 已修復並上機驗證**、
+> **兩 backend template 一致性驗證已完成（原始碼層級比對，非 Xcode 實機比對）**——
+> **task-B03 全部子項完成** ✅
 > B02 **已完成** — T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)（2026-07-16），task-B03 卡點解除
-> 最後更新：2026-07-17（MLX 匯入 UI 完成，debug 探針已移除；仍待上機驗證 Download→Chat 全流程）
+> 最後更新：2026-07-18（task-B03 全部完成；A/B 兩線皆達標；C 線 benchmark harness、D 線 talk 產出物尚未開工，見下方待辦表）
 
 ---
 
@@ -36,8 +38,15 @@ SWA-aware KV cache 支援，記憶體吃法是 dense（全部 34 層都當全 co
 
 另外還發現一個**跨兩個 backend（MLX + llama.cpp）共通**的 stop-token 未正確終止問題（task-B03，
 非阻塞性，僅影響輸出尾端有雜訊；A01/A02 這幾輪測試時有時沒重現，可能與對話輪數/長度有關）。
-**2026-07-15 已針對 llama.cpp 側完成文字層防護**，詳見下方「task-B03（部分）」章節；MLX 側因
-T1 尚未接進 app 內 MLX backend（B03 的「接進 MLX backend」子項仍是 TODO），暫無對應程式碼可修。
+**2026-07-15 已針對 llama.cpp 側完成文字層防護**（`_TurnMarkerFilter`，見下方「task-B03（部分）」
+章節）。
+
+⚠️ **2026-07-18 更新／新發現的待辦項**：當時 MLX 側因 T1 尚未接進 app 內 MLX backend，暫無
+對應程式碼可修；**現在 MLX backend 已經正式接線完成**（Chat/Completion 頁面皆可用），但
+`_TurnMarkerFilter` 這層文字防護**只存在於 `LlamaCppSession`，從未移植到 `MlxSession`**——
+代表 B01 當初觀察到的 MLX 尾端雜訊（`<translation>` 標籤迴圈等）目前仍然沒有防護，демо/正式
+使用時如果模型沒採樣到正確的 EOS，MLX 這邊會把雜訊原樣顯示給使用者。記錄為新待辦，建議排進
+下一輪處理（把 `_TurnMarkerFilter` 抽成 backend-agnostic 的共用元件，`MlxSession` 也套用）。
 
 commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
 `1261d39` A03 完成 + crash bug 記錄、`1394e46` nBatch crash 修復 + 實機驗證、`3886493` A01 完成、
@@ -56,7 +65,10 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 | task-B03（debug 探針上機驗證 T1 真的能跑） | ✅ 已完成 2026-07-17（實機驗證） | 見下方新章節；中途遇到一次 `SIGKILL`（懷疑 cold-start 記憶體尖峰，未再重現），第二次重跑成功 |
 | task-B03（`ChatViewModel`/`BackendSelector` 正式接線） | ✅ 已完成 2026-07-17（單元測試驗證） | 見下方新章節 |
 | task-B03（MLX 多檔匯入 UI） | ✅ 已完成 2026-07-17（單元測試驗證，未上機） | 見下方新章節；`MlxBackendProbeScreen` 已依其自身文件註解的條件刪除（功能已被此畫面取代） |
-| task-B03（兩 backend template 一致性驗證） | 尚未開工 | 需要在 Mac 上用 Xcode 跑 Swift 層，無法從這個開發環境驗證 |
+| task-B03（Completion 頁面 MLX 支援 + GGUF prefill/prompt token 統計） | ✅ 已完成 2026-07-18（已上機驗證） | 見下方新章節 |
+| task-B03（MLX 缺 chat template 下載 bug） | ✅ 已修復並上機驗證 2026-07-18 | 見下方新章節；`getMlxModelFiles()` 白名單補上 `chat_template.jinja` |
+| ~~task-B03（兩 backend template 一致性驗證）~~ | ✅ 已完成 2026-07-18 | 見下方新章節；改用原始碼層級比對（llama-chat.cpp 逐行比對 chat_template.jinja），未使用 Xcode/Swift 實機比對，結論一致 |
+| **新發現**：`_TurnMarkerFilter`（stop-token 文字防護）未移植到 MLX | 尚未開工 | MLX backend 已於 2026-07-17/18 正式接線，但 B01 觀察到的 MLX 尾端雜訊防護仍缺，建議下一輪處理（見上方接手快照更新段落） |
 | C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
 | C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
 | D 線 | 尚未動 | 待 A/B/C 完成 |
@@ -323,22 +335,45 @@ Prompt 統一用「很盤是什麼意思？"（14 prompt tokens／GGUF tokenizer
 
 | 項目 | GGUF（llama.cpp，`twinkle-ai-gemma-3-4b-t1-it-q4_k_m.gguf`） | MLX（`Bbson/gemma-3-4B-T1-it-MLX-4bit`，session 建立後第一次生成／冷啟動） | MLX（同一 session 第二次生成／熱啟動） |
 |------|------|------|------|
-| TTFT | 360ms | 3.75s | **552ms**（-85%） |
+| TTFT | 360ms | 3.75s | **552ms**（-85%），補下載 `chat_template.jinja` 後重測一致為 562ms |
 | Prefill tps | 2639.02（≈5.3ms，僅算 batch decode，不含 tokenize/context 建置，見下方口徑說明） | `-`（`MlxSession` 未實作 `PromptMetricsSource`） | `-` |
-| Decode tps | 21.54 | 27.32 | 未截圖，數量級應與冷啟動相近 |
+| Decode tps | 21.54 | 27.32 | 27.26 |
 | Prompt tokens | 14 | 0（同上，非真的 0 token，是統計缺口） | 0 |
-| Gen tokens | 256 | 256 | — |
+| Gen tokens | 256 | 256 | 256 |
+
+**補充**：上面熱啟動欄位第一次測（552ms）是舊快照（缺 `chat_template.jinja`）跑的；補下載
+chat template 後在新 session 重測一次，TTFT/Decode tps 數字幾乎沒變（562ms／27.26 vs
+552ms／27.32），符合預期——chat template 只影響 prompt 格式化內容，不影響推論速度。真正的
+差異在輸出品質：這次生成的內容變得更有結構（`### 什麼是「很盤」？`/`### 起源`/`### 用法`
+分節），不再像退回純文字格式時那樣夾雜離題的反問句開頭。
 
 **冷啟動 3.75s → 熱啟動 552ms 的落差**：判斷是 MLX 的 lazy-evaluation 計算圖在第一次生成時
 做 JIT 編譯的一次性成本，屬 MLX runtime 內建行為，跟上面 GGUF 那筆「context 每次重建」是
 不同成因、也沒有對應的 app 層 API 可以繞過。之後量 MLX 效能建議固定用「熱啟動」（同一
 session 第二次以後）的數字，比較有代表性。
 
-**GGUF Prefill tps 口徑提醒**：2639.02 是套用 session-only-once 修正*之前*截圖記錄的數字
-（当時 createContext/createSampler 還是每次生成都重跑，TTFT 360ms 裡有 ~300ms 是這段建置
-成本，不算在 Prefill 裡）。架構修正後在 log 上確認過 createContext/createSampler 確實只跑
-一次（見 commit `5ec9e49`），但還沒有重新截圖記錄修正後的 TTFT 具體數字——下次上機測試建議
-補一次，預期 TTFT 會顯著下降、更貼近 Prefill+首字的理論值。
+**GGUF Prefill tps 口徑提醒**：上表 2639.02 是套用 session-only-once 修正*之前*截圖記錄的
+數字（当時 createContext/createSampler 還是每次生成都重跑，TTFT 360ms 裡有 ~300ms 是這段
+建置成本，不算在 Prefill 裡）。
+
+**✅ 修正後重新上機測試 2026-07-18**（同一 session，連續按兩次 Run，同一句 prompt）：
+
+| 項目 | 第一次（同一 session 首次生成） | 第二次（同一 session 再次生成） |
+|------|------|------|
+| TTFT | 440ms | **158ms**（-56% vs 修正前的 360ms） |
+| Prefill tps | 1173.02（≈11.9ms） | 2642.51（≈5.3ms，跟修正前單次測到的 2639.02 幾乎一致） |
+| Decode tps | 23.95 | 22.84 |
+| Prompt tokens | 14 | 14 |
+
+修正確實生效：同一 session 重複生成時 TTFT 從 360ms 降到 158ms。但**意外發現一個新的、規模較小
+但性質類似的現象**——同一個 session 裡「第一次」生成（440ms）反而比「第二次」（158ms）慢，
+且 Prefill tps 也是首次明顯較低（1173 vs 2642，約 2.25 倍）。這不是 session 建置成本
+（那個已經在建構子跑完，不在這次計時範圍內），推測是 Metal GPU 後端在**第一次真正的
+compute dispatch**（batch prefill 的 shader/pipeline-state-object）發生類似 MLX 冷啟動的
+一次性 JIT 成本，只是規模小很多（llama.cpp/Metal ~280ms vs MLX ~3.2s）。跟 MLX 那次一樣，
+之後量 GGUF 效能也建議固定用「同一 session 第二次以後」的數字才有代表性；這個現象本身
+不是 bug，沒有對應的 app 層修法，記錄供之後 C 線正式 benchmark harness 設計測試協定時參考
+（例如每個 prompt tier 應該跑 warm-up 一次再開始正式計時）。
 
 **缺 chat template 問題 — 已診斷、已修復 2026-07-18**：`MlxInferenceBridge.swift` 載入
 `Bbson/gemma-3-4B-T1-it-MLX-4bit` 時，log 印出 `No chat template was included or provided,
@@ -357,9 +392,51 @@ so converting messages to simple text format`（來自 swift-transformers `Token
 - **修法**：`getMlxModelFiles()` 篩選條件新增 `chat_template.jinja`（及 `chat_template.json`
   作為另一種可能慣例的保險）。`flutter analyze` 乾淨，既有 221 個測試全數維持通過（這個
   service 本來就沒有既有單元測試——是薄 Dio wrapper，跟現有測試慣例一致，未新增測試基礎設施）。
-- **仍需動作**：這個修正只影響**之後新下載**的 MLX 模型；使用者手機上已經下載好的
-  `Bbson_gemma-3-4B-T1-it-MLX-4bit` 快照缺這個檔案，需要在 MLX Models 畫面刪除該模型後
-  重新下載一次，才會補齊 `chat_template.jinja`，之後 log 裡的警告訊息才會消失。
+- **✅ 已上機驗證 2026-07-18**：刪除舊快照重新下載，log 從「Found 7 MLX files」變成
+  `Found 8 MLX files in Bbson/gemma-3-4B-T1-it-MLX-4bit`（多的就是 `chat_template.jinja`）。
+  重新在 Completion 頁面對同一個 session 跑「很盤是什麼意思？」，`createSession` 之後**沒有
+  再出現**`No chat template...` 警告（先前每次都會印）。輸出內容也變得更有結構
+  （`### 什麼是「很盤」？`/`### 起源`/`### 用法` 分節），不再像先前退回純文字格式時那樣夾雜
+  離題的反問句開頭——單次觀察，非嚴謹 A/B，但方向一致，判定此修正已生效。
+
+---
+
+### task-B03（最後一項）：兩 backend chat template 一致性驗證 — [DONE] ✅ 2026-07-18（原始碼層級比對，非 Xcode 實機比對）
+
+**方法決策**：plan.md 原本預期這項要「在 Mac 上用 Xcode 跑 Swift 層」才能驗證，但這個開發
+環境無法起 Xcode/跑 Swift。改用**原始碼層級逐行比對**，直接比較 llama.cpp 實際執行的
+hardcoded C++ 格式化邏輯，跟 MLX 側 swift-transformers 真正套用的官方 Jinja 模板——判斷這比
+在裝置上肉眼比對輸出文字更嚴謹（後者容易被模型取樣的隨機性干擾，前者是決定性的邏輯比對）。
+
+**比對材料**：
+- llama.cpp 側：vendored 原始碼 `llama.cpp/src/llama-chat.cpp:375-396`（`LLM_CHAT_TEMPLATE_GEMMA`
+  分支），非猜測，直接讀原始碼確認。
+- MLX 側：`curl` 直接拉 `huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit/raw/main/chat_template.jinja`
+  （120 行，4280 bytes）——就是這次 task-B03 chat-template-download bug 修好後，使用者手機上
+  實際下載到、swift-transformers 真正拿去跑的同一份檔案。額外用 HF API 確認這份 4280 bytes
+  跟原始來源模型 `twinkle-ai/gemma-3-4B-T1-it` 的 `tokenizer_config.json` 內嵌 `chat_template`
+  欄位逐字元相同——`mlx_lm.convert` 只是把它拆成獨立檔案，內容沒有被改動過。
+
+**比對結果（純對話情境，無 tools，符合 A01/B03 明確排除 tool-calling 的既定範圍）**：
+
+1. **無 system prompt，單一 user turn**（用這次 Step 1 上機驗證的同一句「很盤是什麼意思？」）：
+   兩邊逐字元相同：`<start_of_turn>user\n很盤是什麼意思？<end_of_turn>\n<start_of_turn>model\n`。
+   **這段還額外對照了 Step 1 GGUF 上機測試的真實 log**（`tokenizePrompt prompt: <start_of_turn>
+   user\n很盤是什麼意思？<end_of_turn>\n<start_of_turn>model\n`）——手算逐行追蹤 llama-chat.cpp
+   邏輯的結果，跟裝置上真實跑出來的字串完全吻合，交叉驗證了這次比對方法本身是可信的。
+2. **含 system prompt**（benchmark 實際用法，見 plan.md「統一用一句台灣定調 system prompt」）：
+   兩邊都把 system prompt 併入第一個 user turn，格式都是 `{system}\n\n{user_content}`，順序、
+   角色標記皆相同。**唯一發現的微小差異**：llama.cpp 對 system prompt 內容做 `trim()`
+   （去除頭尾空白）才合併，Jinja 模板這個分支沒有對 system prompt 做 `|trim`。只有在 system
+   prompt 字串本身頭尾有多餘空白時才會有差異，對這次寫死在 app 裡的 system prompt 常數字串
+   沒有實際影響，記錄但不視為阻塞項。
+
+**判定：兩個 backend 在純對話情境下語意等價** → task-B03 最後一項完成，跟 task-A01 當初對
+llama.cpp vs 官方模板的獨立比對結論一致，這次額外確認了 MLX 側真的在執行同一份官方 Jinja
+檔案（而非某個過期/被 mlx_lm.convert 動過手腳的版本）。**task-B03 全部子項至此全數完成**。
+
+**已知範圍外**：工具呼叫（tool calling）情境的一致性未驗證——兩邊模板都有 tools 分支，但
+A01/B03 從一開始就明確排除 tool-calling（本次 benchmark/demo 純對話），維持原排除範圍。
 
 ---
 
