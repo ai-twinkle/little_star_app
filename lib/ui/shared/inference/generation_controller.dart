@@ -39,6 +39,13 @@ class GenerationMetrics {
   /// Approximate decode throughput (tokens / decode-phase seconds).
   final double? tokensPerSecond;
 
+  /// Prompt token count, when the backend implements [PromptMetricsSource].
+  final int? promptTokenCount;
+
+  /// Prefill throughput (prompt tokens / prefill-phase seconds), when the
+  /// backend implements [PromptMetricsSource].
+  final double? prefillTokensPerSecond;
+
   final StopReason stopReason;
 
   const GenerationMetrics({
@@ -46,6 +53,8 @@ class GenerationMetrics {
     required this.stopReason,
     this.ttft,
     this.tokensPerSecond,
+    this.promptTokenCount,
+    this.prefillTokensPerSecond,
   });
 }
 
@@ -101,11 +110,28 @@ class GenerationController {
           ? tokenCount / (decodeDuration.inMilliseconds / 1000.0)
           : null;
 
+      int? promptTokenCount;
+      double? prefillTokensPerSecond;
+      final promptMetricsSource =
+          session is PromptMetricsSource ? session as PromptMetricsSource : null;
+      if (promptMetricsSource != null) {
+        promptTokenCount = promptMetricsSource.lastPromptTokenCount;
+        final prefillDuration = promptMetricsSource.lastPrefillDuration;
+        if (promptTokenCount != null &&
+            prefillDuration != null &&
+            prefillDuration.inMicroseconds > 0) {
+          prefillTokensPerSecond =
+              promptTokenCount / (prefillDuration.inMicroseconds / 1000000.0);
+        }
+      }
+
       yield GenerationDone(GenerationMetrics(
         tokenCount: tokenCount,
         stopReason: stopReason,
         ttft: ttft,
         tokensPerSecond: tps,
+        promptTokenCount: promptTokenCount,
+        prefillTokensPerSecond: prefillTokensPerSecond,
       ));
     } finally {
       _isRunning = false;

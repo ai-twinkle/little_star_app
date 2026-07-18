@@ -66,6 +66,35 @@ class _ControllableSession implements InferenceSession {
   }
 }
 
+/// A session that also reports prompt/prefill stats, mirroring
+/// [LlamaCppSession]'s [PromptMetricsSource] implementation.
+class _PromptMetricsSession implements InferenceSession, PromptMetricsSource {
+  final List<String> tokens;
+  @override
+  final int? lastPromptTokenCount;
+  @override
+  final Duration? lastPrefillDuration;
+
+  _PromptMetricsSession(
+    this.tokens, {
+    this.lastPromptTokenCount,
+    this.lastPrefillDuration,
+  });
+
+  @override
+  Stream<String> generate(List<ChatMessage> messages) async* {
+    for (final t in tokens) {
+      yield t;
+    }
+  }
+
+  @override
+  void cancel() {}
+
+  @override
+  void dispose() {}
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 ChatMessage _user(String content) =>
@@ -249,6 +278,61 @@ void main() {
 
       await ctrl.run(session, [_user('x')]).toList();
       expect(ctrl.isRunning, isFalse);
+    });
+  });
+
+  group('GenerationController — prompt metrics (PromptMetricsSource)', () {
+    test('populates promptTokenCount and prefillTokensPerSecond when the '
+        'session implements PromptMetricsSource', () async {
+      final session = _PromptMetricsSession(
+        ['a', 'b'],
+        lastPromptTokenCount: 100,
+        lastPrefillDuration: const Duration(milliseconds: 500),
+      );
+      final ctrl = GenerationController();
+
+      final events = await ctrl.run(session, [_user('x')]).toList();
+      final done = events.last as GenerationDone;
+
+      expect(done.metrics.promptTokenCount, 100);
+      expect(done.metrics.prefillTokensPerSecond, closeTo(200, 0.001));
+    });
+
+    test('leaves promptTokenCount/prefillTokensPerSecond null for a plain '
+        'InferenceSession (no PromptMetricsSource)', () async {
+      final session = _FakeSession(['a']);
+      final ctrl = GenerationController();
+
+      final events = await ctrl.run(session, [_user('x')]).toList();
+      final done = events.last as GenerationDone;
+
+      expect(done.metrics.promptTokenCount, isNull);
+      expect(done.metrics.prefillTokensPerSecond, isNull);
+    });
+
+    test('prefillTokensPerSecond is null when lastPrefillDuration is zero', () async {
+      final session = _PromptMetricsSession(
+        ['a'],
+        lastPromptTokenCount: 10,
+        lastPrefillDuration: Duration.zero,
+      );
+      final ctrl = GenerationController();
+
+      final events = await ctrl.run(session, [_user('x')]).toList();
+      final done = events.last as GenerationDone;
+
+      expect(done.metrics.prefillTokensPerSecond, isNull);
+    });
+
+    test('promptTokenCount is null when the source has not run yet', () async {
+      final session = _PromptMetricsSession(['a']);
+      final ctrl = GenerationController();
+
+      final events = await ctrl.run(session, [_user('x')]).toList();
+      final done = events.last as GenerationDone;
+
+      expect(done.metrics.promptTokenCount, isNull);
+      expect(done.metrics.prefillTokensPerSecond, isNull);
     });
   });
 }

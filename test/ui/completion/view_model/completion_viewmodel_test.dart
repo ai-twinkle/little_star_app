@@ -41,6 +41,36 @@ class _ErrorSession implements InferenceSession {
   void dispose() {}
 }
 
+/// Mirrors LlamaCppSession's PromptMetricsSource implementation, so tests
+/// can verify CompletionViewModel threads prefill/prompt stats through to
+/// MetricsData.
+class _PromptMetricsFakeSession implements InferenceSession, PromptMetricsSource {
+  final List<String> tokens;
+  @override
+  final int? lastPromptTokenCount;
+  @override
+  final Duration? lastPrefillDuration;
+
+  _PromptMetricsFakeSession(
+    this.tokens, {
+    this.lastPromptTokenCount,
+    this.lastPrefillDuration,
+  });
+
+  @override
+  Stream<String> generate(List<ChatMessage> messages) async* {
+    for (final t in tokens) {
+      yield t;
+    }
+  }
+
+  @override
+  void cancel() {}
+
+  @override
+  void dispose() {}
+}
+
 class _ControllableSession implements InferenceSession {
   final _ctrl = StreamController<String>();
   bool disposed = false;
@@ -130,6 +160,37 @@ void main() {
       vm.reset();
       expect(vm.outputTextNotifier.value, isEmpty);
       expect(vm.metricsNotifier.value.generatedTokenCount, 0);
+    });
+
+    test('metricsNotifier picks up promptTokenCount/prefillTokensPerSecond '
+        'when the session implements PromptMetricsSource', () async {
+      final session = _PromptMetricsFakeSession(
+        ['a', 'b'],
+        lastPromptTokenCount: 40,
+        lastPrefillDuration: const Duration(milliseconds: 200),
+      );
+      final vm = CompletionViewModel(
+        modelPath: '/fake/model.gguf',
+        sessionFactory: (_, __) => session,
+      );
+      addTearDown(vm.dispose);
+
+      await vm.startCompletion('hi');
+      await _waitIdle(vm);
+
+      expect(vm.metricsNotifier.value.promptTokenCount, 40);
+      expect(vm.metricsNotifier.value.prefillTokensPerSecond, closeTo(200, 0.001));
+    });
+
+    test('promptTokenCount defaults to 0 for a plain InferenceSession', () async {
+      final vm = _vm(_FakeSession(['a']));
+      addTearDown(vm.dispose);
+
+      await vm.startCompletion('hi');
+      await _waitIdle(vm);
+
+      expect(vm.metricsNotifier.value.promptTokenCount, 0);
+      expect(vm.metricsNotifier.value.prefillTokensPerSecond, isNull);
     });
   });
 

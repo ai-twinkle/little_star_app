@@ -96,6 +96,10 @@ final class llama_vocab extends ffi.Opaque {} // struct llama_vocab
 
 final class llama_context extends ffi.Opaque {}
 
+final class llama_memory_i extends ffi.Opaque {}
+
+typedef llama_memory_t = ffi.Pointer<llama_memory_i>;
+
 final class llama_context_params extends ffi.Struct {
   @ffi.Uint32()
   external int n_ctx;             // text context, 0 = from model
@@ -335,6 +339,12 @@ typedef LlamaNSeqMax = int Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaGetModelNative = ffi.Pointer<llama_model> Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaGetModel = ffi.Pointer<llama_model> Function(ffi.Pointer<llama_context> ctx);
 
+typedef LlamaGetMemoryNative = llama_memory_t Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaGetMemory = llama_memory_t Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaMemoryClearNative = ffi.Void Function(llama_memory_t mem, ffi.Bool data);
+typedef LlamaMemoryClear = void Function(llama_memory_t mem, bool data);
+
 typedef LlamaNThreadsNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaNThreads = int Function(ffi.Pointer<llama_context> ctx);
 
@@ -463,6 +473,8 @@ class LlamaCppFFI {
   late LlamaGetModel llama_get_model;
   late LlamaNThreads llama_n_threads;
   late LlamaNThreadsBatch llama_n_threads_batch;
+  late LlamaGetMemory llama_get_memory;
+  late LlamaMemoryClear llama_memory_clear;
   //
   late LlamaVocabIsEog llama_vocab_is_eog;
   //
@@ -503,11 +515,17 @@ class LlamaCppFFI {
   llama_batch? _batch;
   ffi.Pointer<llama_token>? _promptTokens;
   bool logVerbose = false;
-  
+
+  /// Wall-clock time spent decoding the prompt (prefill) in the most recent
+  /// [generateStream] call — set right after [_prefillPrompt] returns, before
+  /// the token-by-token decode loop starts. Null until a generation has run.
+  Duration? _lastPrefillDuration;
+
   ffi.Pointer<llama_model>? get model => _model;
   ffi.Pointer<llama_context>? get context => _context;
   ffi.Pointer<llama_sampler>? get sampler => _sampler;
   llama_batch? get batch => _batch;
+  Duration? get lastPrefillDuration => _lastPrefillDuration;
   
   // Check if model is loaded
   bool get isModelLoaded => _model != null && _model != ffi.nullptr;
@@ -604,6 +622,14 @@ class LlamaCppFFI {
       llama_n_threads_batch = _lib
           .lookup<ffi.NativeFunction<LlamaNThreadsBatchNative>>('llama_n_threads_batch')
           .asFunction<LlamaNThreadsBatch>();
+
+      llama_get_memory = _lib
+          .lookup<ffi.NativeFunction<LlamaGetMemoryNative>>('llama_get_memory')
+          .asFunction<LlamaGetMemory>();
+
+      llama_memory_clear = _lib
+          .lookup<ffi.NativeFunction<LlamaMemoryClearNative>>('llama_memory_clear')
+          .asFunction<LlamaMemoryClear>();
 
       //
       llama_vocab_is_eog = _lib
@@ -894,6 +920,24 @@ class LlamaCppFFI {
     }
   }
 
+  /// Resets the context's KV cache back to empty (sequence position 0)
+  /// without destroying and recreating the context itself. Call this before
+  /// each independent generation on a reused context — `data: false` skips
+  /// zeroing the underlying buffers, which isn't needed since prefill
+  /// overwrites them anyway, so this is cheap relative to [createContext].
+  void clearMemory() {
+    if (_context == null || _context == ffi.nullptr) {
+      log.warn('clearMemory called with no context');
+      return;
+    }
+    final mem = llama_get_memory(_context!);
+    if (mem == ffi.nullptr) {
+      log.warn('llama_get_memory returned null');
+      return;
+    }
+    llama_memory_clear(mem, false);
+  }
+
   bool createSampler({bool useGreedy = false, int? topK, double? topP, double? temp}) {
     log.debug('\n\ncreateSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
     try {
@@ -1052,7 +1096,11 @@ class LlamaCppFFI {
 
       // Decode the prompt in chunks no larger than n_batch before sampling —
       // a single oversized llama_decode call hard-aborts the process.
-      if (!_prefillPrompt(nPrompt)) {
+      final prefillStopwatch = Stopwatch()..start();
+      final prefillOk = _prefillPrompt(nPrompt);
+      prefillStopwatch.stop();
+      _lastPrefillDuration = prefillStopwatch.elapsed;
+      if (!prefillOk) {
         return;
       }
 

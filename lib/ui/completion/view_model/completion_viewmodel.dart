@@ -210,8 +210,10 @@ class CompletionViewModel extends ChangeNotifier {
       case GenerationDone(:final metrics):
         _isRunning = false;
         metricsNotifier.value = MetricsData(
+          promptTokenCount: metrics.promptTokenCount ?? 0,
           generatedTokenCount: metrics.tokenCount,
           ttft: metrics.ttft,
+          prefillTokensPerSecond: metrics.prefillTokensPerSecond,
           decodeTokensPerSecond: metrics.tokensPerSecond,
           stopReason: metrics.stopReason.name,
         );
