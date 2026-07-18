@@ -60,7 +60,8 @@ class BenchmarkViewModel extends ChangeNotifier {
   /// Opens a fresh session for [modelPath] and records the first ("session
   /// cold") generation on it. Closes any previously open session first —
   /// mirrors the no-leak pattern in `LlamaCppBackend`/`MlxBackend` callers.
-  Future<void> openSessionAndRun(String modelPath, String prompt, {String? label}) async {
+  Future<void> openSessionAndRun(String modelPath, List<ChatMessage> messages,
+      {String? label}) async {
     closeSession();
 
     final format = _detectFormat(modelPath);
@@ -81,7 +82,7 @@ class BenchmarkViewModel extends ChangeNotifier {
         format: format,
         profile: profile,
         settings: settings,
-        messages: [ChatMessage(content: prompt, isUser: true)],
+        messages: messages,
         label: label ?? 'session-cold',
       );
       _session = result.session;
@@ -96,9 +97,13 @@ class BenchmarkViewModel extends ChangeNotifier {
     }
   }
 
+  /// Convenience for [openSessionAndRun] with a single user turn.
+  Future<void> openSessionAndRunPrompt(String modelPath, String prompt, {String? label}) =>
+      openSessionAndRun(modelPath, [ChatMessage(content: prompt, isUser: true)], label: label);
+
   /// Records another ("session warm") generation on the currently open
   /// session. No-op if no session is open.
-  Future<void> runOnOpenSession(String prompt, {String? label}) async {
+  Future<void> runOnOpenSession(List<ChatMessage> messages, {String? label}) async {
     final session = _session;
     final profile = _profile;
     if (session == null || profile == null) return;
@@ -111,7 +116,7 @@ class BenchmarkViewModel extends ChangeNotifier {
         session: session,
         format: profile.format,
         modelId: profile.id,
-        messages: [ChatMessage(content: prompt, isUser: true)],
+        messages: messages,
         label: label ?? 'session-warm',
       );
       _samples.add(sample);
@@ -123,6 +128,15 @@ class BenchmarkViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Convenience for [runOnOpenSession] with a single user turn.
+  Future<void> runOnOpenSessionPrompt(String prompt, {String? label}) =>
+      runOnOpenSession([ChatMessage(content: prompt, isUser: true)], label: label);
+
+  /// Current thermal/battery reading — task-C02 pre-flight check, shown in
+  /// the UI before a protocol run so the tester can confirm the manual
+  /// checklist items (airplane mode, fixed brightness) alongside it.
+  Future<PreflightStatus> checkPreflight() => _recorder.checkPreflight();
 
   void closeSession() {
     _session?.dispose();

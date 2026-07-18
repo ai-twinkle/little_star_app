@@ -17,6 +17,21 @@ class NewSessionBenchmarkResult {
   const NewSessionBenchmarkResult(this.session, this.sample);
 }
 
+/// Snapshot used for task-C02's pre-flight check — the parts of the
+/// standardized protocol (docs/benchmark/zh-tw-prompt-set.md Part 3) that
+/// the app can read for itself. Airplane mode and screen brightness aren't
+/// readable by a third-party app on either platform, so those stay manual
+/// checklist items in the protocol doc.
+class PreflightStatus {
+  final ThermalStatus thermalState;
+  final int? batteryLevel;
+  const PreflightStatus({required this.thermalState, required this.batteryLevel});
+
+  /// Whether it's safe to start a new benchmark run — the protocol calls
+  /// for cooling down between groups until thermalState returns to nominal.
+  bool get isThermalNominal => thermalState == ThermalStatus.nominal;
+}
+
 /// Wraps a single benchmark generation with load-time timing and
 /// memory/thermal/battery telemetry, on top of [GenerationController]'s
 /// existing TTFT/decode-tps/prefill metrics — task-C01.
@@ -117,6 +132,14 @@ class BenchmarkRecorder {
       thermalStateAfter: thermalAfter,
       batteryLevelBefore: batteryBefore,
       batteryLevelAfter: batteryAfter,
+    );
+  }
+
+  /// Reads the current thermal/battery state — task-C02 pre-flight check.
+  Future<PreflightStatus> checkPreflight() async {
+    return PreflightStatus(
+      thermalState: await _thermalProbe.currentThermalState(),
+      batteryLevel: await _batteryProbe.currentBatteryLevel(),
     );
   }
 

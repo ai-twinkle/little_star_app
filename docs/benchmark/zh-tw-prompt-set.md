@@ -37,17 +37,28 @@
 
 用於 benchmark 的 TTFT / decode t/s 量測。四個輸入長度 tier：**128 / 512 / 1024 / 2048 tokens**。
 
-⚠️ 這裡的 token 數需以**模型 tokenizer 實測校準**（繁中每字元的 token 數與英文不同）。
-本檔先給「內容骨架 + 目標長度」，實際字數由 C02 harness 用 T1 tokenizer 校準後定版填入。
+✅ **內容已定版（草稿，見下方待校準說明）**於 `lib/core/benchmark/prompt_tiers.dart`
+（`PromptTier.l128/l512/l1024/l2048`）——這是 harness 實際讀取的來源，本節文字為對照/可讀版本，
+兩邊需同步更新。
 
-| Tier | 目標輸入長度 | 內容骨架 | 固定生成上限 |
-|------|--------------|----------|--------------|
-| L128 | ~128 tokens | 單一問題（如 Q3），無額外脈絡 | 由 C02 統一設定（如 max 256） |
-| L512 | ~512 tokens | 一段台灣新聞/說明文（約 300–400 繁中字）+ 「請摘要成三點」 | 同上 |
-| L1024 | ~1024 tokens | 兩段長文（如一篇部落格）+ 「請比較兩段觀點差異」 | 同上 |
-| L2048 | ~2048 tokens | 長對話脈絡（多輪 QA 累積）+ 追問 | 同上 |
+⚠️ **token 數為估計值，尚待用 T1 tokenizer 實測校準**：目前唯一的真實校準錨點來自
+task-B03 上機記錄（construction.md，2026-07-18）：「很盤是什麼意思？」以 GGUF tokenizer 量得
+**14 tokens**（8 個字元，含問號），換算約 **1.8 tokens/字元**。下表的目標字數即依此比例反推，
+**非實測**——待實際跑 Benchmark 畫面（或 Completion 畫面既有的 Prompt tokens 欄位）量出真實
+token 數後，回填本表與 `prompt_tiers.dart` 的 `targetTokenCount`。另外 MLX 的
+`PromptMetricsSource` 尚未實作（見 construction.md task-B03「Completion 頁面...」段落），目前只能
+用 GGUF/llama.cpp backend 校準；兩邊 tokenizer 詞彙表理論上共享同源（A01 已確認 GGUF 內嵌模板與
+官方 tokenizer_config 逐 byte 一致），但實際 token 切分是否完全相同未驗證。
 
-**產出待辦（C02 校準時）**：把每個 tier 的實際繁中文本填入 `zh-tw-prompt-set.assets/`，並記錄用 T1 tokenizer 量到的實際 token 數。
+| Tier | 目標輸入長度（估計） | 內容骨架 | 草稿字數（不含追問句） | 固定生成上限 |
+|------|--------------|----------|--------------|--------------|
+| L128 | ~128 tokens | 單一問題，帶較多情境細節（非 Q3 原句，因 Q3 太短） | ~90 字 | 512（見 `kBenchmarkDefaultSettings`） |
+| L512 | ~512 tokens | 一段台灣新聞/說明文（便利商店密度）+「請摘要成三點」 | ~370 字 | 同上 |
+| L1024 | ~1024 tokens | 兩段對立觀點短文（夜市改建爭議）+「請比較兩段觀點差異」 | ~700 字 | 同上 |
+| L2048 | ~2048 tokens | 6 輪環島旅行規劃對話（多輪 ChatMessage，非單一字串）+ 追問 | ~800 字（累計多輪） | 同上 |
+
+**產出待辦（C02 校準時）**：用 Benchmark 畫面對每個 tier 各跑一次，讀 sample 的
+`promptTokenCount`，跟目標值比對，字數不夠/超過就回頭調整 `prompt_tiers.dart` 內文，兩邊同步。
 
 ---
 
@@ -55,20 +66,49 @@
 
 每次 benchmark run 必須遵守，確保可重現：
 
-- [ ] **飛航模式**開啟（排除網路干擾）
-- [ ] **固定螢幕亮度**（建議固定值，記錄於結果）
-- [ ] **同電量起跑**（每組 run 從相同電量百分比開始，記錄起始/結束電量）
-- [ ] **冷啟動 / 暖啟動分開記錄**（冷=App 剛啟動首次載入；暖=模型已在記憶體）
-- [ ] **每組多次取樣**（建議 ≥3 次取中位數）
-- [ ] **組間降溫**（等 `thermalState` 回到 nominal 再跑下一組）
-- [ ] 固定 context 長度（依 task-A02 KV cache 實測結果拍板）
-- [ ] 兩 backend 使用**完全相同**的 system prompt 與 sampling 參數
+- [ ] **飛航模式**開啟（排除網路干擾）——app 無法讀取此狀態，純手動確認
+- [ ] **固定螢幕亮度**（建議固定值，記錄於結果）——app 無法讀取此狀態，純手動確認
+- [ ] **同電量起跑**（每組 run 從相同電量百分比開始，記錄起始/結束電量）——Benchmark 畫面
+      preflight banner 會顯示目前電量，方便對照
+- [ ] **三種「啟動狀態」分開記錄，絕不平均在一起**（見下方「冷啟動定義」，2026-07-18 上機時
+      發現的問題：GGUF/MLX 都出現「同一 session 第一次生成」比「第二次」明顯慢，若把兩者混在
+      一起取平均，數據會失真）
+- [ ] **每組多次取樣**（建議 ≥3 次取中位數；harness `BenchmarkProtocolRunner` 預設每個 tier
+      跑 1 次冷啟動樣本 + `warmRepeats`（預設 2，建議正式跑矩陣時調高到 ≥3）次暖啟動樣本）
+- [ ] **組間降溫**（等 `thermalState` 回到 nominal 再跑下一組；Benchmark 畫面 preflight banner
+      會標紅提醒）
+- [ ] 固定 context 長度（依 task-A02 KV cache 實測結果拍板，`nCtx=4096`）
+- [ ] 兩 backend 使用**完全相同**的 system prompt 與 sampling 參數（`kBenchmarkDefaultSettings`）
+
+### 冷啟動定義（2026-07-18 上機發現後補寫，務必分開量測）
+
+實機測試意外發現：**同一個 session 裡「第一次」生成，比「第二次」明顯慢**——
+GGUF：440ms → 158ms TTFT；MLX 更明顯：3.75s → 552ms（詳見 construction.md task-B03「Completion
+頁面...」段落）。研判是 GPU/Metal 的 kernel/pipeline JIT 在首次真正 dispatch 時的一次性成本
+（llama.cpp 端規模較小、MLX 端規模大很多），兩邊都不是 bug，也都沒有對應的 app 層繞過方法。
+
+這代表單純的「冷/暖」二分不夠精確，實際上有 **三種需要分開記錄、不能互相平均** 的狀態：
+
+| 狀態 | 定義 | 對應 harness 標籤 |
+|------|------|------|
+| **app-cold** | App 剛被強制關閉並重新啟動後，開的第一個 session 的第一次生成——內含 native library 初始化（`ggml_backend_load_all`/`initBackend`）+ 模型載入 + 首次 JIT 三種成本疊加 | `{tier}-app-cold`（僅第一個 tier，且需人工在跑之前手動 force-quit + 重開 app，`BenchmarkProtocolRunner.runAll(appJustLaunched: true)` 才會標記；harness 本身無法從程式內部偵測「app 剛啟動」，這一步是操作者的責任） |
+| **session-cold** | App 行程持續運行中，開一個「新」session 的第一次生成——native library 已初始化，只有模型載入 + 首次 JIT 這兩項成本 | `{tier}-session-cold` |
+| **session-warm** | 同一個 session 上的第 2 次（含）以後的生成——模型已載入、JIT 已熱機 | `{tier}-session-warm-{n}` |
+
+**執行方式**：`BenchmarkProtocolRunner.runAll` 會自動依序把每個 tier 標成上述三種狀態之一——
+第一個 tier 的第一個樣本在 `appJustLaunched: true` 時標 `app-cold`，其餘 tier 的第一個樣本一律標
+`session-cold`，每個 tier 後續的暖啟動樣本標 `session-warm-{n}`。**分析數據時務必依標籤分組
+比較，不可對三者取聯合平均**。
 
 ### 官方建議 sampling（T1 model card）
 `temperature = 0.6`、`top_p = 0.95`（官方範例 max_tokens 1500）。benchmark 全程固定此組，兩 backend 一致。
 
-### 量測欄位（對齊 C01 harness）
-模型載入時間、TTFT、decode tokens/s、峰值記憶體、`ProcessInfo.thermalState`、電量取樣。
+### 量測欄位（對齊 C01 harness，見 `lib/core/benchmark/`）
+模型載入時間、TTFT、decode tokens/s、prefill tokens/s、prompt tokens、峰值記憶體
+（`dart:io` `ProcessInfo.currentRss`，跑一次生成期間逐 token 取樣後取峰值）、
+thermalState（iOS `ProcessInfo.thermalState` / Android `PowerManager.getCurrentThermalStatus`，
+經 `DeviceTelemetryHostApi` 統一成 4 級）、電量（`battery_plus`，前/後各一次）。
+結果可經 Benchmark 畫面匯出 CSV/JSON（`benchmark_export.dart`）。
 
 ### 持續負載（C03，發熱曲線原料）
 連續生成 10 分鐘，時間序列記錄 tokens/s 衰減、thermalState 變化、電量消耗。

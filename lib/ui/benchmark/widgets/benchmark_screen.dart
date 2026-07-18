@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
+import 'package:little_star_app/core/benchmark/protocol_runner.dart';
 import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart';
 
 /// Internal-only benchmark harness screen (task-C01) — not part of the
@@ -17,8 +19,12 @@ class BenchmarkScreen extends StatefulWidget {
 
 class _BenchmarkScreenState extends State<BenchmarkScreen> {
   late final BenchmarkViewModel _viewModel;
+  late final BenchmarkProtocolRunner _protocolRunner;
   late final TextEditingController _pathController;
   late final TextEditingController _promptController;
+
+  PreflightStatus? _preflight;
+  bool _appJustLaunched = false;
 
   static const _defaultPrompt = '請用三句話介紹台灣夜市文化,並推薦三樣必吃小吃。';
 
@@ -26,8 +32,24 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   void initState() {
     super.initState();
     _viewModel = BenchmarkViewModel()..addListener(_onChanged);
+    _protocolRunner = BenchmarkProtocolRunner(_viewModel);
     _pathController = TextEditingController(text: widget.initialModelPath ?? '');
     _promptController = TextEditingController(text: _defaultPrompt);
+    _refreshPreflight();
+  }
+
+  Future<void> _refreshPreflight() async {
+    final status = await _viewModel.checkPreflight();
+    if (mounted) setState(() => _preflight = status);
+  }
+
+  Future<void> _runProtocol() async {
+    final wasAppJustLaunched = _appJustLaunched;
+    setState(() => _appJustLaunched = false); // consumed — only applies once
+    await _protocolRunner.runAll(
+      _pathController.text.trim(),
+      appJustLaunched: wasAppJustLaunched,
+    );
   }
 
   void _onChanged() => setState(() {});
@@ -55,6 +77,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _PreflightBanner(status: _preflight, onRefresh: _refreshPreflight),
+            const SizedBox(height: 12),
             TextField(
               controller: _pathController,
               enabled: !_viewModel.hasOpenSession,
@@ -80,7 +104,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                 FilledButton.icon(
                   onPressed: _viewModel.isRunning || _pathController.text.trim().isEmpty
                       ? null
-                      : () => _viewModel.openSessionAndRun(
+                      : () => _viewModel.openSessionAndRunPrompt(
                             _pathController.text.trim(),
                             _promptController.text,
                           ),
@@ -90,7 +114,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                 OutlinedButton.icon(
                   onPressed: _viewModel.isRunning || !_viewModel.hasOpenSession
                       ? null
-                      : () => _viewModel.runOnOpenSession(_promptController.text),
+                      : () => _viewModel.runOnOpenSessionPrompt(_promptController.text),
                   icon: const Icon(Icons.replay),
                   label: const Text('Run again (warm)'),
                 ),
@@ -100,6 +124,25 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                   label: const Text('Close session'),
                 ),
               ],
+            ),
+            const Divider(height: 24),
+            Text('Standardized protocol (task-C02)', style: Theme.of(context).textTheme.titleSmall),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+              value: _appJustLaunched,
+              onChanged: _viewModel.isRunning
+                  ? null
+                  : (v) => setState(() => _appJustLaunched = v ?? false),
+              title: const Text('App was just force-quit + relaunched (labels first sample app-cold)'),
+            ),
+            FilledButton.icon(
+              onPressed: _viewModel.isRunning || _pathController.text.trim().isEmpty
+                  ? null
+                  : _runProtocol,
+              icon: const Icon(Icons.playlist_play),
+              label: const Text('Run standardized protocol (all 4 tiers)'),
             ),
             if (_viewModel.isRunning) ...[
               const SizedBox(height: 12),
@@ -145,6 +188,42 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows what the app itself can verify from the pre-flight checklist
+/// (docs/benchmark/zh-tw-prompt-set.md Part 3). Airplane mode and screen
+/// brightness aren't readable by a third-party app, so those stay a manual
+/// reminder here rather than something this banner can confirm.
+class _PreflightBanner extends StatelessWidget {
+  final PreflightStatus? status;
+  final VoidCallback onRefresh;
+  const _PreflightBanner({required this.status, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = status;
+    final warn = s != null && !s.isThermalNominal;
+    return Card(
+      color: warn ? Theme.of(context).colorScheme.errorContainer : null,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                s == null
+                    ? 'Checking thermal/battery…'
+                    : 'thermal: ${s.thermalState.name}${warn ? ' (cool down before running)' : ''} · '
+                        'battery: ${s.batteryLevel ?? '-'}% · '
+                        'manual: airplane mode + fixed brightness',
+              ),
+            ),
+            IconButton(onPressed: onRefresh, icon: const Icon(Icons.refresh)),
           ],
         ),
       ),
