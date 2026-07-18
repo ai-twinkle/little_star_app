@@ -4,6 +4,7 @@ import 'package:little_star_app/core/engine/mlx/mlx_channel.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
+import 'package:little_star_app/core/inference/turn_marker_filter.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/models/chat_message.dart';
 import 'package:little_star_app/utils/logger.dart';
@@ -91,10 +92,23 @@ class MlxSession implements InferenceSession {
       seed: sp.seed < 0 ? null : sp.seed,
     );
 
+    final filter = TurnMarkerFilter();
+    var stoppedByMarker = false;
     await for (final event in _driver.generate(mlxMessages, params: params)) {
       if (_cancelled) break;
       if (event.isDone) break;
-      if (event.token.isNotEmpty) yield event.token;
+      if (event.token.isEmpty) continue;
+      final result = filter.feed(event.token);
+      if (result.text.isNotEmpty) yield result.text;
+      if (result.stop) {
+        _log.debug('Turn-marker guard: truncated fabricated next turn');
+        stoppedByMarker = true;
+        break;
+      }
+    }
+    if (!stoppedByMarker && !_cancelled) {
+      final remainder = filter.flush();
+      if (remainder.isNotEmpty) yield remainder;
     }
   }
 
