@@ -3,6 +3,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
 import 'package:little_star_app/core/benchmark/protocol_runner.dart';
+import 'package:little_star_app/core/benchmark/sustained_load_runner.dart';
+import 'package:little_star_app/models/chat_message.dart';
 import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart';
 
 /// Internal-only benchmark harness screen (task-C01) — not part of the
@@ -20,11 +22,13 @@ class BenchmarkScreen extends StatefulWidget {
 class _BenchmarkScreenState extends State<BenchmarkScreen> {
   late final BenchmarkViewModel _viewModel;
   late final BenchmarkProtocolRunner _protocolRunner;
+  late final SustainedLoadRunner _sustainedLoadRunner;
   late final TextEditingController _pathController;
   late final TextEditingController _promptController;
 
   PreflightStatus? _preflight;
   bool _appJustLaunched = false;
+  bool _sustainedLoadRunning = false;
 
   static const _defaultPrompt = '請用三句話介紹台灣夜市文化,並推薦三樣必吃小吃。';
 
@@ -33,6 +37,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     super.initState();
     _viewModel = BenchmarkViewModel()..addListener(_onChanged);
     _protocolRunner = BenchmarkProtocolRunner(_viewModel);
+    _sustainedLoadRunner = SustainedLoadRunner(_viewModel);
     _pathController = TextEditingController(text: widget.initialModelPath ?? '');
     _promptController = TextEditingController(text: _defaultPrompt);
     _refreshPreflight();
@@ -50,6 +55,17 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       _pathController.text.trim(),
       appJustLaunched: wasAppJustLaunched,
     );
+  }
+
+  Future<void> _runSustainedLoad() async {
+    setState(() => _sustainedLoadRunning = true);
+    try {
+      await _sustainedLoadRunner.run(
+        messages: [ChatMessage(content: _promptController.text, isUser: true)],
+      );
+    } finally {
+      if (mounted) setState(() => _sustainedLoadRunning = false);
+    }
   }
 
   void _onChanged() => setState(() {});
@@ -143,6 +159,27 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                   : _runProtocol,
               icon: const Icon(Icons.playlist_play),
               label: const Text('Run standardized protocol (all 4 tiers)'),
+            ),
+            const Divider(height: 24),
+            Text('Sustained load (task-C03)', style: Theme.of(context).textTheme.titleSmall),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _sustainedLoadRunning || !_viewModel.hasOpenSession
+                      ? null
+                      : _runSustainedLoad,
+                  icon: const Icon(Icons.timelapse),
+                  label: const Text('Run 10 min sustained load'),
+                ),
+                if (_sustainedLoadRunning)
+                  OutlinedButton.icon(
+                    onPressed: _sustainedLoadRunner.cancel,
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text('Stop'),
+                  ),
+              ],
             ),
             if (_viewModel.isRunning) ...[
               const SizedBox(height: 12),
