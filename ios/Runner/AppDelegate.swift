@@ -9,6 +9,7 @@ import UIKit
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     setupMlxBridge()
+    setupDeviceTelemetry()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }

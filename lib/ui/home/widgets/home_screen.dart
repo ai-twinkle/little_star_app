@@ -19,6 +19,7 @@ import 'package:little_star_app/ui/home/widgets/skeleton_loader.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
 import 'package:little_star_app/ui/models/widgets/mlx_models_screen.dart';
+import 'package:little_star_app/ui/benchmark/widgets/benchmark_screen.dart';
 import 'package:little_star_app/ui/about/about_screen.dart';
 import 'package:little_star_app/debug/mlx_spike_screen.dart';
 
@@ -175,6 +176,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const MlxModelsScreen()),
+                          ),
+                        ),
+                      ],
+                      if (kDebugMode) ...[
+                        const SizedBox(height: 16),
+                        _buildNavigationCard(
+                          context: context,
+                          title: 'Benchmark (Internal)',
+                          subtitle: 'C-line measurement harness — not part of the shipped app',
+                          icon: Icons.speed,
+                          color: Colors.teal,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const BenchmarkScreen()),
                           ),
                         ),
                       ],

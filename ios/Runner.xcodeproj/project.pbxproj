@@ -23,6 +23,9 @@
 		AA10000100000001AA100001 /* AppDelegate+MlxSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000001AA100001 /* AppDelegate+MlxSetup.swift */; };
 		AA10000100000002AA100002 /* MlxInference.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000002AA100002 /* MlxInference.g.swift */; };
 		AA10000100000003AA100003 /* MlxInferenceBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000003AA100003 /* MlxInferenceBridge.swift */; };
+		BB20000100000001BB200001 /* AppDelegate+DeviceTelemetrySetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB20000000000001BB200001 /* AppDelegate+DeviceTelemetrySetup.swift */; };
+		BB20000100000002BB200002 /* DeviceTelemetry.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB20000000000002BB200002 /* DeviceTelemetry.g.swift */; };
+		BB20000100000003BB200003 /* DeviceTelemetryBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB20000000000003BB200003 /* DeviceTelemetryBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +79,9 @@
 		AA10000000000001AA100001 /* AppDelegate+MlxSetup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppDelegate+MlxSetup.swift"; sourceTree = "<group>"; };
 		AA10000000000002AA100002 /* MlxInference.g.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "MlxInference.g.swift"; sourceTree = "<group>"; };
 		AA10000000000003AA100003 /* MlxInferenceBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MlxInferenceBridge.swift; sourceTree = "<group>"; };
+		BB20000000000001BB200001 /* AppDelegate+DeviceTelemetrySetup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppDelegate+DeviceTelemetrySetup.swift"; sourceTree = "<group>"; };
+		BB20000000000002BB200002 /* DeviceTelemetry.g.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "DeviceTelemetry.g.swift"; sourceTree = "<group>"; };
+		BB20000000000003BB200003 /* DeviceTelemetryBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeviceTelemetryBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -177,6 +183,7 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				AA10000000000010AA100010 /* MlxBridge */,
+				BB20000000000010BB200010 /* DeviceTelemetry */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -189,6 +196,16 @@
 				AA10000000000003AA100003 /* MlxInferenceBridge.swift */,
 			);
 			path = MlxBridge;
+			sourceTree = "<group>";
+		};
+		BB20000000000010BB200010 /* DeviceTelemetry */ = {
+			isa = PBXGroup;
+			children = (
+				BB20000000000001BB200001 /* AppDelegate+DeviceTelemetrySetup.swift */,
+				BB20000000000002BB200002 /* DeviceTelemetry.g.swift */,
+				BB20000000000003BB200003 /* DeviceTelemetryBridge.swift */,
+			);
+			path = DeviceTelemetry;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -430,6 +447,9 @@
 				AA10000100000001AA100001 /* AppDelegate+MlxSetup.swift in Sources */,
 				AA10000100000002AA100002 /* MlxInference.g.swift in Sources */,
 				AA10000100000003AA100003 /* MlxInferenceBridge.swift in Sources */,
+				BB20000100000001BB200001 /* AppDelegate+DeviceTelemetrySetup.swift in Sources */,
+				BB20000100000002BB200002 /* DeviceTelemetry.g.swift in Sources */,
+				BB20000100000003BB200003 /* DeviceTelemetryBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
