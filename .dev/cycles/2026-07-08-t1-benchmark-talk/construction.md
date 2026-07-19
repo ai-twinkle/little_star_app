@@ -16,10 +16,15 @@
 > **C 線 task-C01/C02/C03/C04 皆已完成**（2026-07-19）：C01 埋量測+CSV/JSON 匯出、C02 標準化協定
 > （含冷啟動三態定義）、C03 持續負載 harness、C04 pilot 上機驗證（iPhone 17 Pro）——過程中
 > **發現並修復一個 MLX 原生層 race condition bug**（背靠背生成會被誤判 busy，見下方章節）。
-> **task-C05 iPhone 側已完成**（2026-07-19，96 筆真實樣本，2 backend × 4 tier）——但**組間
-> 沒有降溫，數據受連續熱節流污染**，只能做相對比較，不建議直接當 D 線正式素材，詳見
-> [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)。
-> **Pixel 8a 側與 D 線尚未開工**。
+> **task-C05 兩台裝置皆已完成**（2026-07-19）：iPhone 17 Pro 96 筆真實樣本（2 backend × 4
+> tier，但組間沒降溫、數據受熱節流污染，只能相對比較）；Pixel 8a 4 個 GGUF tier（樣本數
+> 縮減為 1 冷+2 暖，因單次生成極慢）——**意外發現 Android 側 decode/prefill 速度比 iPhone
+> 慢一到三個數量級**，且上機過程排除了三個 Android 自動化障礙（appops 權限重置、16KB 對齊
+> debug 警告、間歇性 ANR），詳見
+> [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)
+> 與
+> [docs/benchmark/2026-07-19-c05-android-results.md](../../../docs/benchmark/2026-07-19-c05-android-results.md)。
+> **D 線尚未開工**。
 > 最後更新：2026-07-19
 
 ---
@@ -84,8 +89,8 @@ condition 修復、`4e1c5ed` task-C04 pilot integration test。
 | ~~task-C03（持續負載 harness）~~ | ✅ 已完成 2026-07-19 | 見下方章節；程式碼+單元測試完成，尚未真的跑滿 10 分鐘 |
 | ~~task-C04（pilot run）~~ | ✅ 已完成 2026-07-19 | 見下方章節；過程中發現並修復 MLX busy race condition（commit `6e36dc3`），兩 backend cold/warm 皆在真機驗證成功 |
 | task-C05（正式跑完整矩陣，iPhone 側） | ✅ 已完成 2026-07-19，附重要限制 | 96 筆真實樣本，但組間沒降溫、數據受熱節流污染，正式素材前建議重跑，見下方章節與結果檔 |
-| task-C05（Pixel 8a 側） | 尚未開工 | 本次開發環境未接 Android 裝置；`c05_matrix_test.dart` 理論上可直接在 Android 跑，未驗證 |
-| D 線 | 尚未動 | 待 C05 Pixel 8a 側完成，或先用目前 iPhone 數據（附限制說明）起草圖表 |
+| task-C05（Pixel 8a 側） | ✅ 已完成 2026-07-19，附重要限制 | 4 個 GGUF tier，樣本數縮減（1冷+2暖），發現 decode/prefill 比 iPhone 慢一到三個數量級，見下方章節與結果檔 |
+| D 線 | 尚未動 | 可用目前兩份結果檔（皆附限制說明）起草圖表；正式數字建議先查明 Android prefill 異常再重跑 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
 （sampling 固定 temp 0.6 / top_p 0.95）。
@@ -885,11 +890,35 @@ MLX-L128：28.01→14.68 tok/s）。這其實意外印證了 C03「持續負載/
    8 個組合合併進同一次 `flutter test` 呼叫（共用一個 `BenchmarkViewModel` 累積樣本），
    換取單一 CSV 輸出，代價是不能個別重跑單一組合。
 
-**Pixel 8a**：本次開發環境未接 Android 裝置，C05 只完成 iPhone 側，Android 側留給下一輪
-或使用者自行執行（`c05_matrix_test.dart` 同一套邏輯理論上可直接在 Android 裝置上跑，未驗證）。
+**Pixel 8a 側（同日補做，使用者接上裝置後）**：4 個 GGUF tier 全部完成，數據與分析見
+[docs/benchmark/2026-07-19-c05-android-results.md](../../../docs/benchmark/2026-07-19-c05-android-results.md)。
+樣本數縮減為 1 次 cold + 2 次 warm（而非 iPhone 側的 3+9）——Android 單次生成太慢（最長
+L2048 冷啟動 TTFT 達 65 秒），完整協定不可行。
 
-**正式 talk 素材前建議重跑**：組間插入等待 `thermalState` 回到 `nominal` 的步驟、先修正
-`prompt_tiers.dart` 的 L1024/L2048 內文、8 個組合合併成一次呼叫方便統一匯出。
+**最重要的新發現：Android decode/prefill 速度比 iPhone 慢一到三個數量級**——decode
+1.2–3.6 tok/s（iPhone 14–24）、**prefill 只有 7–11 tok/s**（iPhone 幾百到幾萬），這直接
+解釋了 TTFT 隨 prompt 長度幾乎線性暴增（L128 6秒 → L2048 65秒），也印證了 task-A02 當時
+「CPU 只用到 ~33%」的疑點——原因待查（懷疑 `nThreads=8` 未真正有效並行），建議另開任務用
+profiler 查明。
+
+**上機過程另外排除了三個 Android 特有的自動化障礙**（詳見結果檔「執行障礙」章節，供下次
+參考）：
+1. `MANAGE_EXTERNAL_STORAGE` 權限每次 app 重裝就被重置（`flutter test` 每次呼叫都重裝，
+   且 debug/release 簽章不同會強制先解除安裝）——修法：每次呼叫前都重新 `flutter install
+   --debug` + `adb shell appops set`。
+2. debug build 會彈出「16KB 分頁對齊」相容性警告（vendored `libllama.so`/`libggml*.so`
+   未對齊 16KB，Android 未來的頁面大小要求），擋住畫面讓自動化測試卡住——只在 debuggable
+   build 出現，不影響 release，但這是一項真實技術債，記錄供未來考慮升級 vendored
+   llama.cpp 建置旗標時一併處理。
+3. **間歇性 ANR**（`adb logcat` 找到根因：`Input dispatching timed out ... Waited 5002ms
+   for FocusEvent`）——`flutter test` 自動重裝+啟動的流程中，app 視窗有時來不及在 5 秒內
+   取得焦點，被系統判定 ANR 砍掉，發生機率約 30–50%，重跑通常能過。根因未完全查明，記錄
+   為潛在的真實產品風險（不只是 harness 問題）：如果低階 Android 裝置在正式 app 也有類似
+   啟動期 ANR 傾向，值得另開任務調查。
+
+**正式 talk 素材前建議重跑**：iPhone 側組間插入等待 `thermalState` 回到 `nominal` 的步驟、
+先修正 `prompt_tiers.dart` 的 L1024/L2048 內文、8+4 個組合合併成單次呼叫方便統一匯出；
+Android 側先查明 prefill 異常緩慢的根因，否則重跑也拿不到有意義的乾淨數字。
 
 commit（本次，尚未提交）。
 

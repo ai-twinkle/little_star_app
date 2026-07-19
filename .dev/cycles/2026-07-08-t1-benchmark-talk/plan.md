@@ -144,12 +144,12 @@
 
 #### task-C05: 正式跑完整 benchmark 矩陣
 - **類型**: 🔬 研究
-- **狀態**: [IN_PROGRESS] — iPhone 側已完成 2026-07-19（96 筆樣本），但組間沒降溫、數據受熱節流污染；Pixel 8a 側尚未開工
+- **狀態**: [DONE] ✅ 2026-07-19，附重要限制 — iPhone 側 96 筆樣本（組間沒降溫，數據受熱節流污染）；Pixel 8a 側 4 個 GGUF tier（樣本數縮減為 1冷+2暖，發現 decode/prefill 比 iPhone 慢一到三個數量級）
 - **描述**: 同一份繁中 prompt 集，跑 2 backend × 2 裝置（Pixel 8a 視 A03 判定）完整矩陣，資料匯出備 D 線用。
 - **驗收標準**:
-  - [x] 完整矩陣數據產出（CSV/JSON），含冷/暖啟動（iPhone 側，`integration_test/c05_matrix_test.dart`，結果見 [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)）；持續負載（C03）數據尚未產出，harness 已就緒
-  - [ ] 資料足以支撐一張「矩陣圖講完所有對比」——**目前 iPhone 數據因組間未降溫、受熱節流污染，不建議直接用；Pixel 8a 側尚未執行**；正式素材前需重跑一次乾淨版本
-- **預估時間**: 2 天 ｜ 實際：iPhone 側約 0.5 天（含意外發現的熱節流現象與 prompt tier 校準缺口）
+  - [x] 完整矩陣數據產出（CSV/JSON），含冷/暖啟動：iPhone 側（`integration_test/c05_matrix_test.dart`，結果見 [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)）+ Pixel 8a 側（結果見 [docs/benchmark/2026-07-19-c05-android-results.md](../../../docs/benchmark/2026-07-19-c05-android-results.md)）；持續負載（C03）數據尚未產出，harness 已就緒
+  - [x] 資料足以支撐一張「矩陣圖講完所有對比」——**兩份數據皆附重要限制說明**（iPhone：組間未降溫受熱節流污染；Android：樣本數遠少於 iPhone、低電量充電中量測、prefill 速度異常待查），正式素材前建議各重跑一次乾淨版本，但方向性的跨裝置/跨backend比較已經可用
+- **預估時間**: 2 天 ｜ 實際：約 1 天（iPhone 側 0.5 天 + Android 側 0.5 天，含大量 Android 自動化障礙排除：appops 權限重置、16KB 對齊警告、間歇性 ANR）
 
 ### D 線｜Talk 產出物
 
