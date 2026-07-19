@@ -88,6 +88,11 @@ final class MlxInferenceBridge: MlxInferenceHostApi {
     private var modelContainer: ModelContainer?
     private var generationTask: Task<Void, Error>?
 
+    /// Identifies which `startGeneration` call currently owns `generationTask`, so a task
+    /// that clears it early (see the `.info` case below) can't stomp on a *different*,
+    /// already-started generation if a new one began in between.
+    private var generationEpoch = 0
+
     var streamHandler: MlxTokenStreamHandler?
 
     // MARK: MlxInferenceHostApi
@@ -117,8 +122,16 @@ final class MlxInferenceBridge: MlxInferenceHostApi {
                 code: "busy", message: "Generation already in progress.", details: nil)
         }
 
+        generationEpoch += 1
+        let myEpoch = generationEpoch
+
         generationTask = Task { [weak self] in
-            defer { Task { @MainActor in self?.generationTask = nil } }
+            // Safety net for the cancel/error paths, where .info (below) never fires.
+            // Guarded by epoch — see the property doc comment — so this can't clear a
+            // *different*, already-started generation's task reference.
+            defer {
+                if self?.generationEpoch == myEpoch { self?.generationTask = nil }
+            }
 
             // Convert Pigeon messages → mlx-swift-lm Chat.Message
             let chatMessages: [Chat.Message] = messages.compactMap { msg in
@@ -142,6 +155,13 @@ final class MlxInferenceBridge: MlxInferenceHostApi {
                     self?.streamHandler?.emit(
                         MlxTokenEvent(token: text, isDone: false, tokensPerSecond: nil))
                 case .info(let info):
+                    // Clear *before* emitting isDone, not after this loop naturally exits —
+                    // Dart's consumer treats isDone as the end-of-generation signal and, on
+                    // the benchmark harness's back-to-back cold/warm calls, could otherwise
+                    // start the next generation before this task's `for await` loop noticed
+                    // the underlying AsyncStream had finished, hitting the "busy" guard above
+                    // even though playback had, from Dart's perspective, already completed.
+                    if self?.generationEpoch == myEpoch { self?.generationTask = nil }
                     self?.streamHandler?.emit(
                         MlxTokenEvent(token: "", isDone: true,
                                       tokensPerSecond: info.tokensPerSecond))
