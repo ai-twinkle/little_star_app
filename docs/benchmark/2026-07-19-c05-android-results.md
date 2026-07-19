@@ -28,8 +28,35 @@ thermalState 全程停在 `fair`（從未到 `serious`，跟 iPhone 側連續劣
   prefill 約幾百到數萬 tok/s（批次 prefill 很快），Pixel 8a 只有 **7–11 tok/s**——這代表
   Android 側的 prefill 沒有像 iPhone 一樣吃到高效的批次/SIMD 路徑,直接導致 TTFT 從 L128
   的 6 秒暴增到 L2048 的 65 秒（幾乎跟 prompt token 數成正比）。呼應 task-A02 當時的觀察
-  「生成速度偏慢、CPU 只用到 ~33%」——這次矩陣數據量化坐實了這個疑點,原因待查（懷疑
-  `nThreads=8` 沒有真正有效並行,或 llama.cpp Android build 沒開對 SIMD/NEON 優化路徑）。
+  「生成速度偏慢、CPU 只用到 ~33%」——這次矩陣數據量化坐實了這個疑點。
+
+  **✅ 根因已查明（2026-07-19，同日追加調查）**：`scripts/build_llama.cpp_android.sh`
+  編出來的 Android 版 `libllama.so`/`libggml*.so` 完全沒有走任何加速路徑：
+  1. **沒有 GPU backend**——`CMakeCache.txt` 顯示 `GGML_VULKAN=OFF`、`GGML_OPENCL=OFF`。
+     iOS 那邊靠 Metal 把矩陣運算丟給 GPU 做，Android 這邊完全沒有對應機制，全部落在 CPU。
+  2. **CPU 也沒吃到位**——`GGML_NATIVE=OFF`、`GGML_CPU_ALL_VARIANTS=OFF`，且建置腳本鎖定
+     `ANDROID_PLATFORM=android-23`（2015 年的 Android 6.0 基準，等同最原始的 ARMv8.0-A），
+     沒有任何 `-march=`/`-mcpu=` 旗標。直接檢查 `compile_commands.json` 證實：連
+     `ggml-cpu/arch/arm/repack.cpp`（量化矩陣乘法的 ARM 優化實作，內含
+     `__ARM_FEATURE_DOTPROD`/`__ARM_FEATURE_MATMUL_INT8` 這兩個關鍵指令集分支）都完全沒有
+     `-march`/`-mcpu` 旗標，代表編譯器直接把這兩段優化路徑跳過，退回最基本的通用 NEON/純量
+     實作。Pixel 8a 的 Tensor G3（Cortex-X4/A720/A520）**硬體上明明支援 dotprod 和 i8mm**，
+     只是現在的建置完全沒有用到。
+  3. 這個組合（無 GPU + 無 CPU 向量化優化）解釋了絕大部分 iOS/Android 效能落差，也解釋了
+     A02 當時「CPU 只用到 ~33%」的疑點——8 個執行緒確實有在跑，但每個執行緒做的是最慢的
+     通用實作，而且沒有 GPU 分擔運算，整體吞吐量自然低，CPU 使用率也不會被單一瓶頸環節撐滿。
+  4. **這是刻意的廣泛相容性選擇，不是疏漏**：`android-23`+無 ISA 目標是為了讓同一份
+     build 能跑在盡量多裝置（含很舊的低階機款）上，不會因為缺某個指令集就直接非法指令當掉。
+     代價是犧牲了新機（如 Pixel 8a）的效能。
+
+  **建議修法**（未實作，留待下次任務）：
+  - 開 `-DGGML_VULKAN=ON`（Pixel 8a 有完整 Vulkan 1.1+ 驅動，潛在增益最大，對應 iOS 的
+    Metal）。
+  - 開 `-DGGML_CPU_ALL_VARIANTS=ON`（llama.cpp 官方支援的作法：同時編多份 CPU 變體
+    （baseline/dotprod/i8mm...），執行期依實際硬體自動選最佳版本，兼顧舊機相容性與新機效能，
+    比手動鎖定單一 `-march` 更穩妥）。
+  - 兩者都需要重新跑 `scripts/build_llama.cpp_android.sh`（含調整 CMake 參數）、重新產出
+    `.so`、上機重跑 C05 矩陣驗證增益，屬於獨立的一項任務，非本次調查範圍。
 - **thermalState 行為不同**：iPhone 連續跑 8 個組合後從 `fair` 升到 `serious` 且回不去；
   Android 全程停在 `fair`,即使跑了 4 個組合、總計約 40 分鐘高強度運算。可能是 Android 運算
   量本身遠低於 iPhone（tok/s 慢一個數量級，單位時間發熱量也低),也可能是兩邊 thermalState
@@ -69,10 +96,14 @@ thermalState 全程停在 `fair`（從未到 `serious`，跟 iPhone 側連續劣
 
 ## 建議
 
-- Android 側 prefill 速度異常慢（7-11 tok/s）是本次最值得深入的技術疑點,建議另開任務用
-  Android Studio profiler 或 `adb shell top`/`dumpsys cpuinfo` 在生成過程中即時觀察各核心
-  使用率,確認是否真的是 nThreads 沒吃滿,或是其他瓶頸（記憶體頻寬、mmap I/O 等)。
-- 正式 D 線圖表如果要放 Android 數據,務必**明確標註樣本數遠少於 iPhone 側**（1+2 vs 3+9),
-  且註明是在低電量+持續充電狀態下量測,而非乾淨基準。
-- ANR 問題如果之後要再上機測試,建議跑測試期間全程盯著螢幕（如本次後半段做法),遇到 ANR
-  對話框或相容性警告立即人工處理,比純自動化重試更省時間。
+- ~~Android 側 prefill 速度異常慢是本次最值得深入的技術疑點~~ → **根因已查明**（見上方
+  「與 iPhone 對比」段落）：Android 版 `.so` 沒開 GPU backend（`GGML_VULKAN`/`GGML_OPENCL`
+  皆 OFF）、CPU 也沒吃到 dotprod/i8mm（`GGML_NATIVE=OFF` + 建置腳本鎖定 `android-23` 無
+  `-march` 目標）。下一步是實際修改 `scripts/build_llama.cpp_android.sh` 開啟
+  `GGML_VULKAN`/`GGML_CPU_ALL_VARIANTS`、重新編譯、重新上機驗證增益——這是獨立任務，
+  非本次調查範圍。
+- 正式 D 線圖表如果要放 Android 數據，務必**明確標註樣本數遠少於 iPhone 側**（1+2 vs 3+9），
+  且註明是在低電量+持續充電狀態下量測，而非乾淨基準；**更重要的是等上面的建置修法跑完
+  之後再重新量一次**，現在這批數字反映的是「未優化建置」而非 Pixel 8a 硬體的真實上限。
+- ANR 問題如果之後要再上機測試，建議跑測試期間全程盯著螢幕（如本次後半段做法），遇到 ANR
+  對話框或相容性警告立即人工處理，比純自動化重試更省時間。

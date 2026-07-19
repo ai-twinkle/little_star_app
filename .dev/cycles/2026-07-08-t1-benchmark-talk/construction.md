@@ -24,6 +24,10 @@
 > [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)
 > 與
 > [docs/benchmark/2026-07-19-c05-android-results.md](../../../docs/benchmark/2026-07-19-c05-android-results.md)。
+> **Android 效能落差根因已查明（同日追查）**：`scripts/build_llama.cpp_android.sh` 編出的
+> `.so` 沒開 GPU backend（`GGML_VULKAN`/`GGML_OPENCL` 皆 OFF，iOS 靠 Metal）、CPU 也沒吃到
+> dotprod/i8mm（鎖定 2015 年 `android-23` 基準無 `-march` 目標）——刻意的廣泛相容性選擇，
+> 代價是犧牲新機效能，修法未實作（見結果檔）。
 > **D 線尚未開工**。
 > 最後更新：2026-07-19
 
@@ -898,8 +902,20 @@ L2048 冷啟動 TTFT 達 65 秒），完整協定不可行。
 **最重要的新發現：Android decode/prefill 速度比 iPhone 慢一到三個數量級**——decode
 1.2–3.6 tok/s（iPhone 14–24）、**prefill 只有 7–11 tok/s**（iPhone 幾百到幾萬），這直接
 解釋了 TTFT 隨 prompt 長度幾乎線性暴增（L128 6秒 → L2048 65秒），也印證了 task-A02 當時
-「CPU 只用到 ~33%」的疑點——原因待查（懷疑 `nThreads=8` 未真正有效並行），建議另開任務用
-profiler 查明。
+「CPU 只用到 ~33%」的疑點。
+
+**✅ 根因已查明（2026-07-19，同日使用者要求追查）**：檢查 `scripts/build_llama.cpp_android.sh`
+與 `llama.cpp/build-android-arm64-v8a/CMakeCache.txt`/`compile_commands.json` 後確認：
+Android 版 `.so` 建置**完全沒有走加速路徑**——`GGML_VULKAN`/`GGML_OPENCL` 皆 `OFF`（iOS
+靠 Metal GPU 加速，Android 這邊全落在 CPU），且 `GGML_NATIVE=OFF` + 建置鎖定
+`ANDROID_PLATFORM=android-23`（2015 年 Android 6.0 基準）沒有任何 `-march`/`-mcpu` 旗標，
+連 `ggml-cpu/arch/arm/repack.cpp` 裡靠 `__ARM_FEATURE_DOTPROD`/`__ARM_FEATURE_MATMUL_INT8`
+判斷式保護的量化矩陣乘法優化路徑都完全沒被編譯進去——Pixel 8a 的 Tensor G3 硬體上其實支援
+這兩個指令集，只是現在的建置完全沒用到，退回最基本的通用 NEON/純量實作。判定是**刻意的廣泛
+相容性選擇**（讓同一份 build 能跑在很舊的低階機款上不崩潰），不是疏漏，但代價是犧牲了新機
+效能。建議修法（未實作，另開任務）：開 `-DGGML_VULKAN=ON`（對應 iOS Metal，潛在增益最大）+
+`-DGGML_CPU_ALL_VARIANTS=ON`（llama.cpp 官方支援的多版本執行期自動選擇，兼顧舊機相容與新機
+效能），詳見結果檔。
 
 **上機過程另外排除了三個 Android 特有的自動化障礙**（詳見結果檔「執行障礙」章節，供下次
 參考）：
