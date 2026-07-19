@@ -16,8 +16,10 @@
 > **C 線 task-C01/C02/C03/C04 皆已完成**（2026-07-19）：C01 埋量測+CSV/JSON 匯出、C02 標準化協定
 > （含冷啟動三態定義）、C03 持續負載 harness、C04 pilot 上機驗證（iPhone 17 Pro）——過程中
 > **發現並修復一個 MLX 原生層 race condition bug**（背靠背生成會被誤判 busy，見下方章節）。
-> **C05（正式跑完整矩陣）與 D 線尚未開工**——C05 需要多次上機執行（每 tier ≥3 次獨立 cold session
-> + Pixel 8a），非一次性工作，留給下一輪或使用者視裝置可用時間執行。
+> **task-C05 iPhone 側已完成**（2026-07-19，96 筆真實樣本，2 backend × 4 tier）——但**組間
+> 沒有降溫，數據受連續熱節流污染**，只能做相對比較，不建議直接當 D 線正式素材，詳見
+> [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)。
+> **Pixel 8a 側與 D 線尚未開工**。
 > 最後更新：2026-07-19
 
 ---
@@ -81,8 +83,9 @@ condition 修復、`4e1c5ed` task-C04 pilot integration test。
 | ~~task-C02（標準化協定）~~ | ✅ 已完成 2026-07-19 | 見下方章節；prompt tier token 數為估計值，待用 Benchmark 畫面實測校準 |
 | ~~task-C03（持續負載 harness）~~ | ✅ 已完成 2026-07-19 | 見下方章節；程式碼+單元測試完成，尚未真的跑滿 10 分鐘 |
 | ~~task-C04（pilot run）~~ | ✅ 已完成 2026-07-19 | 見下方章節；過程中發現並修復 MLX busy race condition（commit `6e36dc3`），兩 backend cold/warm 皆在真機驗證成功 |
-| task-C05（正式跑完整矩陣） | 尚未開工 | 需要每 tier ≥3 次獨立 session-cold（C04 發現的 thermalState 相關變異）+ Pixel 8a（本次開發環境未接 Android 裝置）；`BenchmarkProtocolRunner` 已可直接用 |
-| D 線 | 尚未動 | 待 C05 完成 |
+| task-C05（正式跑完整矩陣，iPhone 側） | ✅ 已完成 2026-07-19，附重要限制 | 96 筆真實樣本，但組間沒降溫、數據受熱節流污染，正式素材前建議重跑，見下方章節與結果檔 |
+| task-C05（Pixel 8a 側） | 尚未開工 | 本次開發環境未接 Android 裝置；`c05_matrix_test.dart` 理論上可直接在 Android 跑，未驗證 |
+| D 線 | 尚未動 | 待 C05 Pixel 8a 側完成，或先用目前 iPhone 數據（附限制說明）起草圖表 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
 （sampling 固定 temp 0.6 / top_p 0.95）。
@@ -850,6 +853,45 @@ Android 裝置）——留給下一輪或使用者自行執行，`BenchmarkProto
 已可直接使用。
 
 commit `6e36dc3`（MLX bug 修復）、`4e1c5ed`（pilot integration test）。
+
+### task-C05: 正式跑完整 benchmark 矩陣（iPhone 側）— [DONE，附重要限制] ✅ 2026-07-19
+
+**做法**：`integration_test/c05_matrix_test.dart`——8 個獨立 `testWidgets`（2 backend × 4
+tier），每個組合用 `BenchmarkProtocolRunner.runTier` 跑 3 次（3 次獨立 session-cold，呼應
+C04 發現的 cold-start 變異，每次 warmRepeats=3），共 12 樣本/組合 × 8 = **96 筆真實樣本**，
+`kBenchmarkDefaultSettings`（temp 0.6/topP 0.95/maxTokens 512，官方建議 sampling）。
+完整數據與分析見 [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)。
+
+**⚠️ 重要限制，記錄供下次參考**：8 個組合是背靠背連續跑完的，**組間完全沒有降溫**——
+`thermalState` 跑到約一半（GGUF-L128 組合中途）就從 `fair` 升到 `serious`，之後全程停在
+`serious`。這代表本次數據**可以做兩個 backend／四個 tier 之間的相對比較**，但**絕對數字
+（尤其 cold TTFT、decode tps）受連續熱節流污染，不建議直接當作 D 線 talk 的正式素材**——
+decode tps 在單一組合內部就從高點腰斬到低點（例如 GGUF-L128：21.56→14.20 tok/s；
+MLX-L128：28.01→14.68 tok/s）。這其實意外印證了 C03「持續負載/發熱曲線」的核心現象，
+只是用矩陣跑法而非專門的 10 分鐘連續測試碰上的。
+
+**額外校準/發現**（已寫回 docs/benchmark 檔案，未寫回 `prompt_tiers.dart` 內文本身——留給
+下一輪處理）：
+1. Prompt tier 實測 token 數（GGUF tokenizer）：64／223／343／464，對照目標
+   128／512／1024／2048——**L1024/L2048 兩個 tier 的草稿內容明顯太短**，尤其 L2048 只到
+   目標的四分之一，需要加長內文重新校準。
+2. MLX peak memory 隨 maxTokens 明顯上升：C04 pilot（maxTokens=64）量到 ~1.49GB，這次
+   （maxTokens=512）量到 ~3.16–3.27GB——推測 MLX 的 KV cache 是動態成長（不像 GGUF 用固定
+   `nCtx=4096` 預先配置），長生成會直接推高記憶體。D 線畫記憶體對比圖要標明量測時的
+   maxTokens，不能把不同 maxTokens 下的數字混在一起比。
+3. `flutter test integration_test/...` **每次呼叫都會重新安裝 app（新 sandbox
+   container）**，8 個組合各自的 CSV 匯出檔分散在 8 個不同、大多已隨舊 container 變孤兒的
+   路徑下，事後無法統一拉回單一檔案——這份文件的數據是從終端機輸出人工彙整。下次建議把
+   8 個組合合併進同一次 `flutter test` 呼叫（共用一個 `BenchmarkViewModel` 累積樣本），
+   換取單一 CSV 輸出，代價是不能個別重跑單一組合。
+
+**Pixel 8a**：本次開發環境未接 Android 裝置，C05 只完成 iPhone 側，Android 側留給下一輪
+或使用者自行執行（`c05_matrix_test.dart` 同一套邏輯理論上可直接在 Android 裝置上跑，未驗證）。
+
+**正式 talk 素材前建議重跑**：組間插入等待 `thermalState` 回到 `nominal` 的步驟、先修正
+`prompt_tiers.dart` 的 L1024/L2048 內文、8 個組合合併成一次呼叫方便統一匯出。
+
+commit（本次，尚未提交）。
 
 ---
 
