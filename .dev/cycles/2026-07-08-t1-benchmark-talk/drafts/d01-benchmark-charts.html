@@ -1,0 +1,928 @@
+<title>T1 效能矩陣 — D01 圖表</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f2f1ec;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --blue: #2a78d6;      /* GGUF / llama.cpp */
+    --orange: #eb6834;    /* MLX */
+    --warn: #fab219;
+    --warn-ink: #6b4a05;
+    --warn-bg: #fdf1d8;
+    --critical: #d03b3b;
+    --good: #0ca30c;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK TC", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0f;
+      --surface: #15171d;
+      --surface-2: #1c1f27;
+      --ink: #f2f2f0;
+      --ink-2: #c3c2b7;
+      --muted: #8b8a84;
+      --grid: #2a2c33;
+      --baseline: #3a3c44;
+      --border: rgba(255,255,255,0.10);
+      --blue: #3987e5;
+      --orange: #d95926;
+      --warn: #c98500;
+      --warn-ink: #ffe6a8;
+      --warn-bg: #2b2210;
+      --critical: #e66767;
+      --good: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0f;
+    --surface: #15171d;
+    --surface-2: #1c1f27;
+    --ink: #f2f2f0;
+    --ink-2: #c3c2b7;
+    --muted: #8b8a84;
+    --grid: #2a2c33;
+    --baseline: #3a3c44;
+    --border: rgba(255,255,255,0.10);
+    --blue: #3987e5;
+    --orange: #d95926;
+    --warn: #c98500;
+    --warn-ink: #ffe6a8;
+    --warn-bg: #2b2210;
+    --critical: #e66767;
+    --good: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 40px 24px 96px;
+  }
+  header.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--ink-2);
+    font-size: 15px;
+    max-width: 70ch;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  section { margin: 48px 0; }
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.005em;
+  }
+  .section-note {
+    color: var(--ink-2);
+    font-size: 14px;
+    max-width: 72ch;
+    margin: 0 0 20px;
+  }
+
+  .callout {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--warn-bg);
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+    color: var(--warn-ink);
+    margin: 16px 0;
+  }
+  .callout .dot {
+    flex: none;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    margin-top: 6px;
+  }
+  .callout b { font-weight: 700; }
+  .callout a { color: inherit; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .stat-tile {
+    background: var(--surface);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-tile .label { font-size: 12.5px; color: var(--muted); }
+  .stat-tile .value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .stat-tile .value.accent-blue { color: var(--blue); }
+  .stat-tile .value.accent-orange { color: var(--orange); }
+  .stat-tile .sub { font-size: 12.5px; color: var(--ink-2); font-family: var(--mono); }
+
+  /* Matrix grid (task-C05's 2x2) */
+  .matrix {
+    display: grid;
+    grid-template-columns: 120px repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 13.5px;
+  }
+  .matrix > div { background: var(--surface); padding: 16px; }
+  .matrix .corner { background: var(--surface-2); }
+  .matrix .col-head, .matrix .row-head {
+    background: var(--surface-2);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .matrix .row-head { writing-mode: horizontal-tb; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .matrix .cell { display: flex; flex-direction: column; gap: 4px; }
+  .matrix .cell .big { font-family: var(--mono); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .matrix .cell .line { font-size: 12.5px; color: var(--ink-2); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .matrix .cell.na { color: var(--muted); justify-content: center; align-items: center; font-size: 13px; }
+
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 18px 14px;
+  }
+  .panel h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 2px;
+  }
+  .panel .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .legend .step { width: 10px; height: 10px; border-radius: 2px; opacity: .5; }
+
+  svg { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--mono); }
+  .tick-label { fill: var(--muted); font-size: 10.5px; }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .bar-label { fill: var(--ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--ink);
+    color: var(--page);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    line-height: 1.5;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translate(-50%, -100%);
+    transition: opacity .08s ease;
+    z-index: 10;
+  }
+  .chart-host { position: relative; }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    font-family: var(--mono);
+  }
+  table.data-table th, table.data-table td {
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--grid);
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table th:first-child, table.data-table td:first-child { text-align: left; font-family: var(--sans); }
+  table.data-table th { color: var(--muted); font-weight: 600; font-size: 11px; }
+  details.table-toggle { margin-top: 14px; }
+  details.table-toggle summary {
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    user-select: none;
+  }
+  details.table-toggle > div { margin-top: 10px; overflow-x: auto; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  footer a { color: var(--blue); }
+  code { font-family: var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Little Star · 2026-07-08-t1-benchmark-talk · task-D01</div>
+    <h1>T1（Gemma-3-4B-T1-it）繁中推論效能矩陣</h1>
+    <p class="subtitle">llama.cpp（GGUF）與 MLX 兩個 backend，在 iPhone 17 Pro 與 Pixel 8a 上，對 4 種輸入長度 tier（128 / 512 / 1024 / 2048 tokens）實測的 TTFT、decode 速度、記憶體與熱節流資料。</p>
+    <div class="meta-row">
+      <span>資料日期 2026-07-19</span>
+      <span>iPhone 17 Pro · 96 筆樣本</span>
+      <span>Pixel 8a · 12 筆樣本</span>
+      <span>sampling temp 0.6 / topP 0.95</span>
+    </div>
+  </header>
+
+  <div class="callout">
+    <div class="dot"></div>
+    <div>
+      <b>兩份資料都不是「乾淨」基準值，這是本頁最重要的閱讀說明。</b>
+      iPhone 側 8 個組合背靠背連續執行、組間沒有降溫，thermalState 中途從 <code>fair</code> 升到 <code>serious</code> 後未再恢復；
+      Android 側樣本數縮減（1 冷 + 2 暖）、量測時裝置電量 9–31% 且持續充電中，且 <b>Android 版 <code>.so</code> 建置沒開 GPU backend、也沒吃到 CPU 向量化指令（dotprod/i8mm）</b>，
+      數字反映的是「未優化建置」而非 Pixel 8a 硬體真實上限。兩台裝置之間、兩個 backend 之間的<b>相對關係</b>仍具參考價值；正式簡報前建議依
+      <a href="../../.dev/cycles/2026-07-08-t1-benchmark-talk/construction.md">construction.md</a> 的建議重跑一次。
+    </div>
+  </div>
+
+  <section id="matrix">
+    <h2>矩陣總覽</h2>
+    <p class="section-note">2 backend × 2 裝置，decode tokens/s（暖啟動中位數）為主要指標。Pixel 8a × MLX 為結構性缺席（MLX 僅支援 Apple Silicon），不是資料缺口。</p>
+    <div id="matrix-grid"></div>
+  </section>
+
+  <section id="ttft">
+    <h2>1 · TTFT（Time To First Token）</h2>
+    <p class="section-note">依 tier 分組；同一色系的淺／深兩階分別代表 session-cold（首次生成）與 session-warm（同 session 第 2 次以後）— 兩者差距即 2026-07-18 上機發現的 GPU/Metal kernel JIT 熱機效應。</p>
+    <div class="panels" id="ttft-panels"></div>
+  </section>
+
+  <section id="decode">
+    <h2>2 · Decode 速度（tokens/s）</h2>
+    <p class="section-note">同樣分 cold / warm 兩階。數字愈高愈快。</p>
+    <div class="panels" id="decode-panels"></div>
+  </section>
+
+  <section id="memory">
+    <h2>3 · 峰值記憶體</h2>
+    <p class="section-note">同一 tier 內 cold/warm 差異很小，這裡取每個 tier 全部樣本的中位數。iPhone GGUF 用固定 <code>nCtx=4096</code> 預先配置 KV cache，MLX 是動態成長 — 兩者隨 tier 拉長的走勢不同。</p>
+    <div class="panels" id="memory-panels"></div>
+  </section>
+
+  <section id="thermal">
+    <h2>4 · 發熱節流曲線（iPhone，8 組合連續執行）</h2>
+    <p class="section-note">x 軸是樣本執行序（1→96，8 個組合背靠背，每個組合 12 筆）。decode 速度隨組合推進明顯下滑，在第 8 筆樣本附近 thermalState 從 <code>fair</code> 轉為 <code>serious</code> 後未再恢復 — 這就是本頁最上方警示的「組間沒降溫」直接證據，也意外印證了 task-C03「持續負載發熱曲線」預期會看到的現象。</p>
+    <div class="panel">
+      <div id="thermal-chart" class="chart-host"></div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--blue)"></span>llama.cpp (GGUF)</span>
+        <span class="item"><span class="swatch" style="background:var(--orange)"></span>MLX</span>
+        <span class="item"><span class="swatch" style="background:var(--warn)"></span>thermalState = serious 起點</span>
+      </div>
+    </div>
+    <p class="section-note" style="margin-top:16px;">Android 側因 4 個 tier 是各自獨立的短測試（中間因 ANR 中斷過），thermalState 全程停留在 <code>fair</code>，未觀察到類似曲線 — 12 筆樣本的 decode tps 走勢僅供參考，見下方資料表。</p>
+  </section>
+
+  <section id="battery">
+    <h2>5 · 電量消耗</h2>
+    <p class="section-note">誠實說明：<b>目前沒有乾淨的電量消耗資料。</b></p>
+    <div class="stat-row">
+      <div class="stat-tile">
+        <div class="label">iPhone 17 Pro（96 筆樣本，~27 分鐘）</div>
+        <div class="value">90% → 90%</div>
+        <div class="sub">全程無變化 — 27 分鐘內電量沒有掉到下一個百分點，不是「不耗電」，是量測窗口太短</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Pixel 8a（12 筆樣本，~45 分鐘含重試）</div>
+        <div class="value">9% → 31%</div>
+        <div class="sub">全程 AC 充電中，數字是「充電速度」不是「耗電速度」</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">
+      <div class="dot"></div>
+      <div>要拿到真正的電量消耗曲線，需要 <b>task-C03 的 10 分鐘持續負載測試在斷開電源狀態下</b>執行 — harness（<code>SustainedLoadRunner</code>）已就緒，但尚未這樣跑過。</div>
+    </div>
+  </section>
+
+  <section id="table">
+    <h2>資料表（圖表備援）</h2>
+    <p class="section-note">上面每張圖表的中位數彙總值，供無法讀圖或需要精確數字時查閱。</p>
+    <details class="table-toggle">
+      <summary>展開完整資料表（8 組 tier × backend × 裝置）</summary>
+      <div id="data-table-host"></div>
+    </details>
+  </section>
+
+  <footer>
+    資料來源：
+    <a href="../../docs/benchmark/2026-07-19-c05-iphone-results.md">2026-07-19-c05-iphone-results.md</a> ·
+    <a href="../../docs/benchmark/2026-07-19-c05-android-results.md">2026-07-19-c05-android-results.md</a> ·
+    <a href="../../.dev/cycles/2026-07-08-t1-benchmark-talk/construction.md">construction.md</a>（task-D01）
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ───────────────────────── raw data ───────────────────────── */
+
+  // iPhone 17 Pro — 8 combos x 12 samples (1 cold + 3 warm, x3 sessions), executed
+  // back-to-back with no cooldown. Order matters (thermal chart uses sequence).
+  const IPHONE_COMBOS = [
+    { backend: "GGUF", tier: "L128", samples: [
+      { role: "cold", ttft: 750, tps: 21.56, mem: 3654.5, thermal: "fair" },
+      { role: "warm", ttft: 373, tps: 19.70, mem: 3685.4, thermal: "fair" },
+      { role: "warm", ttft: 472, tps: 18.40, mem: 3685.6, thermal: "fair" },
+      { role: "warm", ttft: 578, tps: 16.71, mem: 3688.1, thermal: "fair" },
+      { role: "cold", ttft: 522, tps: 13.67, mem: 3794.4, thermal: "fair" },
+      { role: "warm", ttft: 678, tps: 15.70, mem: 3796.1, thermal: "fair" },
+      { role: "warm", ttft: 622, tps: 15.25, mem: 3797.3, thermal: "fair" },
+      { role: "warm", ttft: 685, tps: 15.09, mem: 3797.5, thermal: "serious" },
+      { role: "cold", ttft: 551, tps: 14.74, mem: 3799.9, thermal: "serious" },
+      { role: "warm", ttft: 670, tps: 14.47, mem: 3799.9, thermal: "serious" },
+      { role: "warm", ttft: 685, tps: 14.20, mem: 3800.0, thermal: "serious" },
+      { role: "warm", ttft: 681, tps: 14.22, mem: 3798.8, thermal: "serious" },
+    ]},
+    { backend: "GGUF", tier: "L512", samples: [
+      { role: "cold", ttft: 1281, tps: 23.92, mem: 3843.2, thermal: "serious" },
+      { role: "warm", ttft: 938, tps: 23.85, mem: 3843.0, thermal: "serious" },
+      { role: "warm", ttft: 1001, tps: 20.44, mem: 3844.8, thermal: "serious" },
+      { role: "warm", ttft: 1019, tps: 22.27, mem: 3849.4, thermal: "serious" },
+      { role: "cold", ttft: 985, tps: 20.66, mem: 3863.3, thermal: "serious" },
+      { role: "warm", ttft: 1092, tps: 17.99, mem: 3847.7, thermal: "serious" },
+      { role: "warm", ttft: 1065, tps: 21.01, mem: 3849.8, thermal: "serious" },
+      { role: "warm", ttft: 1130, tps: 20.32, mem: 3851.5, thermal: "serious" },
+      { role: "cold", ttft: 1191, tps: 19.89, mem: 3861.3, thermal: "serious" },
+      { role: "warm", ttft: 1285, tps: 20.75, mem: 3856.2, thermal: "serious" },
+      { role: "warm", ttft: 1300, tps: 19.25, mem: 3857.9, thermal: "serious" },
+      { role: "warm", ttft: 1353, tps: 19.19, mem: 3858.3, thermal: "serious" },
+    ]},
+    { backend: "GGUF", tier: "L1024", samples: [
+      { role: "cold", ttft: 1664, tps: 22.39, mem: 3852.7, thermal: "serious" },
+      { role: "warm", ttft: 1671, tps: 21.75, mem: 3858.9, thermal: "serious" },
+      { role: "warm", ttft: 1677, tps: 19.07, mem: 3863.3, thermal: "serious" },
+      { role: "warm", ttft: 1994, tps: 19.06, mem: 3863.8, thermal: "serious" },
+      { role: "cold", ttft: 1907, tps: 18.59, mem: 3867.3, thermal: "serious" },
+      { role: "warm", ttft: 2088, tps: 18.50, mem: 3862.9, thermal: "serious" },
+      { role: "warm", ttft: 2130, tps: 18.13, mem: 3867.9, thermal: "serious" },
+      { role: "warm", ttft: 2176, tps: 18.02, mem: 3867.9, thermal: "serious" },
+      { role: "cold", ttft: 2163, tps: 17.61, mem: 3873.4, thermal: "serious" },
+      { role: "warm", ttft: 2237, tps: 17.48, mem: 3865.0, thermal: "serious" },
+      { role: "warm", ttft: 2273, tps: 16.88, mem: 3863.9, thermal: "serious" },
+      { role: "warm", ttft: 2296, tps: 16.58, mem: 3860.0, thermal: "serious" },
+    ]},
+    { backend: "GGUF", tier: "L2048", samples: [
+      { role: "cold", ttft: 2101, tps: 23.59, mem: 3847.7, thermal: "serious" },
+      { role: "warm", ttft: 1932, tps: 22.51, mem: 3852.5, thermal: "serious" },
+      { role: "warm", ttft: 2036, tps: 22.05, mem: 3853.0, thermal: "serious" },
+      { role: "warm", ttft: 2216, tps: 20.47, mem: 3857.2, thermal: "serious" },
+      { role: "cold", ttft: 2857, tps: 17.84, mem: 3863.6, thermal: "serious" },
+      { role: "warm", ttft: 3059, tps: 17.08, mem: 3863.9, thermal: "serious" },
+      { role: "warm", ttft: 3184, tps: 16.25, mem: 3864.2, thermal: "serious" },
+      { role: "warm", ttft: 3316, tps: 14.80, mem: 3864.7, thermal: "serious" },
+      { role: "cold", ttft: 3427, tps: 14.62, mem: 3863.2, thermal: "serious" },
+      { role: "warm", ttft: 3394, tps: 14.85, mem: 3864.7, thermal: "serious" },
+      { role: "warm", ttft: 3392, tps: 14.99, mem: 3861.3, thermal: "serious" },
+      { role: "warm", ttft: 3389, tps: 14.47, mem: 3861.2, thermal: "serious" },
+    ]},
+    { backend: "MLX", tier: "L128", samples: [
+      { role: "cold", ttft: 5691, tps: 28.01, mem: 3170.2, thermal: "serious" },
+      { role: "warm", ttft: 367, tps: 21.05, mem: 3161.1, thermal: "serious" },
+      { role: "warm", ttft: 502, tps: 16.39, mem: 3161.5, thermal: "serious" },
+      { role: "warm", ttft: 549, tps: 15.70, mem: 3162.3, thermal: "serious" },
+      { role: "cold", ttft: 4438, tps: 15.62, mem: 3205.6, thermal: "serious" },
+      { role: "warm", ttft: 590, tps: 15.29, mem: 3189.2, thermal: "serious" },
+      { role: "warm", ttft: 597, tps: 15.12, mem: 3191.2, thermal: "serious" },
+      { role: "warm", ttft: 630, tps: 14.93, mem: 3191.4, thermal: "serious" },
+      { role: "cold", ttft: 4578, tps: 14.88, mem: 3272.9, thermal: "serious" },
+      { role: "warm", ttft: 616, tps: 14.68, mem: 3193.9, thermal: "serious" },
+      { role: "warm", ttft: 614, tps: 14.72, mem: 3194.2, thermal: "serious" },
+      { role: "warm", ttft: 617, tps: 14.74, mem: 3194.4, thermal: "serious" },
+    ]},
+    { backend: "MLX", tier: "L512", samples: [
+      { role: "cold", ttft: 6001, tps: 18.84, mem: 3169.5, thermal: "serious" },
+      { role: "warm", ttft: 1081, tps: 19.15, mem: 3158.8, thermal: "serious" },
+      { role: "warm", ttft: 1074, tps: 18.16, mem: 3159.6, thermal: "serious" },
+      { role: "warm", ttft: 1107, tps: 17.63, mem: 3159.8, thermal: "serious" },
+      { role: "cold", ttft: 4411, tps: 17.30, mem: 3184.2, thermal: "serious" },
+      { role: "warm", ttft: 1186, tps: 15.98, mem: 3183.8, thermal: "serious" },
+      { role: "warm", ttft: 1211, tps: 15.26, mem: 3184.6, thermal: "serious" },
+      { role: "warm", ttft: 1262, tps: 16.35, mem: 3183.6, thermal: "serious" },
+      { role: "cold", ttft: 4964, tps: 16.04, mem: 3270.9, thermal: "serious" },
+      { role: "warm", ttft: 1278, tps: 15.39, mem: 3173.8, thermal: "serious" },
+      { role: "warm", ttft: 1268, tps: 15.68, mem: 3174.4, thermal: "serious" },
+      { role: "warm", ttft: 1284, tps: 15.56, mem: 3174.1, thermal: "serious" },
+    ]},
+    { backend: "MLX", tier: "L1024", samples: [
+      { role: "cold", ttft: 6029, tps: 27.46, mem: 3169.9, thermal: "serious" },
+      { role: "warm", ttft: 1042, tps: 23.17, mem: 3161.7, thermal: "serious" },
+      { role: "warm", ttft: 1318, tps: 18.48, mem: 3161.9, thermal: "serious" },
+      { role: "warm", ttft: 1487, tps: 16.24, mem: 3162.1, thermal: "serious" },
+      { role: "cold", ttft: 5077, tps: 15.59, mem: 3184.8, thermal: "serious" },
+      { role: "warm", ttft: 1603, tps: 15.32, mem: 3185.1, thermal: "serious" },
+      { role: "warm", ttft: 1633, tps: 15.52, mem: 3172.8, thermal: "serious" },
+      { role: "warm", ttft: 1628, tps: 15.30, mem: 3173.1, thermal: "serious" },
+      { role: "cold", ttft: 5180, tps: 15.20, mem: 3250.8, thermal: "serious" },
+      { role: "warm", ttft: 1647, tps: 14.81, mem: 3175.7, thermal: "serious" },
+      { role: "warm", ttft: 1688, tps: 14.66, mem: 3176.0, thermal: "serious" },
+      { role: "warm", ttft: 1699, tps: 14.70, mem: 3176.1, thermal: "serious" },
+    ]},
+    { backend: "MLX", tier: "L2048", samples: [
+      { role: "cold", ttft: 6709, tps: 18.69, mem: 3177.3, thermal: "serious" },
+      { role: "warm", ttft: 2149, tps: 19.14, mem: 3170.4, thermal: "serious" },
+      { role: "warm", ttft: 2111, tps: 18.34, mem: 3171.2, thermal: "serious" },
+      { role: "warm", ttft: 2146, tps: 17.65, mem: 3170.4, thermal: "serious" },
+      { role: "cold", ttft: 5318, tps: 17.85, mem: 3190.0, thermal: "serious" },
+      { role: "warm", ttft: 2238, tps: 16.71, mem: 3189.7, thermal: "serious" },
+      { role: "warm", ttft: 2336, tps: 16.73, mem: 3190.4, thermal: "serious" },
+      { role: "warm", ttft: 2371, tps: 15.81, mem: 3190.4, thermal: "serious" },
+      { role: "cold", ttft: 5876, tps: 15.80, mem: 3212.2, thermal: "serious" },
+      { role: "warm", ttft: 2418, tps: 15.61, mem: 3186.1, thermal: "serious" },
+      { role: "warm", ttft: 2459, tps: 15.44, mem: 3185.7, thermal: "serious" },
+      { role: "warm", ttft: 2502, tps: 15.07, mem: 3186.4, thermal: "serious" },
+    ]},
+  ];
+
+  // Pixel 8a — 4 combos x 3 samples (1 cold + 2 warm), each combo a separate
+  // test invocation (not one continuous run) — unoptimized build, see callout.
+  const ANDROID_COMBOS = [
+    { backend: "GGUF", tier: "L128", samples: [
+      { role: "cold", ttft: 5942, tps: 2.88, mem: 3713.2 },
+      { role: "warm", ttft: 8554, tps: 1.94, mem: 3469.1 },
+      { role: "warm", ttft: 13046, tps: 1.52, mem: 3466.7 },
+    ]},
+    { backend: "GGUF", tier: "L512", samples: [
+      { role: "cold", ttft: 21918, tps: 2.84, mem: 3943.5 },
+      { role: "warm", ttft: 31941, tps: 3.62, mem: 3540.5 },
+      { role: "warm", ttft: 29827, tps: 1.47, mem: 3530.2 },
+    ]},
+    { backend: "GGUF", tier: "L1024", samples: [
+      { role: "cold", ttft: 45013, tps: 2.47, mem: 3942.6 },
+      { role: "warm", ttft: 50859, tps: 1.19, mem: 3942.3 },
+      { role: "warm", ttft: 48250, tps: 1.26, mem: 3758.8 },
+    ]},
+    { backend: "GGUF", tier: "L2048", samples: [
+      { role: "cold", ttft: 64654, tps: 1.17, mem: 3979.6 },
+      { role: "warm", ttft: 63692, tps: 1.83, mem: 3978.6 },
+      { role: "warm", ttft: 66889, tps: 1.38, mem: 3979.2 },
+    ]},
+  ];
+
+  const TIERS = ["L128", "L512", "L1024", "L2048"];
+  // SVG presentation attributes accept var(...) directly, so marks stay in sync
+  // with the theme toggle live — no re-render or reload needed on theme change.
+  function seriesHex(backend) { return backend === "GGUF" ? "var(--blue)" : "var(--orange)"; }
+
+  function median(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  function fmt0(n) { return Math.round(n).toLocaleString("en-US"); }
+  function fmt1(n) { return n.toFixed(1); }
+  function fmt2(n) { return n.toFixed(2); }
+  function fmtMs(n) { return n >= 1000 ? (n / 1000).toFixed(1) + "s" : Math.round(n) + "ms"; }
+
+  function aggregate(combos) {
+    // -> { tier: { backend: { cold: {ttft,tps}, warm: {ttft,tps} } } }
+    const out = {};
+    for (const c of combos) {
+      out[c.tier] = out[c.tier] || {};
+      const cold = c.samples.filter((s) => s.role === "cold");
+      const warm = c.samples.filter((s) => s.role === "warm");
+      out[c.tier][c.backend] = {
+        cold: { ttft: median(cold.map((s) => s.ttft)), tps: median(cold.map((s) => s.tps)) },
+        warm: { ttft: median(warm.map((s) => s.ttft)), tps: median(warm.map((s) => s.tps)) },
+        mem: c.samples[0].mem != null ? median(c.samples.map((s) => s.mem)) : null,
+      };
+    }
+    return out;
+  }
+
+  const IPHONE_AGG = aggregate(IPHONE_COMBOS);
+  const ANDROID_AGG = aggregate(ANDROID_COMBOS);
+
+  /* ───────────────────────── tiny SVG chart toolkit ───────────────────────── */
+
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, children) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs || {}) n.setAttribute(k, attrs[k]);
+    for (const c of children || []) n.appendChild(c);
+    return n;
+  }
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    const norm = v / mag;
+    const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return step * mag;
+  }
+
+  function tooltip(host) {
+    const tip = document.createElement("div");
+    tip.className = "tooltip";
+    host.style.position = "relative";
+    host.appendChild(tip);
+    return {
+      show(x, y, html) {
+        tip.innerHTML = html;
+        tip.style.left = x + "px";
+        tip.style.top = (y - 10) + "px";
+        tip.style.opacity = "1";
+      },
+      hide() { tip.style.opacity = "0"; },
+    };
+  }
+
+  // Grouped bar chart: one group per tier, up to 2 backends, each backend split
+  // into cold (lighter) / warm (solid) bars.
+  function renderGroupedBars(host, { tiers, series, unitFmt, valueOf }) {
+    const W = 480, H = 220, padL = 40, padB = 24, padT = 10;
+    const innerW = W - padL - 8, innerH = H - padT - padB;
+    const groupW = innerW / tiers.length;
+    const backends = series; // e.g. ["GGUF"] or ["GGUF","MLX"]
+    const barsPerGroup = backends.length * 2; // cold+warm each
+    const barGap = 3, groupPad = 14;
+    const barW = Math.min(20, (groupW - groupPad * 2 - barGap * (barsPerGroup - 1)) / barsPerGroup);
+
+    let maxV = 0;
+    for (const t of tiers) for (const b of backends) {
+      for (const role of ["cold", "warm"]) {
+        const v = valueOf(t, b, role);
+        if (v != null) maxV = Math.max(maxV, v);
+      }
+    }
+    maxV = niceMax(maxV * 1.08);
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+    const yTicks = 4;
+    for (let i = 0; i <= yTicks; i++) {
+      const v = (maxV / yTicks) * i;
+      const y = padT + innerH - (v / maxV) * innerH;
+      svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: y, y2: y, class: "grid-line" }));
+      const t = el("text", { x: padL - 6, y: y + 3, class: "tick-label", "text-anchor": "end" });
+      t.textContent = unitFmt(v, true);
+      svg.appendChild(t);
+    }
+    svg.appendChild(el("line", { x1: padL, x2: padL, y1: padT, y2: padT + innerH, class: "axis-line" }));
+    svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: padT + innerH, y2: padT + innerH, class: "axis-line" }));
+
+    const tip = tooltip(host);
+    const hostRect = () => host.getBoundingClientRect();
+
+    tiers.forEach((tier, gi) => {
+      const gx = padL + gi * groupW;
+      let bx = gx + groupPad;
+      backends.forEach((b) => {
+        ["cold", "warm"].forEach((role) => {
+          const v = valueOf(tier, b, role);
+          if (v == null) { bx += barW + barGap; return; }
+          const h = (v / maxV) * innerH;
+          const y = padT + innerH - h;
+          const rect = el("rect", {
+            x: bx, y, width: barW, height: Math.max(h, 1), rx: 3,
+            fill: seriesHex(b), opacity: role === "cold" ? 0.5 : 1,
+          });
+          rect.addEventListener("mousemove", (ev) => {
+            const r = hostRect();
+            tip.show(ev.clientX - r.left, ev.clientY - r.top,
+              `${tier} · ${b} · ${role === "cold" ? "session-cold" : "session-warm"}<br>${unitFmt(v)}`);
+          });
+          rect.addEventListener("mouseleave", () => tip.hide());
+          svg.appendChild(rect);
+          bx += barW + barGap;
+        });
+      });
+      const lbl = el("text", { x: gx + groupW / 2, y: padT + innerH + 16, class: "tick-label", "text-anchor": "middle" });
+      lbl.textContent = tier;
+      svg.appendChild(lbl);
+    });
+
+    host.appendChild(svg);
+  }
+
+  function renderLegendSteps(host, backends) {
+    const wrap = document.createElement("div");
+    wrap.className = "legend";
+    for (const b of backends) {
+      wrap.innerHTML += `
+        <span class="item"><span class="swatch" style="background:${b === 'GGUF' ? 'var(--blue)' : 'var(--orange)'}"></span>${b === 'GGUF' ? 'llama.cpp (GGUF)' : 'MLX'} · warm</span>
+        <span class="item"><span class="step" style="background:${b === 'GGUF' ? 'var(--blue)' : 'var(--orange)'}"></span>${b === 'GGUF' ? 'llama.cpp (GGUF)' : 'MLX'} · cold</span>`;
+    }
+    host.appendChild(wrap);
+  }
+
+  /* ───────────────────────── matrix grid ───────────────────────── */
+
+  function renderMatrix() {
+    const host = document.getElementById("matrix-grid");
+    const iphoneGguf = IPHONE_AGG.L512.GGUF; // representative mid tier
+    const iphoneMlx = IPHONE_AGG.L512.MLX;
+    const androidGguf = ANDROID_AGG.L512.GGUF;
+
+    const cell = (agg, label) => `
+      <div class="cell">
+        <div class="big">${fmt1(agg.warm.tps)} <span style="font-size:12px;color:var(--muted)">tok/s</span></div>
+        <div class="line">TTFT warm ${fmtMs(agg.warm.ttft)} · cold ${fmtMs(agg.cold.ttft)}</div>
+        <div class="line">peak mem ${agg.mem ? fmt0(agg.mem) + "MB" : "—"}</div>
+      </div>`;
+
+    host.innerHTML = `
+      <div class="matrix">
+        <div class="corner"></div>
+        <div class="col-head">iPhone 17 Pro</div>
+        <div class="col-head">Pixel 8a</div>
+
+        <div class="row-head"><span class="swatch" style="background:var(--blue)"></span>llama.cpp</div>
+        <div>${cell(iphoneGguf)}</div>
+        <div>${cell(androidGguf)}</div>
+
+        <div class="row-head"><span class="swatch" style="background:var(--orange)"></span>MLX</div>
+        <div>${cell(iphoneMlx)}</div>
+        <div class="cell na">N/A — Apple Silicon only</div>
+      </div>
+      <p class="section-note" style="margin-top:10px;">數字取 L512 tier 代表值（暖啟動中位數）。完整 4 個 tier 見下方圖表。</p>
+    `;
+  }
+
+  /* ───────────────────────── build charts ───────────────────────── */
+
+  function buildBarSection(hostId, unitFmt, pick) {
+    const host = document.getElementById(hostId);
+
+    const iphonePanel = document.createElement("div");
+    iphonePanel.className = "panel";
+    iphonePanel.innerHTML = `<h3>iPhone 17 Pro</h3><div class="panel-sub">llama.cpp + MLX</div>`;
+    const iphoneChart = document.createElement("div");
+    iphoneChart.className = "chart-host";
+    iphonePanel.appendChild(iphoneChart);
+    renderGroupedBars(iphoneChart, {
+      tiers: TIERS, series: ["GGUF", "MLX"], unitFmt,
+      valueOf: (tier, b, role) => pick(IPHONE_AGG[tier][b], role),
+    });
+    renderLegendSteps(iphonePanel, ["GGUF", "MLX"]);
+
+    const androidPanel = document.createElement("div");
+    androidPanel.className = "panel";
+    androidPanel.innerHTML = `<h3>Pixel 8a</h3><div class="panel-sub">llama.cpp only · 樣本數縮減，見上方警示</div>`;
+    const androidChart = document.createElement("div");
+    androidChart.className = "chart-host";
+    androidPanel.appendChild(androidChart);
+    renderGroupedBars(androidChart, {
+      tiers: TIERS, series: ["GGUF"], unitFmt,
+      valueOf: (tier, b, role) => pick(ANDROID_AGG[tier][b], role),
+    });
+    renderLegendSteps(androidPanel, ["GGUF"]);
+
+    host.appendChild(iphonePanel);
+    host.appendChild(androidPanel);
+  }
+
+  buildBarSection("ttft-panels", (v, axis) => axis ? fmtMs(v) : fmtMs(v) + " TTFT", (agg, role) => agg[role].ttft);
+  buildBarSection("decode-panels", (v, axis) => axis ? fmt0(v) : fmt1(v) + " tok/s", (agg, role) => agg[role].tps);
+
+  // Memory: single bar per backend per tier (median across all samples in the combo).
+  (function buildMemorySection() {
+    const host = document.getElementById("memory-panels");
+
+    function memPanel(title, sub, agg, backends) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `<h3>${title}</h3><div class="panel-sub">${sub}</div>`;
+      const chart = document.createElement("div");
+      chart.className = "chart-host";
+      panel.appendChild(chart);
+
+      const W = 480, H = 200, padL = 46, padB = 24, padT = 10;
+      const innerW = W - padL - 8, innerH = H - padT - padB;
+      const groupW = innerW / TIERS.length;
+      const barW = Math.min(28, (groupW - 20) / backends.length);
+      let maxV = 0;
+      TIERS.forEach((t) => backends.forEach((b) => { const m = agg[t][b] && agg[t][b].mem; if (m) maxV = Math.max(maxV, m); }));
+      maxV = niceMax(maxV * 1.1);
+
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+      for (let i = 0; i <= 4; i++) {
+        const v = (maxV / 4) * i;
+        const y = padT + innerH - (v / maxV) * innerH;
+        svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: y, y2: y, class: "grid-line" }));
+        const t = el("text", { x: padL - 6, y: y + 3, class: "tick-label", "text-anchor": "end" });
+        t.textContent = fmt0(v) + (i === 4 ? " MB" : "");
+        svg.appendChild(t);
+      }
+      svg.appendChild(el("line", { x1: padL, x2: padL, y1: padT, y2: padT + innerH, class: "axis-line" }));
+      svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: padT + innerH, y2: padT + innerH, class: "axis-line" }));
+
+      const tip = tooltip(chart);
+      const hostRect = () => chart.getBoundingClientRect();
+
+      TIERS.forEach((tier, gi) => {
+        const gx = padL + gi * groupW;
+        let bx = gx + (groupW - backends.length * barW) / 2;
+        backends.forEach((b) => {
+          const m = agg[tier][b] && agg[tier][b].mem;
+          if (m == null) { bx += barW + 4; return; }
+          const h = (m / maxV) * innerH;
+          const y = padT + innerH - h;
+          const rect = el("rect", { x: bx, y, width: barW - 4, height: Math.max(h, 1), rx: 3, fill: seriesHex(b) });
+          rect.addEventListener("mousemove", (ev) => {
+            const r = hostRect();
+            tip.show(ev.clientX - r.left, ev.clientY - r.top, `${tier} · ${b}<br>${fmt0(m)} MB`);
+          });
+          rect.addEventListener("mouseleave", () => tip.hide());
+          svg.appendChild(rect);
+          bx += barW + 4;
+        });
+        const lbl = el("text", { x: gx + groupW / 2, y: padT + innerH + 16, class: "tick-label", "text-anchor": "middle" });
+        lbl.textContent = tier;
+        svg.appendChild(lbl);
+      });
+
+      chart.appendChild(svg);
+      renderLegendSteps(panel, backends);
+      // memory legend shouldn't show cold/warm steps (single bar) — replace with simple legend
+      const lg = panel.querySelector(".legend");
+      lg.innerHTML = backends.map((b) => `<span class="item"><span class="swatch" style="background:${b === 'GGUF' ? 'var(--blue)' : 'var(--orange)'}"></span>${b === 'GGUF' ? 'llama.cpp (GGUF)' : 'MLX'}</span>`).join("");
+      return panel;
+    }
+
+    host.appendChild(memPanel("iPhone 17 Pro", "llama.cpp + MLX", IPHONE_AGG, ["GGUF", "MLX"]));
+    host.appendChild(memPanel("Pixel 8a", "llama.cpp only", ANDROID_AGG, ["GGUF"]));
+  })();
+
+  // Thermal / decay curve — iPhone, all 96 samples in execution order.
+  (function buildThermalChart() {
+    const host = document.getElementById("thermal-chart");
+    const seq = [];
+    IPHONE_COMBOS.forEach((c) => c.samples.forEach((s) => seq.push({ ...s, backend: c.backend, tier: c.tier })));
+
+    const W = 900, H = 260, padL = 44, padR = 12, padB = 30, padT = 14;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const n = seq.length;
+    const x = (i) => padL + (innerW * i) / (n - 1);
+    const maxTps = niceMax(Math.max(...seq.map((s) => s.tps)) * 1.1);
+    const y = (v) => padT + innerH - (v / maxTps) * innerH;
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+
+    for (let i = 0; i <= 4; i++) {
+      const v = (maxTps / 4) * i;
+      const yy = y(v);
+      svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: yy, y2: yy, class: "grid-line" }));
+      const t = el("text", { x: padL - 6, y: yy + 3, class: "tick-label", "text-anchor": "end" });
+      t.textContent = fmt0(v);
+      svg.appendChild(t);
+    }
+    svg.appendChild(el("line", { x1: padL, x2: padL, y1: padT, y2: padT + innerH, class: "axis-line" }));
+    svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: padT + innerH, y2: padT + innerH, class: "axis-line" }));
+
+    // combo boundaries + labels
+    let idx = 0;
+    IPHONE_COMBOS.forEach((c) => {
+      const startX = x(idx);
+      if (idx > 0) svg.appendChild(el("line", { x1: startX, x2: startX, y1: padT, y2: padT + innerH, class: "grid-line", "stroke-dasharray": "2,2" }));
+      const midX = x(idx + c.samples.length / 2 - 0.5);
+      const lbl = el("text", { x: midX, y: padT + innerH + 18, class: "tick-label", "text-anchor": "middle" });
+      lbl.textContent = c.tier;
+      svg.appendChild(lbl);
+      idx += c.samples.length;
+    });
+
+    // thermal transition marker (fair -> serious)
+    const transitionIdx = seq.findIndex((s) => s.thermal === "serious");
+    if (transitionIdx > 0) {
+      const tx = x(transitionIdx);
+      svg.appendChild(el("line", { x1: tx, x2: tx, y1: padT, y2: padT + innerH, stroke: "var(--warn)", "stroke-width": 1.5 }));
+      const lbl = el("text", { x: tx + 4, y: padT + 10, class: "tick-label", fill: "var(--warn-ink)" });
+      lbl.textContent = "→ serious";
+      svg.appendChild(lbl);
+    }
+
+    // one path per backend segment (color follows entity = backend)
+    let i = 0;
+    IPHONE_COMBOS.forEach((c) => {
+      const pts = c.samples.map((s, j) => `${x(i + j)},${y(s.tps)}`).join(" L ");
+      const path = el("path", { d: `M ${pts}`, fill: "none", stroke: seriesHex(c.backend), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      svg.appendChild(path);
+      i += c.samples.length;
+    });
+
+    // hover dots (sparse hit targets, all samples, small)
+    const tip = tooltip(host);
+    const hostRect = () => host.getBoundingClientRect();
+    i = 0;
+    IPHONE_COMBOS.forEach((c) => {
+      c.samples.forEach((s, j) => {
+        const cx = x(i + j), cy = y(s.tps);
+        const dot = el("circle", { cx, cy, r: 6, fill: "transparent", stroke: "none" });
+        dot.addEventListener("mousemove", (ev) => {
+          const r = hostRect();
+          tip.show(ev.clientX - r.left, ev.clientY - r.top,
+            `#${i + j + 1} · ${c.tier} · ${c.backend} · ${s.role}<br>${fmt1(s.tps)} tok/s · thermal ${s.thermal}`);
+        });
+        dot.addEventListener("mouseleave", () => tip.hide());
+        svg.appendChild(dot);
+      });
+      i += c.samples.length;
+    });
+
+    host.appendChild(svg);
+  })();
+
+  function buildDataTable() {
+    const host = document.getElementById("data-table-host");
+    const rows = [];
+    TIERS.forEach((tier) => {
+      [["iPhone 17 Pro", IPHONE_AGG, ["GGUF", "MLX"]], ["Pixel 8a", ANDROID_AGG, ["GGUF"]]].forEach(([device, agg, backends]) => {
+        backends.forEach((b) => {
+          const a = agg[tier][b];
+          rows.push({
+            device, backend: b === "GGUF" ? "llama.cpp" : "MLX", tier,
+            coldTtft: fmtMs(a.cold.ttft), warmTtft: fmtMs(a.warm.ttft),
+            coldTps: fmt2(a.cold.tps), warmTps: fmt2(a.warm.tps),
+            mem: a.mem != null ? fmt0(a.mem) + " MB" : "—",
+          });
+        });
+      });
+    });
+    const table = document.createElement("table");
+    table.className = "data-table";
+    table.innerHTML = `
+      <thead><tr>
+        <th>裝置</th><th>Backend</th><th>Tier</th>
+        <th>Cold TTFT</th><th>Warm TTFT</th>
+        <th>Cold tok/s</th><th>Warm tok/s</th><th>Peak mem</th>
+      </tr></thead>
+      <tbody>${rows.map((r) => `
+        <tr>
+          <td>${r.device}</td><td>${r.backend}</td><td>${r.tier}</td>
+          <td>${r.coldTtft}</td><td>${r.warmTtft}</td>
+          <td>${r.coldTps}</td><td>${r.warmTps}</td><td>${r.mem}</td>
+        </tr>`).join("")}</tbody>`;
+    host.appendChild(table);
+  }
+
+  renderMatrix();
+  buildDataTable();
+})();
+</script>

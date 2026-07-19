@@ -28,7 +28,9 @@
 > `.so` 沒開 GPU backend（`GGML_VULKAN`/`GGML_OPENCL` 皆 OFF，iOS 靠 Metal）、CPU 也沒吃到
 > dotprod/i8mm（鎖定 2015 年 `android-23` 基準無 `-march` 目標）——刻意的廣泛相容性選擇，
 > 代價是犧牲新機效能，修法未實作（見結果檔）。
-> **D 線尚未開工**。
+> **task-D01（圖表產出）已完成**（2026-07-19）：[drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html)，
+> 5 類圖表 + 矩陣總覽，資料直接引用 C05 兩份結果檔，如實繼承其限制（未做假數字）。
+> D02/D03/D04 尚未開工。
 > 最後更新：2026-07-19
 
 ---
@@ -94,7 +96,8 @@ condition 修復、`4e1c5ed` task-C04 pilot integration test。
 | ~~task-C04（pilot run）~~ | ✅ 已完成 2026-07-19 | 見下方章節；過程中發現並修復 MLX busy race condition（commit `6e36dc3`），兩 backend cold/warm 皆在真機驗證成功 |
 | task-C05（正式跑完整矩陣，iPhone 側） | ✅ 已完成 2026-07-19，附重要限制 | 96 筆真實樣本，但組間沒降溫、數據受熱節流污染，正式素材前建議重跑，見下方章節與結果檔 |
 | task-C05（Pixel 8a 側） | ✅ 已完成 2026-07-19，附重要限制 | 4 個 GGUF tier，樣本數縮減（1冷+2暖），發現 decode/prefill 比 iPhone 慢一到三個數量級，見下方章節與結果檔 |
-| D 線 | 尚未動 | 可用目前兩份結果檔（皆附限制說明）起草圖表；正式數字建議先查明 Android prefill 異常再重跑 |
+| task-D01（圖表產出） | ✅ 已完成 2026-07-19，附重要限制 | 見下方章節；[drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html) |
+| task-D02/D03/D04 | 尚未動 | demo 錄影、FM 對照、簡報+講稿 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
 （sampling 固定 temp 0.6 / top_p 0.95）。
@@ -935,6 +938,45 @@ Android 版 `.so` 建置**完全沒有走加速路徑**——`GGML_VULKAN`/`GGML
 **正式 talk 素材前建議重跑**：iPhone 側組間插入等待 `thermalState` 回到 `nominal` 的步驟、
 先修正 `prompt_tiers.dart` 的 L1024/L2048 內文、8+4 個組合合併成單次呼叫方便統一匯出；
 Android 側先查明 prefill 異常緩慢的根因，否則重跑也拿不到有意義的乾淨數字。
+
+commit `f959968`（Android 矩陣）、`9950940`（根因調查）。
+
+---
+
+### task-D01: 圖表產出 — [DONE，附重要限制] ✅ 2026-07-19
+
+**做法**：用 dataviz skill 的方法論（categorical 配色跑過 validator、cold/warm 用同一色相的
+透明度兩階做 sequential 次序、SVG 手刻搭配 hover tooltip）產出單頁 HTML，資料直接內嵌
+C05 兩份結果檔的原始樣本（iPhone 96 筆 + Android 12 筆），彙總邏輯（中位數）寫在頁面自己的
+JS 裡而非事先手算貼數字，避免抄錄誤差。存在
+[drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html)，另外發布成 Artifact
+供快速預覽。
+
+**5 類圖表 + 1 矩陣圖**：
+1. TTFT（iPhone/Android 兩面板，cold 淺色/warm 實色）
+2. Decode tokens/s（同上）
+3. 峰值記憶體（單色長條，iPhone 用固定 nCtx 預先配置 vs MLX 動態成長的走勢對比）
+4. **發熱節流曲線**——直接把 iPhone 8 個組合、96 筆樣本按實際執行序畫成一條線，清楚看到
+   decode tps 隨組合推進下滑、thermalState 在第 8 筆樣本附近從 `fair` 轉 `serious` 後回不去
+   ——這是本頁最強的一張圖，直接把上面「組間沒降溫」的警示畫成證據，也意外達成了 task-C03
+   原本想要的「持續負載發熱曲線」效果（雖然是矩陣測試的副產品，不是專門的 10 分鐘測試）。
+5. **電量消耗**——誠實呈現「目前沒有乾淨資料」（iPhone 90%→90% 全程無變化、Android
+   9%→31% 充電中），而非用僅有的數字硬畫一條看似合理但誤導的曲線，並註明需要 task-C03
+   在斷電狀態下跑滿 10 分鐘才能真正回答這個問題。
+6. 矩陣總覽：2×2 grid，Pixel 8a × MLX 標成「N/A — Apple Silicon only」（結構性缺席，
+   非資料缺口，呼應 zh-tw-prompt-set.md 矩陣維度表原本的設計）。
+
+**驗證**：用 Playwright（本機 headless Chromium）實際渲染頁面、截圖每個區塊逐一肉眼檢查，
+抓到並修正兩個問題——(1) `renderGroupedBars` 內一個物件字面值語法錯誤誤植成變數宣告
+（`padR: undefined` 混進 `const` 列表）；(2) 深色模式原本用 JS 在頁面載入當下算好一次
+色碼、配一個「偵測到 `data-theme` 變化就整頁 reload」的 MutationObserver 想要「修正」，
+實際上會讓深色模式一開就被自己的 reload 打回預設亮色模式，永遠切不過去——改成讓 SVG
+的 `fill`/`stroke` 直接寫 `var(--blue)`/`var(--orange)` 這種 CSS 變數字串，讓顏色本身
+跟著主題即時切換，不需要重整頁面。另外也照 dataviz skill 的無障礙檢查清單，補了一個
+可展開的完整資料表（tier × backend × 裝置，供讀不了圖或需要精確數字時查）。
+
+**尚未做**：D01 本身資料層面繼承了 C05 的所有限制（iPhone 熱節流污染、Android 樣本數少+
+未優化建置）——圖表如實呈現這些限制，但正式簡報用的「乾淨」版本仍要等 C05 重跑。
 
 commit（本次，尚未提交）。
 
