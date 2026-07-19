@@ -104,43 +104,43 @@
 
 #### task-C01: App 內埋量測 + CSV/JSON 匯出
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-07-19 — 單元測試驗證 + 兩平台編譯驗證；thermal/battery channel 實際讀值待 C04 才第一次上機驗證（已完成，見下）
 - **描述**: 在推論後端抽象層（`lib/core/inference/`）埋量測：模型載入時間、TTFT、decode tokens/s、峰值記憶體、`ProcessInfo.thermalState`、電量取樣；結果可匯出 CSV/JSON。
 - **建議方式**: Red-Green-Refactor
 - **驗收標準**:
-  - [ ] 單次推論可記錄：載入時間 / TTFT / decode t/s / 峰值記憶體 / thermalState / 電量
-  - [ ] 量測對兩 backend 皆適用（掛在抽象層）
-  - [ ] 結果可匯出 CSV 與 JSON
-- **預估時間**: 2 天
+  - [x] 單次推論可記錄：載入時間 / TTFT / decode t/s / 峰值記憶體 / thermalState / 電量（`lib/core/benchmark/benchmark_recorder.dart`）
+  - [x] 量測對兩 backend 皆適用（掛在 `BenchmarkRecorder`，接受任意 `InferenceSession`，不綁定特定 backend）
+  - [x] 結果可匯出 CSV 與 JSON（`lib/core/benchmark/benchmark_export.dart`）
+- **預估時間**: 2 天 ｜ 實際：約 1 天（延續既有 `GenerationController`/`PromptMetricsSource` 機制，未重造輪子）
 
 #### task-C02: 標準化測試協定
 - **類型**: 🔬 研究 + 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-07-19
 - **描述**: 定義繁中 prompt 集（讓數據也帶 Twinkle 色彩）、prompt 長度 128/512/1024/2048、每組多次取樣、冷/暖啟動分開、飛航模式、固定亮度、同電量起跑、組間降溫。可由 harness 依協定自動跑。
 - **建議方式**: 調查 → 定協定 → 程式化執行器
 - **驗收標準**:
-  - [ ] 繁中 prompt 集定版（涵蓋 4 種長度）
-  - [ ] harness 能依協定批次執行並分開記錄冷/暖啟動
-  - [ ] 執行前置條件（飛航/亮度/電量/降溫）以 checklist 或程式檢核落實
-- **預估時間**: 1.5 天
+  - [x] 繁中 prompt 集定版（涵蓋 4 種長度，`lib/core/benchmark/prompt_tiers.dart` + `docs/benchmark/zh-tw-prompt-set.md`；token 數為估計值，待實測校準，見文件註記）
+  - [x] harness 能依協定批次執行並分開記錄冷/暖啟動（`BenchmarkProtocolRunner`，且擴充為三態：`app-cold`/`session-cold`/`session-warm`，見 construction.md）
+  - [x] 執行前置條件（飛航/亮度/電量/降溫）以 checklist 或程式檢核落實（Benchmark 畫面 pre-flight banner：thermal/battery 程式自動讀，飛航模式/亮度兩平台皆不對第三方 App 開放，保留手動 checklist）
+- **預估時間**: 1.5 天 ｜ 實際：約 0.5 天
 
 #### task-C03: 持續負載測試（發熱曲線原料）
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-07-19 — 單元測試驗證，尚未真的跑滿 10 分鐘
 - **描述**: 連續生成 10 分鐘，記 tokens/s 隨時間衰減、thermalState 變化、電量消耗 —— 「發熱曲線」圖的原料。
 - **驗收標準**:
-  - [ ] 可執行 10 分鐘連續生成並時間序列記錄 t/s、thermalState、電量
-  - [ ] 輸出可直接餵給圖表（D 線）
-- **預估時間**: 1 天
+  - [x] 可執行 10 分鐘連續生成並時間序列記錄 t/s、thermalState、電量（`SustainedLoadRunner`，重複呼叫 C01 的 recorder，`BenchmarkSample.timestamp` 即時間軸，未另外設計 schema）
+  - [x] 輸出可直接餵給圖表（D 線）（沿用 C01 的 CSV/JSON 匯出）
+- **預估時間**: 1 天 ｜ 實際：約 0.25 天（邏輯完全重用 C01）
 
 #### task-C04: Pilot run + 方法論修正
 - **類型**: 🔬 研究
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-07-19 — 實機驗證（iPhone 17 Pro），過程中發現並修復一個 MLX 原生層 P0 bug
 - **描述**: 用 harness 小規模先跑，檢查數據合理性與協定漏洞，修正方法論後再正式跑矩陣。
 - **驗收標準**:
-  - [ ] 完成一次 pilot 並列出方法論修正項
-  - [ ] 修正回寫 task-C02 協定
-- **預估時間**: 1 天
+  - [x] 完成一次 pilot 並列出方法論修正項（`integration_test/benchmark_pilot_test.dart`，GGUF+MLX 各跑 cold+warm，見 construction.md task-C04 章節的三項發現）
+  - [x] 修正回寫 task-C02 協定（`docs/benchmark/zh-tw-prompt-set.md` Part 3 新增「task-C04 pilot 上機發現」段落：cold-start 變異建議≥3次獨立取樣、MLX busy bug 修復記錄、MLX prompt-token 缺值提醒）
+- **預估時間**: 1 天 ｜ 實際：約 0.5 天（含意外的 MLX bug 除錯）
 
 #### task-C05: 正式跑完整 benchmark 矩陣
 - **類型**: 🔬 研究
@@ -212,6 +212,8 @@
 | 7/20–7/24 | 圖表/簡報/講稿 + ≥2 次計時排練 | D01, D04 |
 
 > B02 已於 7/16 完成上傳，比原排程（talk 前幾天）提早許多。
+> C01–C04 已於 7/19 完成（原排程 7/12–7/15，落後約 4 天但已追上）；C05 順延至 7/16–7/19 這個
+> 已經開始的區間，需要多次上機執行（每 tier ≥3 次獨立 cold session + Pixel 8a），非一次性工作。
 
 ---
 
@@ -225,6 +227,8 @@
 | MLX 轉換後繁中品質異常 | benchmark/demo 失真 | ~~sanity check 提早做~~ → **已解除**：B01 達標 |
 | ~~Twinkle org 上傳協調時間不可控~~ | ~~「發佈」時刻落空~~ | **已解除**（2026-07-16）：B02 改案為上傳到使用者自己的 HF repo `Bbson/gemma-3-4B-T1-it-MLX-4bit`，不再需要 org write 權限；org 只發禮貌性通知，不卡排程 |
 | 兩 backend template 不一致 | 對比失真 | B03 加一致性測試 |
+| ~~MLX 背靠背生成被原生層誤判 busy~~（C04 pilot 新發現） | ~~C02/C03/C05 協定的 cold→warm 背靠背呼叫在 MLX 上 100% 失敗~~ | **已解除**（2026-07-19）：`MlxInferenceBridge.swift` race condition 修復，commit `6e36dc3`，pilot 重跑驗證通過 |
+| cold-start TTFT 疑似與 thermalState 相關的 run-to-run 變異（C04 pilot 新發現） | 單次 cold 樣本可能不具代表性，矩陣圖失真 | C05 每 tier 跑 ≥3 次獨立 session-cold 取中位數，並落實組間降溫（見 `zh-tw-prompt-set.md` Part 3） |
 | 時程壓縮吃掉排練 buffer | 語速失控（主敵） | harness 限內部範圍；D03 硬 timebox |
 
 ---

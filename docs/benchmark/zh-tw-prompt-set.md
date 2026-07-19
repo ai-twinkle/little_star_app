@@ -100,6 +100,24 @@ GGUF：440ms → 158ms TTFT；MLX 更明顯：3.75s → 552ms（詳見 construct
 `session-cold`，每個 tier 後續的暖啟動樣本標 `session-warm-{n}`。**分析數據時務必依標籤分組
 比較，不可對三者取聯合平均**。
 
+**task-C04 pilot 上機發現（2026-07-19，iPhone 17 Pro，見 construction.md）**：`session-cold`
+TTFT 本身也有不小的 run-to-run 變異——GGUF 兩次分別量到 440ms／693ms，MLX 兩次分別量到
+3.75s／7.3s，且量到 7.3s 那次 `thermalState` 已是 `fair`（非 `nominal`，因為裝置在長時間開發/
+測試後升溫）。這代表**「組間降溫」不是可有可無的細節，thermalState 看起來會直接影響
+cold-start 的絕對數值**。C05 正式跑矩陣時，每個 tier 建議跑 **≥3 次獨立的 session-cold**
+（每次都重新開一個新 session，而不只是重跑同一個 session 的 warm 樣本），取中位數才有代表性，
+單一次 cold 樣本可能誤導。
+
+另外 pilot 也**發現並修好一個會擋住這套協定的 MLX bug**：`MlxInferenceBridge.startGeneration`
+原本要等整個 `for await` 迴圈自然跑完才清空忙碌旗標，但 Dart 端一收到 `isDone` 事件就視為
+生成結束、可以馬上叫下一次——這個時間差會讓緊接著的 `session-warm` 呼叫直接被原生層以
+`PlatformException(busy, ...)` 拒絕。已修正（改成收到最後一個事件時就提早清旗標，
+`ios/Runner/MlxBridge/MlxInferenceBridge.swift`），修正前 100% 會擋住本協定的 warm 樣本，
+修正後 pilot 兩次 MLX cold+warm 皆成功。此外 pilot 也再次確認：MLX 的 `promptTokenCount`／
+`prefillTokensPerSecond` 兩欄目前仍固定是 `null`（`MlxSession` 尚未實作 `PromptMetricsSource`，
+既有已知缺口，非本次新發現）——D 線圖表需要能優雅處理 MLX 那一欄缺值，不能假設兩個 backend
+欄位都有值。
+
 ### 官方建議 sampling（T1 model card）
 `temperature = 0.6`、`top_p = 0.95`（官方範例 max_tokens 1500）。benchmark 全程固定此組，兩 backend 一致。
 

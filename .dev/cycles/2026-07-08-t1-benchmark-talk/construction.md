@@ -12,7 +12,13 @@
 > **兩 backend template 一致性驗證已完成（原始碼層級比對，非 Xcode 實機比對）**——
 > **task-B03 全部子項完成** ✅
 > B02 **已完成** — T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)（2026-07-16），task-B03 卡點解除
-> 最後更新：2026-07-18（task-B03 全部完成；A/B 兩線皆達標；C 線 benchmark harness、D 線 talk 產出物尚未開工，見下方待辦表）
+> **`_TurnMarkerFilter` 已補到 MLX**（2026-07-19，抽成共用元件）
+> **C 線 task-C01/C02/C03/C04 皆已完成**（2026-07-19）：C01 埋量測+CSV/JSON 匯出、C02 標準化協定
+> （含冷啟動三態定義）、C03 持續負載 harness、C04 pilot 上機驗證（iPhone 17 Pro）——過程中
+> **發現並修復一個 MLX 原生層 race condition bug**（背靠背生成會被誤判 busy，見下方章節）。
+> **C05（正式跑完整矩陣）與 D 線尚未開工**——C05 需要多次上機執行（每 tier ≥3 次獨立 cold session
+> + Pixel 8a），非一次性工作，留給下一輪或使用者視裝置可用時間執行。
+> 最後更新：2026-07-19
 
 ---
 
@@ -50,8 +56,9 @@ SWA-aware KV cache 支援，記憶體吃法是 dense（全部 34 層都當全 co
 
 commits：`704f9f1` 開循環、`98a5985` 素材、`a61e4f0` 回填官方 card、`277fb10` B01 完成、
 `1261d39` A03 完成 + crash bug 記錄、`1394e46` nBatch crash 修復 + 實機驗證、`3886493` A01 完成、
-`c72114c` A02 完成 + entitlement 設定 + context 長度拍板、（本次，尚未提交）
-llama.cpp turn-marker 防護 + 4 個單元測試。
+`c72114c` A02 完成 + entitlement 設定 + context 長度拍板、`1917ab5` TurnMarkerFilter 抽共用+補
+MLX、`dfe0fa3` task-C01、`14150e1` task-C02、`3c3e6c4` task-C03、`6e36dc3` MLX busy race
+condition 修復、`4e1c5ed` task-C04 pilot integration test。
 
 **還剩**：
 | 任務 | 狀態 | 下一步 |
@@ -68,10 +75,14 @@ llama.cpp turn-marker 防護 + 4 個單元測試。
 | task-B03（Completion 頁面 MLX 支援 + GGUF prefill/prompt token 統計） | ✅ 已完成 2026-07-18（已上機驗證） | 見下方新章節 |
 | task-B03（MLX 缺 chat template 下載 bug） | ✅ 已修復並上機驗證 2026-07-18 | 見下方新章節；`getMlxModelFiles()` 白名單補上 `chat_template.jinja` |
 | ~~task-B03（兩 backend template 一致性驗證）~~ | ✅ 已完成 2026-07-18 | 見下方新章節；改用原始碼層級比對（llama-chat.cpp 逐行比對 chat_template.jinja），未使用 Xcode/Swift 實機比對，結論一致 |
-| **新發現**：`_TurnMarkerFilter`（stop-token 文字防護）未移植到 MLX | 尚未開工 | MLX backend 已於 2026-07-17/18 正式接線，但 B01 觀察到的 MLX 尾端雜訊防護仍缺，建議下一輪處理（見上方接手快照更新段落） |
-| C 線效能疑點 | 新觀察 | A02 測試時發現生成速度偏慢、CPU 只用到 ~33%，原因待查（見 task-A02 段落最後一點），建議 C01/C02 harness 順便查明 |
-| C 線 harness | 尚未動 | C01 先動（不卡裝置）；C02 現在可以安全開工（crash 已解） |
-| D 線 | 尚未動 | 待 A/B/C 完成 |
+| ~~`_TurnMarkerFilter` 未移植到 MLX~~ | ✅ 已完成 2026-07-19 | 抽成 `lib/core/inference/turn_marker_filter.dart` 共用，`MlxSession` 也套用，見下方章節 |
+| C 線效能疑點（A02 觀察到 CPU 只用 ~33%） | 尚未查明 | C04 pilot 這次 prompt 太短沒特別觀察 CPU 使用率，C05 正式跑矩陣時建議順便查 |
+| ~~task-C01（埋量測+匯出）~~ | ✅ 已完成 2026-07-19 | 單元測試驗證+兩平台編譯驗證，見下方章節；thermal/battery channel 尚待 C04 才第一次真正上機驗證讀值 |
+| ~~task-C02（標準化協定）~~ | ✅ 已完成 2026-07-19 | 見下方章節；prompt tier token 數為估計值，待用 Benchmark 畫面實測校準 |
+| ~~task-C03（持續負載 harness）~~ | ✅ 已完成 2026-07-19 | 見下方章節；程式碼+單元測試完成，尚未真的跑滿 10 分鐘 |
+| ~~task-C04（pilot run）~~ | ✅ 已完成 2026-07-19 | 見下方章節；過程中發現並修復 MLX busy race condition（commit `6e36dc3`），兩 backend cold/warm 皆在真機驗證成功 |
+| task-C05（正式跑完整矩陣） | 尚未開工 | 需要每 tier ≥3 次獨立 session-cold（C04 發現的 thermalState 相關變異）+ Pixel 8a（本次開發環境未接 Android 裝置）；`BenchmarkProtocolRunner` 已可直接用 |
+| D 線 | 尚未動 | 待 C05 完成 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
 （sampling 固定 temp 0.6 / top_p 0.95）。
@@ -656,6 +667,189 @@ MLX backend）。跟使用者確認後改成**直接上傳到使用者自己的 
   換成有 write 權限的 token 後上傳成功。
 - ⏳ 尚餘（不影響其他任務，可隨時做）：（可選）送出通知訊息給 Twinkle org，不需等回覆
 - **task-B03 卡點已解除**：T1 現在有正式的 MLX 下載來源了。
+
+---
+
+### 順手處理：`_TurnMarkerFilter` 補到 MLX — [DONE] ✅ 2026-07-19
+
+上一輪接手快照記錄的技術債：`_TurnMarkerFilter`（防止模型沒採樣到 EOG/EOS 時吐出下一輪幻覺
+文字）只在 `LlamaCppSession` 有做，`MlxSession` 沒有。C 線要正式跑 MLX benchmark 前先補上，
+避免這段雜訊污染生成文字/token 數統計。
+
+**做法**：把 `_TurnMarkerFilter` 從 `llama_cpp_backend.dart` 抽成共用元件
+`lib/core/inference/turn_marker_filter.dart`（`TurnMarkerFilter`，拿掉底線前綴），兩個
+session 都改用同一份。`MlxSession._runGeneration` 套用方式與 `LlamaCppSession` 完全對稱
+（token 進 filter、偵測到 marker 就截斷+停止、正常結束時 `flush()` 剩餘緩衝）。
+
+**測試**：新增 `test/core/inference/turn_marker_filter_test.dart`（7 個純邏輯單元測試），
+`mlx_backend_test.dart` 補 4 個對稱於 `llama_cpp_backend_test.dart` 既有 4 個的整合測試
+（完整 marker 截斷、`<|assistant|>` 截斷、marker 跨 chunk、無 marker 原樣通過）。
+`flutter analyze` 乾淨，全專案 232/232 測試通過（+11）。commit `1917ab5`。
+
+---
+
+## C 線：Benchmark Harness
+
+### task-C01: App 內埋量測 + CSV/JSON 匯出 — [DONE] ✅ 2026-07-19（單元測試驗證，未上機）
+
+**做法**：延續既有 `GenerationController`/`PromptMetricsSource` 機制（上週 task-B03 已做出
+TTFT/prefill tps/prompt tokens），不重造輪子，只新增 C01 驗收標準要求、既有機制沒有的三項：
+峰值記憶體、thermalState、電量，加上一層 orchestration 把「模型載入時間」也量進去。
+
+新增 `lib/core/benchmark/`：
+- `benchmark_sample.dart`：`BenchmarkSample`——內嵌既有 `GenerationMetrics`（不重複欄位），
+  加 `format`/`modelId`/`label`/`modelLoadDuration`/`generatedText`/`peakMemoryBytes`/
+  `thermalStateBefore/After`/`batteryLevelBefore/After`。文件註解明講一個重要的架構不對稱：
+  `modelLoadDuration` 對 GGUF 是真的載入耗時（`LlamaCppSession` 建構子就做完
+  `createContext`/`createSampler`），對 MLX 幾乎是 0（`MlxSession` lazy load，真正的載入成本
+  併在第一次 `generate()` 的 TTFT 裡）——這是既有架構差異，不是量測缺口。
+- `benchmark_recorder.dart`：`BenchmarkRecorder`——`runNewSession`（計時
+  `backend.createSession`，記一次生成）+ `runOnExistingSession`（同一 session 上再記一次，
+  可重複呼叫）。thermal/battery 在生成前後各讀一次，peak memory 在收到每個 token 時取樣取最大值。
+
+新增 `lib/core/platform/`（三個可測試 probe，皆仿 `LlamaFfiDriver`/`MlxChannelDriver` 的
+「抽介面＋fake」模式）：
+- `memory_probe.dart`：`dart:io` `ProcessInfo.currentRss`，零新依賴、免平台 channel。
+- `thermal_probe.dart` + 新 Pigeon API `pigeons/device_telemetry.dart`
+  （`DeviceTelemetryHostApi.getThermalState()` → `ThermalStatus` 4 級列舉）：iOS 讀
+  `ProcessInfo.processInfo.thermalState`（`ios/Runner/DeviceTelemetry/DeviceTelemetryBridge.swift`），
+  Android 讀 `PowerManager.getCurrentThermalStatus()`（API 29+；`DeviceTelemetryBridge.kt`，
+  低於 API 29 回傳 `unknown`）。iOS 這份 Pigeon 輸出踩到一個已知 Pigeon 限制：專案裡已有
+  `MlxInference.g.swift` 產生過一份 `PigeonError` 類別，第二份 Pigeon 輸出檔預設也會產生同名
+  類別，導致 `Invalid redeclaration of 'PigeonError'`——修法是在
+  `pigeons/device_telemetry.dart` 設 `swiftOptions: SwiftOptions(includeErrorClass: false)`，
+  讓新檔案共用既有那份。
+- `battery_probe.dart`：包 `battery_plus`（同一個 plus_plugins 家族，專案已有
+  `device_info_plus`/`connectivity_plus`/`package_info_plus`/`share_plus`，風格一致）。
+
+新增 `lib/ui/benchmark/`：debug-gated（`kDebugMode`，plan.md 早就把 C 線定調為「內部量測工具」
+非對外功能）的 `BenchmarkScreen` + `BenchmarkViewModel`，可開 session 跑 cold/warm、匯出
+CSV/JSON（`benchmark_export.dart`，手刻 CSV escaping，沒有另外引入 `csv` 套件）。入口掛在
+`home_screen.dart`。
+
+**驗證**：
+1. `flutter analyze`／`flutter test` 全乾淨，新增 24 個單元測試（`benchmark_recorder_test.dart`
+   13 個、`benchmark_export_test.dart` 9 個，其餘在 platform probe 層——production 實作本身
+   仿照 `_RealFfiDriver`/`_RealMlxChannelDriver` 的慣例不另外單元測試，只測試上層邏輯）。
+2. `flutter build ios --debug --no-codesign` + `flutter build apk --debug` 皆過，證明新
+   Pigeon channel（Swift+Kotlin 雙平台）語法正確、能編譯連結——**但這只是編譯驗證，尚未上機
+   跑過真正的 thermal/battery 讀值**（task-C04 pilot 才第一次上機驗證，見下方）。
+
+commit `1917ab5`（turn-marker 抽共用）、`dfe0fa3`（C01）。
+
+### task-C02: 標準化測試協定 — [DONE] ✅ 2026-07-19
+
+**做法**：`lib/core/benchmark/prompt_tiers.dart`（`PromptTier.l128/l512/l1024/l2048`）定版
+四個長度 tier 的繁中內容草稿，同步寫進 `zh-tw-prompt-set.md` Part 2 對照版。**token 數是估計
+值，非實測**——唯一的真實校準錨點是 task-B03 記錄的「很盤是什麼意思？」8 字元／14 tokens
+（約 1.8 tokens/字元），四個 tier 依此反推草稿字數，待用 Benchmark 畫面實際跑一次讀
+`promptTokenCount` 校準（MLX 這欄目前恆為 null，只能用 GGUF 校準，見下方 C04 發現）。L2048
+刻意做成真正的多輪 `ChatMessage` 對話（環島旅行規劃 6 輪），不是塞一個超長字串，比較貼近
+plan.md 原意的「長對話脈絡累積」。
+
+**冷啟動定義**（回應使用者這輪明確提出的疑慮）：把 2026-07-18 上機發現的「同一 session 第一次
+生成比第二次慢」現象，正式定義成三種互斥、禁止混平均的狀態——`app-cold`（App 剛重啟後第一個
+session 的第一次生成，需要人工 force-quit+重開才能觸發，harness 偵測不到「app 剛啟動」，
+標記責任在操作者）、`session-cold`（App 行程持續中，開新 session 的第一次生成）、
+`session-warm`（同一 session 第 2 次以後）。`lib/core/benchmark/protocol_runner.dart`
+（`BenchmarkProtocolRunner`）依此自動標籤：`runAll(appJustLaunched: true)` 只把第一個 tier
+的第一個樣本標 `app-cold`，其餘 tier 一律 `session-cold`，每個 tier 的暖啟動樣本標
+`session-warm-{n}`。
+
+同時新增 pre-flight check（`BenchmarkRecorder.checkPreflight()` → `PreflightStatus`）：
+app 能自己讀 thermal/battery 並在 Benchmark 畫面用 banner 顯示（thermal 非 nominal 時標紅
+提醒降溫），但飛航模式/固定亮度兩項兩個平台的第三方 App 都讀不到，保留為畫面上的手動提醒文字，
+不假裝 app 能自動確認。
+
+**驗證**：`protocol_runner_test.dart` 6 個測試（用真實 `PromptTier.all` 4 個 tier 跑過一輪，
+驗證標籤序列正確、`warmRepeats`/`appJustLaunched` 行為正確）。全專案 250 個測試通過，
+`flutter analyze` 乾淨，iOS/Android 皆重建過確認 UI 新增內容編譯正常。
+
+commit `14150e1`。
+
+### task-C03: 持續負載測試 — [DONE] ✅ 2026-07-19（單元測試驗證，未上機跑滿 10 分鐘）
+
+**做法**：`lib/core/benchmark/sustained_load_runner.dart`（`SustainedLoadRunner`）——刻意
+不新增一套時間序列資料型別，直接重複呼叫 C01 已有的
+`BenchmarkRecorder.runOnExistingSession`：每次生成本來就會在生成前後各採樣一次
+thermal/battery、生成期間逐 token 採樣 peak memory，所以背靠背呼叫本身就自然形成一個
+「一次生成＝一個時間點」的時間序列，`BenchmarkSample.timestamp` 就是 x 軸，不必另外設計
+schema。迴圈以 wall-clock `duration`（預設 10 分鐘）或 `maxIterations`（測試用）為終止條件，
+支援 `cancel()` 中途停止。Benchmark 畫面加了「Run 10 min sustained load」/「Stop」兩顆按鈕。
+
+**驗證**：3 個測試（`maxIterations` 提早停止、無開啟 session 時丟 `StateError`、`cancel()`
+提早停止——用有人工延遲的 fake session 製造可控的競態窗）。**尚未真的在裝置上跑滿 10 分鐘**，
+邏輯層面驗證足夠但實際發熱曲線數據要等 C04/C05 上機。
+
+commit `3c3e6c4`。
+
+### task-C04: Pilot run — [DONE] ✅ 2026-07-19（實機驗證，iPhone 17 Pro，過程中發現並修好一個 MLX bug）
+
+**做法**：沒有用手動點畫面的方式做 pilot（沒有工具可以自動幫忙點實體手機螢幕），改寫
+`integration_test/benchmark_pilot_test.dart`——直接在 app 行程內用 Dart 呼叫
+`BenchmarkViewModel`，繞過 UI，對已經下載在裝置上的真實 T1 權重跑 GGUF 與 MLX 各一次
+cold+warm，`print` 結果讓 log 直接印回終端機。新增 `integration_test` dev dependency。
+
+**過程波折（記錄供下次上機測試的人參考）**：
+1. iPhone 一度從 USB 掉成純無線連線，`flutter test -d <device>` 對純無線裝置需要額外設定，
+   直接請使用者重插 USB 線解決。
+2. `flutter test integration_test/...` 每次呼叫都會**重新安裝整個 app（新的 sandbox
+   container UUID）**，先前用 `xcrun devicectl device copy from/to` 手動放進裝置的 T1
+   權重（GGUF `Documents/Models/`、MLX `Library/Application Support/Models/mlx/`）會跟著
+   舊 container 一起變成孤兒、新 container 裡是空的。摸索出穩定流程：`flutter build ios
+   --debug`（要 codesign，不能用 `--no-codesign`，否則裝不上裝置）→ `flutter install`
+   （這步本身不會洗掉 container）→ 用 `devicectl copy to` 把本機暫存的權重複製進新 container
+   → 這之後**只要沒改 Swift/Kotlin 原生程式碼**，再跑 `flutter test` 產生的是同一份 binary，
+   container 不會被洗掉；一旦改了原生程式碼（本次改了 `MlxInferenceBridge.swift`）就要整套
+   重跑一次。
+
+**結果（maxTokens=64，非正式 protocol 設定，純粹驗證管線）**：
+
+| 項目 | GGUF session-cold | GGUF session-warm | MLX session-cold | MLX session-warm |
+|------|------|------|------|------|
+| modelLoadDuration | 7828ms | 0ms | 0ms（lazy load 併入 TTFT，見 C01 文件註解） | 0ms |
+| TTFT | 693ms | 140ms | 7316ms | 328ms |
+| Decode tps | 24.41 | 24.17 | 28.71 | 28.43 |
+| Peak memory | ~3.68GB | ~3.68GB | ~1.49GB | ~1.49GB |
+| thermalState | fair→fair | fair→fair | fair→fair | fair→fair |
+| battery | 80→80 | 80→80 | 80→80 | 80→80 |
+
+兩個 backend 的 cold→warm 巨幅改善都在真機上重現（GGUF 693→140ms、MLX 7316→328ms），跟
+2026-07-18 的觀察方向一致（那次 GGUF 是 440/158ms、MLX 是 3.75s/552ms——同一現象，數字有
+run-to-run 變異，見下方發現）。CSV/JSON 匯出對 GGUF 驗證過，檔案非空、欄位齊全。
+
+**發現 1（P0，已修復）：MLX 背靠背生成會被原生層誤判「busy」**。第一次 pilot 沒套用修法前，
+MLX 的 `session-warm` 呼叫 100% 失敗，丟 `PlatformException(busy, Generation already in
+progress.)`。追查 `ios/Runner/MlxBridge/MlxInferenceBridge.swift` 發現：`startGeneration`
+用 `generationTask != nil` 擋重入，但清空 `generationTask` 的 `defer` 要等整個
+`for await generation in stream` 迴圈**真正跑完**（也就是底層 `AsyncStream` 呼叫
+`continuation.finish()`、迴圈拿到 `nil` 才退出）才會觸發——而 Dart 端一收到代表最後一個 token
+的 `.info` 事件（`isDone: true`）就認定生成已結束，可以立刻呼叫下一次
+`startGeneration`。這中間有一段時間差，背靠背呼叫（C02 協定的 cold→warm 就是這樣呼叫）幾乎
+必定命中。**這不只是 benchmark harness 的問題**——任何真實使用情境只要快速連續觸發兩次 MLX
+生成（例如 Chat 畫面快速點兩次「重新生成」）都可能中招。
+
+修法：把清空 `generationTask` 的時機提前到「收到 `.info`、準備送出 `isDone` 事件之前」，而不是
+等迴圈自然結束之後；另外加一個 `generationEpoch` 計數器，確保提前清空的邏輯不會誤刪
+「呼叫當下已經是另一次全新生成」的狀態（避免用一個更早的競態換一個更隱晦的競態）。
+修好後 pilot 兩次（含本次）皆成功。commit `6e36dc3`。
+
+**發現 2：cold-start TTFT 本身有明顯 run-to-run 變異，且看起來跟 thermalState 相關**。
+GGUF 兩次分別是 440ms（2026-07-18）／693ms（本次）；MLX 兩次分別是 3.75s／7.3s——量到
+7.3s 那次 `thermalState` 已經是 `fair`（裝置經過本輪長時間開發/建置後升溫，非
+`nominal`）。已回寫 `zh-tw-prompt-set.md` Part 3：C05 正式跑矩陣時，每個 tier 建議跑
+**≥3 次獨立的 session-cold**（重新開 session，不是重跑同一個 session 的 warm），取中位數，
+並且真的落實「組間降溫」而非流於形式。
+
+**發現 3（確認既有已知缺口，非新發現）**：MLX 的 `promptTokenCount`／`prefillTokensPerSecond`
+仍是 `null`（`MlxSession` 未實作 `PromptMetricsSource`）。D 線圖表設計時要考慮這一欄 MLX
+天生缺值。
+
+**尚未驗證**：C03 的 10 分鐘持續負載、C05 的完整矩陣（含 Pixel 8a，本次開發環境未接
+Android 裝置）——留給下一輪或使用者自行執行，`BenchmarkProtocolRunner`/`SustainedLoadRunner`
+已可直接使用。
+
+commit `6e36dc3`（MLX bug 修復）、`4e1c5ed`（pilot integration test）。
 
 ---
 
