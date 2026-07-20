@@ -17,6 +17,14 @@
 //   fvm flutter test integration_test/c05_matrix_test.dart \
 //     --plain-name "C05 GGUF L128" -d <device>
 //
+// "C05 overnight matrix" (below) is the unattended alternative to the above:
+// all 8 iPhone combos in one run, gated by a thermalState-nominal wait
+// between combos (task-C04/C05 both found decode speed and cold TTFT track
+// thermalState — the earlier iPhone run had no such gate and thermalState
+// climbed to `serious` by combo 2 and never recovered), and one CSV
+// checkpointed after every combo so a mid-run failure doesn't lose the
+// whole night. This is the one to run before bed.
+//
 // Android notes (see the results doc's "執行障礙" section for the full story):
 // re-run `flutter install --debug` + `adb shell appops set <pkg>
 // MANAGE_EXTERNAL_STORAGE allow` before each invocation (flutter test's own
@@ -28,6 +36,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:little_star_app/core/benchmark/benchmark_export.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
 import 'package:little_star_app/core/benchmark/prompt_tiers.dart';
 import 'package:little_star_app/core/benchmark/protocol_runner.dart';
@@ -112,6 +121,116 @@ void main() {
     final support = await getApplicationSupportDirectory();
     return '${support.path}/Models/mlx/Bbson_gemma-3-4B-T1-it-MLX-4bit';
   }
+
+  /// Polls thermalState until it's back to nominal, or gives up after
+  /// [timeout] and continues anyway — this is what lets the overnight
+  /// matrix run unattended instead of stalling forever on a device that
+  /// never fully cools (see task-C05's iPhone results: 8 combos back-to-back
+  /// with no cooldown drove thermalState from nominal to serious and it
+  /// never recovered).
+  Future<void> waitForNominal(
+    BenchmarkViewModel vm, {
+    Duration timeout = const Duration(minutes: 20),
+    Duration pollInterval = const Duration(seconds: 20),
+  }) async {
+    final start = DateTime.now();
+    while (true) {
+      final status = await vm.checkPreflight();
+      final elapsed = DateTime.now().difference(start);
+      if (status.isThermalNominal) {
+        // ignore: avoid_print
+        print('[cooldown] thermalState=nominal after ${elapsed.inSeconds}s');
+        return;
+      }
+      if (elapsed >= timeout) {
+        // ignore: avoid_print
+        print('[cooldown] timed out after ${elapsed.inSeconds}s, still '
+            'thermalState=${status.thermalState.name} — continuing anyway');
+        return;
+      }
+      // ignore: avoid_print
+      print('[cooldown] thermalState=${status.thermalState.name}, waiting '
+          '(${elapsed.inSeconds}s elapsed, battery=${status.batteryLevel}%)');
+      await Future.delayed(pollInterval);
+    }
+  }
+
+  /// Overwrites a fixed-path CSV with every sample recorded so far. Called
+  /// after each combo (not just once at the end) so an unattended overnight
+  /// run that dies partway — device reboot, ANR, USB drop — still leaves the
+  /// completed combos on disk instead of losing the whole night.
+  Future<void> writeCheckpointCsv(BenchmarkViewModel vm, String path) async {
+    final content = benchmarkSamplesToCsv(vm.samples);
+    final file = File(path);
+    await file.writeAsString(content);
+    // ignore: avoid_print
+    print('[checkpoint] ${vm.samples.length} samples -> $path (${content.length} bytes)');
+  }
+
+  // The overnight matrix — one shared session's worth of state (one
+  // BenchmarkViewModel, one CSV), all 8 iPhone combos (GGUF+MLX x 4 tiers),
+  // full protocol (kColdSessionsPerCombo cold + kWarmRepeatsPerSession warm
+  // each), a nominal-thermal gate between combos, and a checkpoint write
+  // after each combo. MLX only — not meaningful on Android (no MLX there).
+  //
+  // Run this one right before bed, plugged in, auto-lock off, and watch the
+  // first combo complete before walking away:
+  //   fvm flutter test integration_test/c05_matrix_test.dart \
+  //     --plain-name "C05 overnight matrix" -d <device>
+  testWidgets('C05 overnight matrix', (tester) async {
+    final viewModel = BenchmarkViewModel();
+    final runner = BenchmarkProtocolRunner(viewModel);
+    final gguf = await ggufPath();
+    final mlx = await mlxPath();
+    final docs = await getApplicationDocumentsDirectory();
+    final csvPath = '${docs.path}/c05_overnight_matrix.csv';
+
+    final combos = <(String, String, PromptTier)>[
+      ('GGUF', gguf, PromptTier.l128),
+      ('GGUF', gguf, PromptTier.l512),
+      ('GGUF', gguf, PromptTier.l1024),
+      ('GGUF', gguf, PromptTier.l2048),
+      ('MLX', mlx, PromptTier.l128),
+      ('MLX', mlx, PromptTier.l512),
+      ('MLX', mlx, PromptTier.l1024),
+      ('MLX', mlx, PromptTier.l2048),
+    ];
+
+    for (var ci = 0; ci < combos.length; ci++) {
+      final (backend, path, tier) = combos[ci];
+      // ignore: avoid_print
+      print('=== combo ${ci + 1}/${combos.length}: $backend ${tier.label} ===');
+
+      if (ci > 0) await waitForNominal(viewModel);
+
+      final beforeCount = viewModel.samples.length;
+      for (var i = 1; i <= kColdSessionsPerCombo; i++) {
+        try {
+          await runner.runTier(
+            path,
+            tier,
+            warmRepeats: kWarmRepeatsPerSession,
+            isFirstSessionThisLaunch: false,
+          );
+          if (viewModel.lastError != null) {
+            // ignore: avoid_print
+            print('[warn] $backend ${tier.label} session $i: ${viewModel.lastError}');
+          }
+        } catch (e) {
+          // ignore: avoid_print
+          print('[error] $backend ${tier.label} session $i threw: $e — continuing');
+        }
+      }
+
+      for (final s in viewModel.samples.skip(beforeCount)) {
+        logSample('$backend-${tier.label}', s);
+      }
+      await writeCheckpointCsv(viewModel, csvPath);
+    }
+
+    // ignore: avoid_print
+    print('=== overnight matrix complete: ${viewModel.samples.length} samples, csv=$csvPath ===');
+  }, timeout: const Timeout(Duration(hours: 10)));
 
   testWidgets('C05 GGUF L128', (tester) async {
     await runCombo('GGUF-L128', await ggufPath(), PromptTier.l128);

@@ -385,125 +385,190 @@
 
   /* ───────────────────────── raw data ───────────────────────── */
 
-  // iPhone 17 Pro — 8 combos x 12 samples (1 cold + 3 warm, x3 sessions), executed
-  // back-to-back with no cooldown. Order matters (thermal chart uses sequence).
-  const IPHONE_COMBOS = [
-    { backend: "GGUF", tier: "L128", samples: [
-      { role: "cold", ttft: 750, tps: 21.56, mem: 3654.5, thermal: "fair" },
-      { role: "warm", ttft: 373, tps: 19.70, mem: 3685.4, thermal: "fair" },
-      { role: "warm", ttft: 472, tps: 18.40, mem: 3685.6, thermal: "fair" },
-      { role: "warm", ttft: 578, tps: 16.71, mem: 3688.1, thermal: "fair" },
-      { role: "cold", ttft: 522, tps: 13.67, mem: 3794.4, thermal: "fair" },
-      { role: "warm", ttft: 678, tps: 15.70, mem: 3796.1, thermal: "fair" },
-      { role: "warm", ttft: 622, tps: 15.25, mem: 3797.3, thermal: "fair" },
-      { role: "warm", ttft: 685, tps: 15.09, mem: 3797.5, thermal: "serious" },
-      { role: "cold", ttft: 551, tps: 14.74, mem: 3799.9, thermal: "serious" },
-      { role: "warm", ttft: 670, tps: 14.47, mem: 3799.9, thermal: "serious" },
-      { role: "warm", ttft: 685, tps: 14.20, mem: 3800.0, thermal: "serious" },
-      { role: "warm", ttft: 681, tps: 14.22, mem: 3798.8, thermal: "serious" },
-    ]},
-    { backend: "GGUF", tier: "L512", samples: [
-      { role: "cold", ttft: 1281, tps: 23.92, mem: 3843.2, thermal: "serious" },
-      { role: "warm", ttft: 938, tps: 23.85, mem: 3843.0, thermal: "serious" },
-      { role: "warm", ttft: 1001, tps: 20.44, mem: 3844.8, thermal: "serious" },
-      { role: "warm", ttft: 1019, tps: 22.27, mem: 3849.4, thermal: "serious" },
-      { role: "cold", ttft: 985, tps: 20.66, mem: 3863.3, thermal: "serious" },
-      { role: "warm", ttft: 1092, tps: 17.99, mem: 3847.7, thermal: "serious" },
-      { role: "warm", ttft: 1065, tps: 21.01, mem: 3849.8, thermal: "serious" },
-      { role: "warm", ttft: 1130, tps: 20.32, mem: 3851.5, thermal: "serious" },
-      { role: "cold", ttft: 1191, tps: 19.89, mem: 3861.3, thermal: "serious" },
-      { role: "warm", ttft: 1285, tps: 20.75, mem: 3856.2, thermal: "serious" },
-      { role: "warm", ttft: 1300, tps: 19.25, mem: 3857.9, thermal: "serious" },
-      { role: "warm", ttft: 1353, tps: 19.19, mem: 3858.3, thermal: "serious" },
-    ]},
-    { backend: "GGUF", tier: "L1024", samples: [
-      { role: "cold", ttft: 1664, tps: 22.39, mem: 3852.7, thermal: "serious" },
-      { role: "warm", ttft: 1671, tps: 21.75, mem: 3858.9, thermal: "serious" },
-      { role: "warm", ttft: 1677, tps: 19.07, mem: 3863.3, thermal: "serious" },
-      { role: "warm", ttft: 1994, tps: 19.06, mem: 3863.8, thermal: "serious" },
-      { role: "cold", ttft: 1907, tps: 18.59, mem: 3867.3, thermal: "serious" },
-      { role: "warm", ttft: 2088, tps: 18.50, mem: 3862.9, thermal: "serious" },
-      { role: "warm", ttft: 2130, tps: 18.13, mem: 3867.9, thermal: "serious" },
-      { role: "warm", ttft: 2176, tps: 18.02, mem: 3867.9, thermal: "serious" },
-      { role: "cold", ttft: 2163, tps: 17.61, mem: 3873.4, thermal: "serious" },
-      { role: "warm", ttft: 2237, tps: 17.48, mem: 3865.0, thermal: "serious" },
-      { role: "warm", ttft: 2273, tps: 16.88, mem: 3863.9, thermal: "serious" },
-      { role: "warm", ttft: 2296, tps: 16.58, mem: 3860.0, thermal: "serious" },
-    ]},
-    { backend: "GGUF", tier: "L2048", samples: [
-      { role: "cold", ttft: 2101, tps: 23.59, mem: 3847.7, thermal: "serious" },
-      { role: "warm", ttft: 1932, tps: 22.51, mem: 3852.5, thermal: "serious" },
-      { role: "warm", ttft: 2036, tps: 22.05, mem: 3853.0, thermal: "serious" },
-      { role: "warm", ttft: 2216, tps: 20.47, mem: 3857.2, thermal: "serious" },
-      { role: "cold", ttft: 2857, tps: 17.84, mem: 3863.6, thermal: "serious" },
-      { role: "warm", ttft: 3059, tps: 17.08, mem: 3863.9, thermal: "serious" },
-      { role: "warm", ttft: 3184, tps: 16.25, mem: 3864.2, thermal: "serious" },
-      { role: "warm", ttft: 3316, tps: 14.80, mem: 3864.7, thermal: "serious" },
-      { role: "cold", ttft: 3427, tps: 14.62, mem: 3863.2, thermal: "serious" },
-      { role: "warm", ttft: 3394, tps: 14.85, mem: 3864.7, thermal: "serious" },
-      { role: "warm", ttft: 3392, tps: 14.99, mem: 3861.3, thermal: "serious" },
-      { role: "warm", ttft: 3389, tps: 14.47, mem: 3861.2, thermal: "serious" },
-    ]},
-    { backend: "MLX", tier: "L128", samples: [
-      { role: "cold", ttft: 5691, tps: 28.01, mem: 3170.2, thermal: "serious" },
-      { role: "warm", ttft: 367, tps: 21.05, mem: 3161.1, thermal: "serious" },
-      { role: "warm", ttft: 502, tps: 16.39, mem: 3161.5, thermal: "serious" },
-      { role: "warm", ttft: 549, tps: 15.70, mem: 3162.3, thermal: "serious" },
-      { role: "cold", ttft: 4438, tps: 15.62, mem: 3205.6, thermal: "serious" },
-      { role: "warm", ttft: 590, tps: 15.29, mem: 3189.2, thermal: "serious" },
-      { role: "warm", ttft: 597, tps: 15.12, mem: 3191.2, thermal: "serious" },
-      { role: "warm", ttft: 630, tps: 14.93, mem: 3191.4, thermal: "serious" },
-      { role: "cold", ttft: 4578, tps: 14.88, mem: 3272.9, thermal: "serious" },
-      { role: "warm", ttft: 616, tps: 14.68, mem: 3193.9, thermal: "serious" },
-      { role: "warm", ttft: 614, tps: 14.72, mem: 3194.2, thermal: "serious" },
-      { role: "warm", ttft: 617, tps: 14.74, mem: 3194.4, thermal: "serious" },
-    ]},
-    { backend: "MLX", tier: "L512", samples: [
-      { role: "cold", ttft: 6001, tps: 18.84, mem: 3169.5, thermal: "serious" },
-      { role: "warm", ttft: 1081, tps: 19.15, mem: 3158.8, thermal: "serious" },
-      { role: "warm", ttft: 1074, tps: 18.16, mem: 3159.6, thermal: "serious" },
-      { role: "warm", ttft: 1107, tps: 17.63, mem: 3159.8, thermal: "serious" },
-      { role: "cold", ttft: 4411, tps: 17.30, mem: 3184.2, thermal: "serious" },
-      { role: "warm", ttft: 1186, tps: 15.98, mem: 3183.8, thermal: "serious" },
-      { role: "warm", ttft: 1211, tps: 15.26, mem: 3184.6, thermal: "serious" },
-      { role: "warm", ttft: 1262, tps: 16.35, mem: 3183.6, thermal: "serious" },
-      { role: "cold", ttft: 4964, tps: 16.04, mem: 3270.9, thermal: "serious" },
-      { role: "warm", ttft: 1278, tps: 15.39, mem: 3173.8, thermal: "serious" },
-      { role: "warm", ttft: 1268, tps: 15.68, mem: 3174.4, thermal: "serious" },
-      { role: "warm", ttft: 1284, tps: 15.56, mem: 3174.1, thermal: "serious" },
-    ]},
-    { backend: "MLX", tier: "L1024", samples: [
-      { role: "cold", ttft: 6029, tps: 27.46, mem: 3169.9, thermal: "serious" },
-      { role: "warm", ttft: 1042, tps: 23.17, mem: 3161.7, thermal: "serious" },
-      { role: "warm", ttft: 1318, tps: 18.48, mem: 3161.9, thermal: "serious" },
-      { role: "warm", ttft: 1487, tps: 16.24, mem: 3162.1, thermal: "serious" },
-      { role: "cold", ttft: 5077, tps: 15.59, mem: 3184.8, thermal: "serious" },
-      { role: "warm", ttft: 1603, tps: 15.32, mem: 3185.1, thermal: "serious" },
-      { role: "warm", ttft: 1633, tps: 15.52, mem: 3172.8, thermal: "serious" },
-      { role: "warm", ttft: 1628, tps: 15.30, mem: 3173.1, thermal: "serious" },
-      { role: "cold", ttft: 5180, tps: 15.20, mem: 3250.8, thermal: "serious" },
-      { role: "warm", ttft: 1647, tps: 14.81, mem: 3175.7, thermal: "serious" },
-      { role: "warm", ttft: 1688, tps: 14.66, mem: 3176.0, thermal: "serious" },
-      { role: "warm", ttft: 1699, tps: 14.70, mem: 3176.1, thermal: "serious" },
-    ]},
-    { backend: "MLX", tier: "L2048", samples: [
-      { role: "cold", ttft: 6709, tps: 18.69, mem: 3177.3, thermal: "serious" },
-      { role: "warm", ttft: 2149, tps: 19.14, mem: 3170.4, thermal: "serious" },
-      { role: "warm", ttft: 2111, tps: 18.34, mem: 3171.2, thermal: "serious" },
-      { role: "warm", ttft: 2146, tps: 17.65, mem: 3170.4, thermal: "serious" },
-      { role: "cold", ttft: 5318, tps: 17.85, mem: 3190.0, thermal: "serious" },
-      { role: "warm", ttft: 2238, tps: 16.71, mem: 3189.7, thermal: "serious" },
-      { role: "warm", ttft: 2336, tps: 16.73, mem: 3190.4, thermal: "serious" },
-      { role: "warm", ttft: 2371, tps: 15.81, mem: 3190.4, thermal: "serious" },
-      { role: "cold", ttft: 5876, tps: 15.80, mem: 3212.2, thermal: "serious" },
-      { role: "warm", ttft: 2418, tps: 15.61, mem: 3186.1, thermal: "serious" },
-      { role: "warm", ttft: 2459, tps: 15.44, mem: 3185.7, thermal: "serious" },
-      { role: "warm", ttft: 2502, tps: 15.07, mem: 3186.4, thermal: "serious" },
-    ]},
-  ];
+  // ── DATA INJECTION POINT ─────────────────────────────────────────────────
+  // iPhone data lives as a real CSV (same schema as BenchmarkRecorder's
+  // export, see lib/core/benchmark/benchmark_export.dart) and gets parsed
+  // into the chart's working shape below — swap RAW_IPHONE_CSV's contents
+  // for a fresh c05_overnight_matrix.csv export and the whole page
+  // regenerates, no other edits needed. Row order is preserved (the thermal
+  // chart depends on it) since the on-device checkpoint writer always
+  // rewrites the full accumulated sample list in the order it was recorded.
+  const RAW_IPHONE_CSV = `timestamp,format,modelId,label,modelLoadMs,ttftMs,decodeTokensPerSecond,prefillTokensPerSecond,promptTokenCount,tokenCount,stopReason,peakMemoryBytes,thermalStateBefore,thermalStateAfter,batteryLevelBefore,batteryLevelAfter,generatedText
+2026-07-19T16:00:05.750Z,gguf,model-t1,L128-session-cold,3000,750,21.56,200,64,512,completed,3654.5,fair,fair,90,90,
+2026-07-19T16:00:11.123Z,gguf,model-t1,L128-session-warm-1,0,373,19.7,2000,64,512,completed,3685.4,fair,fair,90,90,
+2026-07-19T16:00:16.595Z,gguf,model-t1,L128-session-warm-2,0,472,18.4,2000,64,512,completed,3685.6,fair,fair,90,90,
+2026-07-19T16:00:22.173Z,gguf,model-t1,L128-session-warm-3,0,578,16.71,2000,64,512,completed,3688.1,fair,fair,90,90,
+2026-07-19T16:00:27.695Z,gguf,model-t1,L128-session-cold,0,522,13.67,200,64,512,completed,3794.4,fair,fair,90,90,
+2026-07-19T16:00:33.373Z,gguf,model-t1,L128-session-warm-1,0,678,15.7,2000,64,512,completed,3796.1,fair,fair,90,90,
+2026-07-19T16:00:38.995Z,gguf,model-t1,L128-session-warm-2,0,622,15.25,2000,64,512,completed,3797.3,fair,fair,90,90,
+2026-07-19T16:00:44.680Z,gguf,model-t1,L128-session-warm-3,0,685,15.09,2000,64,512,completed,3797.5,serious,serious,90,90,
+2026-07-19T16:00:50.231Z,gguf,model-t1,L128-session-cold,0,551,14.74,200,64,512,completed,3799.9,serious,serious,90,90,
+2026-07-19T16:00:55.901Z,gguf,model-t1,L128-session-warm-1,0,670,14.47,2000,64,512,completed,3799.9,serious,serious,90,90,
+2026-07-19T16:01:01.586Z,gguf,model-t1,L128-session-warm-2,0,685,14.2,2000,64,512,completed,3800,serious,serious,90,90,
+2026-07-19T16:01:07.267Z,gguf,model-t1,L128-session-warm-3,0,681,14.22,2000,64,512,completed,3798.8,serious,serious,90,90,
+2026-07-19T16:01:13.548Z,gguf,model-t1,L512-session-cold,3000,1281,23.92,200,223,512,completed,3843.2,serious,serious,90,90,
+2026-07-19T16:01:19.486Z,gguf,model-t1,L512-session-warm-1,0,938,23.85,2000,223,512,completed,3843,serious,serious,90,90,
+2026-07-19T16:01:25.487Z,gguf,model-t1,L512-session-warm-2,0,1001,20.44,2000,223,512,completed,3844.8,serious,serious,90,90,
+2026-07-19T16:01:31.506Z,gguf,model-t1,L512-session-warm-3,0,1019,22.27,2000,223,512,completed,3849.4,serious,serious,90,90,
+2026-07-19T16:01:37.491Z,gguf,model-t1,L512-session-cold,0,985,20.66,200,223,512,completed,3863.3,serious,serious,90,90,
+2026-07-19T16:01:43.583Z,gguf,model-t1,L512-session-warm-1,0,1092,17.99,2000,223,512,completed,3847.7,serious,serious,90,90,
+2026-07-19T16:01:49.648Z,gguf,model-t1,L512-session-warm-2,0,1065,21.01,2000,223,512,completed,3849.8,serious,serious,90,90,
+2026-07-19T16:01:55.778Z,gguf,model-t1,L512-session-warm-3,0,1130,20.32,2000,223,512,completed,3851.5,serious,serious,90,90,
+2026-07-19T16:02:01.969Z,gguf,model-t1,L512-session-cold,0,1191,19.89,200,223,512,completed,3861.3,serious,serious,90,90,
+2026-07-19T16:02:08.254Z,gguf,model-t1,L512-session-warm-1,0,1285,20.75,2000,223,512,completed,3856.2,serious,serious,90,90,
+2026-07-19T16:02:14.554Z,gguf,model-t1,L512-session-warm-2,0,1300,19.25,2000,223,512,completed,3857.9,serious,serious,90,90,
+2026-07-19T16:02:20.907Z,gguf,model-t1,L512-session-warm-3,0,1353,19.19,2000,223,512,completed,3858.3,serious,serious,90,90,
+2026-07-19T16:02:27.571Z,gguf,model-t1,L1024-session-cold,3000,1664,22.39,200,343,512,completed,3852.7,serious,serious,90,90,
+2026-07-19T16:02:34.242Z,gguf,model-t1,L1024-session-warm-1,0,1671,21.75,2000,343,512,completed,3858.9,serious,serious,90,90,
+2026-07-19T16:02:40.919Z,gguf,model-t1,L1024-session-warm-2,0,1677,19.07,2000,343,512,completed,3863.3,serious,serious,90,90,
+2026-07-19T16:02:47.913Z,gguf,model-t1,L1024-session-warm-3,0,1994,19.06,2000,343,512,completed,3863.8,serious,serious,90,90,
+2026-07-19T16:02:54.820Z,gguf,model-t1,L1024-session-cold,0,1907,18.59,200,343,512,completed,3867.3,serious,serious,90,90,
+2026-07-19T16:03:01.908Z,gguf,model-t1,L1024-session-warm-1,0,2088,18.5,2000,343,512,completed,3862.9,serious,serious,90,90,
+2026-07-19T16:03:09.038Z,gguf,model-t1,L1024-session-warm-2,0,2130,18.13,2000,343,512,completed,3867.9,serious,serious,90,90,
+2026-07-19T16:03:16.214Z,gguf,model-t1,L1024-session-warm-3,0,2176,18.02,2000,343,512,completed,3867.9,serious,serious,90,90,
+2026-07-19T16:03:23.377Z,gguf,model-t1,L1024-session-cold,0,2163,17.61,200,343,512,completed,3873.4,serious,serious,90,90,
+2026-07-19T16:03:30.614Z,gguf,model-t1,L1024-session-warm-1,0,2237,17.48,2000,343,512,completed,3865,serious,serious,90,90,
+2026-07-19T16:03:37.887Z,gguf,model-t1,L1024-session-warm-2,0,2273,16.88,2000,343,512,completed,3863.9,serious,serious,90,90,
+2026-07-19T16:03:45.183Z,gguf,model-t1,L1024-session-warm-3,0,2296,16.58,2000,343,512,completed,3860,serious,serious,90,90,
+2026-07-19T16:03:52.284Z,gguf,model-t1,L2048-session-cold,3000,2101,23.59,200,464,512,completed,3847.7,serious,serious,90,90,
+2026-07-19T16:03:59.216Z,gguf,model-t1,L2048-session-warm-1,0,1932,22.51,2000,464,512,completed,3852.5,serious,serious,90,90,
+2026-07-19T16:04:06.252Z,gguf,model-t1,L2048-session-warm-2,0,2036,22.05,2000,464,512,completed,3853,serious,serious,90,90,
+2026-07-19T16:04:13.468Z,gguf,model-t1,L2048-session-warm-3,0,2216,20.47,2000,464,512,completed,3857.2,serious,serious,90,90,
+2026-07-19T16:04:21.325Z,gguf,model-t1,L2048-session-cold,0,2857,17.84,200,464,512,completed,3863.6,serious,serious,90,90,
+2026-07-19T16:04:29.384Z,gguf,model-t1,L2048-session-warm-1,0,3059,17.08,2000,464,512,completed,3863.9,serious,serious,90,90,
+2026-07-19T16:04:37.568Z,gguf,model-t1,L2048-session-warm-2,0,3184,16.25,2000,464,512,completed,3864.2,serious,serious,90,90,
+2026-07-19T16:04:45.884Z,gguf,model-t1,L2048-session-warm-3,0,3316,14.8,2000,464,512,completed,3864.7,serious,serious,90,90,
+2026-07-19T16:04:54.311Z,gguf,model-t1,L2048-session-cold,0,3427,14.62,200,464,512,completed,3863.2,serious,serious,90,90,
+2026-07-19T16:05:02.705Z,gguf,model-t1,L2048-session-warm-1,0,3394,14.85,2000,464,512,completed,3864.7,serious,serious,90,90,
+2026-07-19T16:05:11.097Z,gguf,model-t1,L2048-session-warm-2,0,3392,14.99,2000,464,512,completed,3861.3,serious,serious,90,90,
+2026-07-19T16:05:19.486Z,gguf,model-t1,L2048-session-warm-3,0,3389,14.47,2000,464,512,completed,3861.2,serious,serious,90,90,
+2026-07-19T16:05:30.177Z,mlx,model-t1,L128-session-cold,3000,5691,28.01,,,512,completed,3170.2,serious,serious,90,90,
+2026-07-19T16:05:35.544Z,mlx,model-t1,L128-session-warm-1,0,367,21.05,,,512,completed,3161.1,serious,serious,90,90,
+2026-07-19T16:05:41.046Z,mlx,model-t1,L128-session-warm-2,0,502,16.39,,,512,completed,3161.5,serious,serious,90,90,
+2026-07-19T16:05:46.595Z,mlx,model-t1,L128-session-warm-3,0,549,15.7,,,512,completed,3162.3,serious,serious,90,90,
+2026-07-19T16:05:56.033Z,mlx,model-t1,L128-session-cold,0,4438,15.62,,,512,completed,3205.6,serious,serious,90,90,
+2026-07-19T16:06:01.623Z,mlx,model-t1,L128-session-warm-1,0,590,15.29,,,512,completed,3189.2,serious,serious,90,90,
+2026-07-19T16:06:07.220Z,mlx,model-t1,L128-session-warm-2,0,597,15.12,,,512,completed,3191.2,serious,serious,90,90,
+2026-07-19T16:06:12.850Z,mlx,model-t1,L128-session-warm-3,0,630,14.93,,,512,completed,3191.4,serious,serious,90,90,
+2026-07-19T16:06:22.428Z,mlx,model-t1,L128-session-cold,0,4578,14.88,,,512,completed,3272.9,serious,serious,90,90,
+2026-07-19T16:06:28.044Z,mlx,model-t1,L128-session-warm-1,0,616,14.68,,,512,completed,3193.9,serious,serious,90,90,
+2026-07-19T16:06:33.658Z,mlx,model-t1,L128-session-warm-2,0,614,14.72,,,512,completed,3194.2,serious,serious,90,90,
+2026-07-19T16:06:39.275Z,mlx,model-t1,L128-session-warm-3,0,617,14.74,,,512,completed,3194.4,serious,serious,90,90,
+2026-07-19T16:06:50.276Z,mlx,model-t1,L512-session-cold,3000,6001,18.84,,,512,completed,3169.5,serious,serious,90,90,
+2026-07-19T16:06:56.357Z,mlx,model-t1,L512-session-warm-1,0,1081,19.15,,,512,completed,3158.8,serious,serious,90,90,
+2026-07-19T16:07:02.431Z,mlx,model-t1,L512-session-warm-2,0,1074,18.16,,,512,completed,3159.6,serious,serious,90,90,
+2026-07-19T16:07:08.538Z,mlx,model-t1,L512-session-warm-3,0,1107,17.63,,,512,completed,3159.8,serious,serious,90,90,
+2026-07-19T16:07:17.949Z,mlx,model-t1,L512-session-cold,0,4411,17.3,,,512,completed,3184.2,serious,serious,90,90,
+2026-07-19T16:07:24.135Z,mlx,model-t1,L512-session-warm-1,0,1186,15.98,,,512,completed,3183.8,serious,serious,90,90,
+2026-07-19T16:07:30.346Z,mlx,model-t1,L512-session-warm-2,0,1211,15.26,,,512,completed,3184.6,serious,serious,90,90,
+2026-07-19T16:07:36.608Z,mlx,model-t1,L512-session-warm-3,0,1262,16.35,,,512,completed,3183.6,serious,serious,90,90,
+2026-07-19T16:07:46.572Z,mlx,model-t1,L512-session-cold,0,4964,16.04,,,512,completed,3270.9,serious,serious,90,90,
+2026-07-19T16:07:52.850Z,mlx,model-t1,L512-session-warm-1,0,1278,15.39,,,512,completed,3173.8,serious,serious,90,90,
+2026-07-19T16:07:59.118Z,mlx,model-t1,L512-session-warm-2,0,1268,15.68,,,512,completed,3174.4,serious,serious,90,90,
+2026-07-19T16:08:05.402Z,mlx,model-t1,L512-session-warm-3,0,1284,15.56,,,512,completed,3174.1,serious,serious,90,90,
+2026-07-19T16:08:16.431Z,mlx,model-t1,L1024-session-cold,3000,6029,27.46,,,512,completed,3169.9,serious,serious,90,90,
+2026-07-19T16:08:22.473Z,mlx,model-t1,L1024-session-warm-1,0,1042,23.17,,,512,completed,3161.7,serious,serious,90,90,
+2026-07-19T16:08:28.791Z,mlx,model-t1,L1024-session-warm-2,0,1318,18.48,,,512,completed,3161.9,serious,serious,90,90,
+2026-07-19T16:08:35.278Z,mlx,model-t1,L1024-session-warm-3,0,1487,16.24,,,512,completed,3162.1,serious,serious,90,90,
+2026-07-19T16:08:45.355Z,mlx,model-t1,L1024-session-cold,0,5077,15.59,,,512,completed,3184.8,serious,serious,90,90,
+2026-07-19T16:08:51.958Z,mlx,model-t1,L1024-session-warm-1,0,1603,15.32,,,512,completed,3185.1,serious,serious,90,90,
+2026-07-19T16:08:58.591Z,mlx,model-t1,L1024-session-warm-2,0,1633,15.52,,,512,completed,3172.8,serious,serious,90,90,
+2026-07-19T16:09:05.219Z,mlx,model-t1,L1024-session-warm-3,0,1628,15.3,,,512,completed,3173.1,serious,serious,90,90,
+2026-07-19T16:09:15.399Z,mlx,model-t1,L1024-session-cold,0,5180,15.2,,,512,completed,3250.8,serious,serious,90,90,
+2026-07-19T16:09:22.046Z,mlx,model-t1,L1024-session-warm-1,0,1647,14.81,,,512,completed,3175.7,serious,serious,90,90,
+2026-07-19T16:09:28.734Z,mlx,model-t1,L1024-session-warm-2,0,1688,14.66,,,512,completed,3176,serious,serious,90,90,
+2026-07-19T16:09:35.433Z,mlx,model-t1,L1024-session-warm-3,0,1699,14.7,,,512,completed,3176.1,serious,serious,90,90,
+2026-07-19T16:09:47.142Z,mlx,model-t1,L2048-session-cold,3000,6709,18.69,,,512,completed,3177.3,serious,serious,90,90,
+2026-07-19T16:09:54.291Z,mlx,model-t1,L2048-session-warm-1,0,2149,19.14,,,512,completed,3170.4,serious,serious,90,90,
+2026-07-19T16:10:01.402Z,mlx,model-t1,L2048-session-warm-2,0,2111,18.34,,,512,completed,3171.2,serious,serious,90,90,
+2026-07-19T16:10:08.548Z,mlx,model-t1,L2048-session-warm-3,0,2146,17.65,,,512,completed,3170.4,serious,serious,90,90,
+2026-07-19T16:10:18.866Z,mlx,model-t1,L2048-session-cold,0,5318,17.85,,,512,completed,3190,serious,serious,90,90,
+2026-07-19T16:10:26.104Z,mlx,model-t1,L2048-session-warm-1,0,2238,16.71,,,512,completed,3189.7,serious,serious,90,90,
+2026-07-19T16:10:33.440Z,mlx,model-t1,L2048-session-warm-2,0,2336,16.73,,,512,completed,3190.4,serious,serious,90,90,
+2026-07-19T16:10:40.811Z,mlx,model-t1,L2048-session-warm-3,0,2371,15.81,,,512,completed,3190.4,serious,serious,90,90,
+2026-07-19T16:10:51.687Z,mlx,model-t1,L2048-session-cold,0,5876,15.8,,,512,completed,3212.2,serious,serious,90,90,
+2026-07-19T16:10:59.105Z,mlx,model-t1,L2048-session-warm-1,0,2418,15.61,,,512,completed,3186.1,serious,serious,90,90,
+2026-07-19T16:11:06.564Z,mlx,model-t1,L2048-session-warm-2,0,2459,15.44,,,512,completed,3185.7,serious,serious,90,90,
+2026-07-19T16:11:14.066Z,mlx,model-t1,L2048-session-warm-3,0,2502,15.07,,,512,completed,3186.4,serious,serious,90,90,`;
 
-  // Pixel 8a — 4 combos x 3 samples (1 cold + 2 warm), each combo a separate
-  // test invocation (not one continuous run) — unoptimized build, see callout.
+  function parseCsvLine(line) {
+    const out = [];
+    let field = "", inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"') { if (line[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; } }
+        else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { out.push(field); field = ""; }
+        else field += c;
+      }
+    }
+    out.push(field);
+    return out;
+  }
+
+  function parseCsvRows(text) {
+    const rows = [];
+    let row = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') inQuotes = !inQuotes;
+      if (c === "\n" && !inQuotes) { rows.push(row); row = ""; } else row += c;
+    }
+    if (row.trim().length) rows.push(row);
+    return rows.filter((r) => r.trim().length).map(parseCsvLine);
+  }
+
+  // -> [{ backend, tier, samples: [{role, ttft, tps, mem, thermal}] }], in
+  // first-seen order (== chronological execution order, since the on-device
+  // checkpoint writer appends in the order combos actually ran).
+  function parseIphoneCsv(text) {
+    const rows = parseCsvRows(text.trim());
+    const header = rows[0];
+    const idx = (name) => header.indexOf(name);
+    const iLabel = idx("label"), iFormat = idx("format"), iTtft = idx("ttftMs"),
+          iTps = idx("decodeTokensPerSecond"), iMem = idx("peakMemoryBytes"),
+          iThermalAfter = idx("thermalStateAfter"), iPromptTokens = idx("promptTokenCount");
+
+    const order = [];
+    const groups = {};
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const label = row[iLabel] || "";
+      const m = label.match(/^(L\d+)-session-(cold|warm)/);
+      if (!m) continue;
+      const tier = m[1], role = m[2];
+      const backend = (row[iFormat] || "").toUpperCase() === "GGUF" ? "GGUF" : "MLX";
+      const key = backend + "-" + tier;
+      if (!groups[key]) { groups[key] = { backend, tier, samples: [] }; order.push(key); }
+      const sample = { role, ttft: Number(row[iTtft]), tps: Number(row[iTps]), thermal: row[iThermalAfter] || "unknown" };
+      const mem = row[iMem];
+      if (mem !== "" && mem !== undefined) sample.mem = Number(mem);
+      const pt = row[iPromptTokens];
+      if (pt !== "" && pt !== undefined) sample.promptTokens = Number(pt);
+      groups[key].samples.push(sample);
+    }
+    return order.map((k) => groups[k]);
+  }
+
+  const IPHONE_COMBOS = parseIphoneCsv(RAW_IPHONE_CSV);
+
+  // Real measured token counts per tier (GGUF; MLX shares the same prompt
+  // text and, per task-B03's template-consistency check, the same
+  // tokenizer vocab, so these apply to both backends' axis labels) —
+  // labelled honestly instead of the ~128/512/1024/2048 targets, since the
+  // draft prompt content in prompt_tiers.dart still measures short of those
+  // targets (see docs/benchmark/2026-07-19-c05-iphone-results.md finding 1).
+  const TIER_TOKENS = {};
+  IPHONE_COMBOS.forEach((c) => {
+    if (c.backend !== "GGUF") return;
+    const withTokens = c.samples.filter((s) => s.promptTokens != null);
+    if (withTokens.length) TIER_TOKENS[c.tier] = withTokens[0].promptTokens;
+  });
+  function tierLabel(tier) { return TIER_TOKENS[tier] != null ? tier + " (" + TIER_TOKENS[tier] + " tok)" : tier; }
+
   const ANDROID_COMBOS = [
     { backend: "GGUF", tier: "L128", samples: [
       { role: "cold", ttft: 5942, tps: 2.88, mem: 3713.2 },
@@ -578,6 +643,23 @@
     return step * mag;
   }
 
+  // Two-line x-axis label: tier name, then its real measured token count
+  // (small/muted) underneath — see the tierLabel() doc comment for why.
+  function tierAxisLabel(cx, y, tier) {
+    const g = el("text", { x: cx, y, class: "tick-label", "text-anchor": "middle" });
+    const line1 = document.createElementNS(NS, "tspan");
+    line1.setAttribute("x", cx);
+    line1.textContent = tier;
+    const line2 = document.createElementNS(NS, "tspan");
+    line2.setAttribute("x", cx);
+    line2.setAttribute("dy", "11");
+    line2.setAttribute("fill", "var(--muted)");
+    line2.textContent = TIER_TOKENS[tier] != null ? TIER_TOKENS[tier] + " tok" : "";
+    g.appendChild(line1);
+    g.appendChild(line2);
+    return g;
+  }
+
   function tooltip(host) {
     const tip = document.createElement("div");
     tip.className = "tooltip";
@@ -597,7 +679,7 @@
   // Grouped bar chart: one group per tier, up to 2 backends, each backend split
   // into cold (lighter) / warm (solid) bars.
   function renderGroupedBars(host, { tiers, series, unitFmt, valueOf }) {
-    const W = 480, H = 220, padL = 40, padB = 24, padT = 10;
+    const W = 480, H = 228, padL = 40, padB = 32, padT = 10;
     const innerW = W - padL - 8, innerH = H - padT - padB;
     const groupW = innerW / tiers.length;
     const backends = series; // e.g. ["GGUF"] or ["GGUF","MLX"]
@@ -653,9 +735,7 @@
           bx += barW + barGap;
         });
       });
-      const lbl = el("text", { x: gx + groupW / 2, y: padT + innerH + 16, class: "tick-label", "text-anchor": "middle" });
-      lbl.textContent = tier;
-      svg.appendChild(lbl);
+      svg.appendChild(tierAxisLabel(gx + groupW / 2, padT + innerH + 16, tier));
     });
 
     host.appendChild(svg);
@@ -753,7 +833,7 @@
       chart.className = "chart-host";
       panel.appendChild(chart);
 
-      const W = 480, H = 200, padL = 46, padB = 24, padT = 10;
+      const W = 480, H = 208, padL = 46, padB = 32, padT = 10;
       const innerW = W - padL - 8, innerH = H - padT - padB;
       const groupW = innerW / TIERS.length;
       const barW = Math.min(28, (groupW - 20) / backends.length);
@@ -793,9 +873,7 @@
           svg.appendChild(rect);
           bx += barW + 4;
         });
-        const lbl = el("text", { x: gx + groupW / 2, y: padT + innerH + 16, class: "tick-label", "text-anchor": "middle" });
-        lbl.textContent = tier;
-        svg.appendChild(lbl);
+        svg.appendChild(tierAxisLabel(gx + groupW / 2, padT + innerH + 16, tier));
       });
 
       chart.appendChild(svg);
@@ -816,7 +894,7 @@
     const seq = [];
     IPHONE_COMBOS.forEach((c) => c.samples.forEach((s) => seq.push({ ...s, backend: c.backend, tier: c.tier })));
 
-    const W = 900, H = 260, padL = 44, padR = 12, padB = 30, padT = 14;
+    const W = 900, H = 268, padL = 44, padR = 12, padB = 38, padT = 14;
     const innerW = W - padL - padR, innerH = H - padT - padB;
     const n = seq.length;
     const x = (i) => padL + (innerW * i) / (n - 1);
@@ -842,9 +920,7 @@
       const startX = x(idx);
       if (idx > 0) svg.appendChild(el("line", { x1: startX, x2: startX, y1: padT, y2: padT + innerH, class: "grid-line", "stroke-dasharray": "2,2" }));
       const midX = x(idx + c.samples.length / 2 - 0.5);
-      const lbl = el("text", { x: midX, y: padT + innerH + 18, class: "tick-label", "text-anchor": "middle" });
-      lbl.textContent = c.tier;
-      svg.appendChild(lbl);
+      svg.appendChild(tierAxisLabel(midX, padT + innerH + 18, c.tier));
       idx += c.samples.length;
     });
 

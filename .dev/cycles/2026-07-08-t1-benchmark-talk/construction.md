@@ -982,6 +982,47 @@ commit（本次，尚未提交）。
 
 ---
 
+### 今晚計畫：C03 優先 + 過夜矩陣自動化（2026-07-19 晚間，使用者拍板）
+
+**重排理由**：D01 三張主圖裡，「冷啟動罰款」和「記憶體哲學」兩個故事已經被目前（受污染的）
+C05 iPhone 數據撐住了——熱節流不改變這兩者的結構性結論。真正今晚才拿得到、無法事後補的，
+是 C03 的乾淨發熱曲線和真實電量消耗曲線。所以今晚清醒時間全給 C03（使用者手動執行，斷電
++飛航+固定亮度），C05 矩陣重跑改成過夜無人值守跑，機器人的部分（Claude Code）只負責讓
+過夜矩陣「能夠」無人值守：
+
+1. **`integration_test/c05_matrix_test.dart` 新增 `'C05 overnight matrix'`**：8 個 iPhone
+   組合併進單一 `testWidgets`、單一 `BenchmarkViewModel`（=單一 CSV），組合之間插入
+   `waitForNominal()`——輪詢 `checkPreflight().isThermalNominal`，20 分鐘逾時上限，逾時就
+   記錄目前 thermalState 並繼續跑（不會卡死一整晚）。每個組合跑完後用固定路徑覆寫 CSV
+   （`writeCheckpointCsv`，內容是當下累積的全部樣本），所以就算跑到第 5 組當掉，前 4 組的
+   資料仍在硬碟上——不是等到最後才寫一次。單一 session 的例外也用 try/catch 包起來記錄後
+   繼續，不會讓一次生成失敗拖垮整晚。舊的 8 個獨立 `--plain-name` 版本保留，供之後單獨重跑
+   某個 tier 用。
+2. **prompt tiers 今晚不加長**：加長需要重新校準 token 數、重新驗證，會吃掉僅有的清醒時間，
+   留給 talk 後的下一輪循環處理。今晚只在 D01 圖表補上誠實標記。
+3. **D01 資料注入點**：把原本手刻在 JS 裡的 `IPHONE_COMBOS` 陣列，換成 `RAW_IPHONE_CSV`
+   （真實 CSV schema，跟 `benchmark_export.dart` 的欄位定義一致）+ 一個小型 CSV parser
+   （處理引號/逗號/換行的正規解析，不是天真的 `split(',')`，因為 `generatedText` 欄位可能
+   含逗號或換行）。明早只要把 `c05_overnight_matrix.csv` 的內容貼進 `RAW_IPHONE_CSV`，
+   整頁圖表自動重算，不用再手動改 JS。順便把圖表 x 軸的 tier 標籤從單純「L128」改成兩行
+   「L128 / 64 tok」——64/223/343/464 是實測 token 數，不是 prompt_tiers.dart 原本想要達到
+   的 128/512/1024/2048 目標，誠實揭露這個落差，零成本（不用重新上機量測，直接讀 CSV 的
+   `promptTokenCount` 欄位）。
+   驗證方式：先用目前的 96 筆 iPhone 資料產生一份格式正確的合成 CSV 貼進 `RAW_IPHONE_CSV`，
+   確認 parser 解析後重建的圖表跟重構前逐像素一致（Playwright 截圖比對），確保明早換成真的
+   過夜矩陣資料時不會因為 parser 邏輯錯誤而出包。
+
+**執行順序（使用者手動，本輪 Claude Code 不參與）**：C03 GGUF 10 分鐘 → 等回 nominal（空檔
+順便走一次 D02 錄影腳本）→ C03 MLX 10 分鐘（時間不夠就捨棄）→ 睡前用上面新增的
+`'C05 overnight matrix'` 發射過夜矩陣、接上電源、關自動鎖定、盯完第一組確認流程正常再睡。
+
+**明早收割**：`c05_overnight_matrix.csv` 拉回 repo → 貼進 D01 的 `RAW_IPHONE_CSV` → 圖表
+自動換新 → Playwright 按簡報比例截三張主圖 + 電量第四張。
+
+commit（本次，尚未提交）。
+
+---
+
 ## 共用資產（一次做、多處用）
 
 - ✅ [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md) — 繁中 prompt 集 + 標準化測試協定
