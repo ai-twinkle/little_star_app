@@ -92,7 +92,7 @@ condition 修復、`4e1c5ed` task-C04 pilot integration test。
 | C 線效能疑點（A02 觀察到 CPU 只用 ~33%） | 尚未查明 | C04 pilot 這次 prompt 太短沒特別觀察 CPU 使用率，C05 正式跑矩陣時建議順便查 |
 | ~~task-C01（埋量測+匯出）~~ | ✅ 已完成 2026-07-19 | 單元測試驗證+兩平台編譯驗證，見下方章節；thermal/battery channel 尚待 C04 才第一次真正上機驗證讀值 |
 | ~~task-C02（標準化協定）~~ | ✅ 已完成 2026-07-19 | 見下方章節；prompt tier token 數為估計值，待用 Benchmark 畫面實測校準 |
-| ~~task-C03（持續負載 harness）~~ | ✅ 已完成 2026-07-19 | 見下方章節；程式碼+單元測試完成，尚未真的跑滿 10 分鐘 |
+| ~~task-C03（持續負載 harness）~~ | ✅ 已完成 2026-07-21 | 見下方章節；GGUF+MLX 各實機跑滿 10 分鐘，乾淨真實發熱降頻曲線+MLX 真實掉電曲線 |
 | ~~task-C04（pilot run）~~ | ✅ 已完成 2026-07-19 | 見下方章節；過程中發現並修復 MLX busy race condition（commit `6e36dc3`），兩 backend cold/warm 皆在真機驗證成功 |
 | task-C05（正式跑完整矩陣，iPhone 側） | ✅ 已完成 2026-07-19，附重要限制 | 96 筆真實樣本，但組間沒降溫、數據受熱節流污染，正式素材前建議重跑，見下方章節與結果檔 |
 | task-C05（Pixel 8a 側） | ✅ 已完成 2026-07-19，附重要限制 | 4 個 GGUF tier，樣本數縮減（1冷+2暖），發現 decode/prefill 比 iPhone 慢一到三個數量級，見下方章節與結果檔 |
@@ -782,7 +782,7 @@ app 能自己讀 thermal/battery 並在 Benchmark 畫面用 banner 顯示（ther
 
 commit `14150e1`。
 
-### task-C03: 持續負載測試 — [DONE] ✅ 2026-07-19（單元測試驗證，未上機跑滿 10 分鐘）
+### task-C03: 持續負載測試 — [DONE] ✅ 2026-07-21（實機跑滿 GGUF + MLX 各 10 分鐘，乾淨真實數據）
 
 **做法**：`lib/core/benchmark/sustained_load_runner.dart`（`SustainedLoadRunner`）——刻意
 不新增一套時間序列資料型別，直接重複呼叫 C01 已有的
@@ -792,11 +792,53 @@ thermal/battery、生成期間逐 token 採樣 peak memory，所以背靠背呼�
 schema。迴圈以 wall-clock `duration`（預設 10 分鐘）或 `maxIterations`（測試用）為終止條件，
 支援 `cancel()` 中途停止。Benchmark 畫面加了「Run 10 min sustained load」/「Stop」兩顆按鈕。
 
-**驗證**：3 個測試（`maxIterations` 提早停止、無開啟 session 時丟 `StateError`、`cancel()`
-提早停止——用有人工延遲的 fake session 製造可控的競態窗）。**尚未真的在裝置上跑滿 10 分鐘**，
-邏輯層面驗證足夠但實際發熱曲線數據要等 C04/C05 上機。
+**單元驗證**（2026-07-19）：3 個測試（`maxIterations` 提早停止、無開啟 session 時丟
+`StateError`、`cancel()` 提早停止——用有人工延遲的 fake session 製造可控的競態窗）。commit
+`3c3e6c4`。
 
-commit `3c3e6c4`。
+**實機執行與過程中修好的 4 個問題**（2026-07-21，見上方「今晚計畫」章節後續）：
+
+原計畫是把 C05 矩陣重跑改成無人值守自動化、C03 留給使用者手動上機跑。手動跑的過程中連續
+踩到幾個跟 C03 邏輯本身無關、但會讓整批數據拿不到的問題，依序修好：
+
+1. **模型路徑要手打**：Benchmark 畫面原本只有一個自由輸入的路徑欄位，而 app 沙盒路徑每次
+   重裝都會變（含容器 UUID）。加了資料夾圖示 → bottom sheet 選擇器，直接掃
+   `DirectoryService.getModelsDirectory()`（GGUF）與
+   `<ApplicationSupport>/Models/mlx`（MLX）列出已下載模型。
+2. **App 間歇性閃退**：crash log（`.ips`，透過 `devicectl device info files
+   --domain-type systemCrashLogs` 撈取）顯示是 `GeneratedPluginRegistrant.registerWithRegistry:`
+   階段的 `EXC_BAD_ACCESS`／`swift_getObjectType` null 存取，橫跨 7/18、7/19、7/21 三天、
+   不只發生在單一 plugin（連續兩次分別炸在 `connectivity_plus` 和
+   `path_provider_foundation`）——是這個 iOS 版本上 plugin 註冊階段的 Swift runtime race，
+   跟任何一個特定套件無關。移除了完全沒被程式碼用到的 `connectivity_plus` 依賴（zero risk，
+   `grep` 全專案零引用）當作第一步清理；真正解法是**裝置重開機**（清掉可能已經髒掉的
+   Swift metadata / dyld cache）+ **改用 `--profile` build**（AOT 編譯、無 debug VM
+   service 附加，繞開 debug-only 的初始化路徑）。Benchmark 卡片可見性同時從 `kDebugMode`
+   改成 `!kReleaseMode`，因為 profile build 的 `kDebugMode` 也是 false，原本的判斷會讓
+   profile build 也看不到這張卡片。
+3. **`_share()` 缺 `sharePositionOrigin` 導致分享靜默失敗**：iOS 要求
+   `Share.shareXFiles` 的 popover 錨點矩形非零，沒給會丟
+   `PlatformException(sharePositionOrigin: argument must be set...)`，分享面板不會跳出來，
+   而且是「uncaught error in zone」不是真的 app crash，容易誤判成又閃退。**第一輪完整
+   20 分鐘（GGUF+MLX）數據就是這樣憑空消失的**——匯出的 CSV 寫到 tmp 目錄，分享失敗後
+   iOS 又把 tmp 清掉，數據沒有第二個備份管道，只能請使用者重跑。修法：`_share()` 用
+   `context.findRenderObject()` 算出當前畫面的 `Rect` 傳給 `sharePositionOrigin`。
+4. **CSV 匯出目錄改到 Documents + 加逐筆自動 checkpoint**：直接呼應上面第 3 點的教訓——
+   `_writeExport` 從 `getTemporaryDirectory()` 改成 `getApplicationDocumentsDirectory()`
+   （app 已有 `UIFileSharingEnabled`/`LSSupportsOpeningDocumentsInPlace`，只暴露
+   Documents 給 Files app，tmp 本來就看不到）；`BenchmarkViewModel` 在
+   `openSessionAndRun`/`runOnOpenSession`（`SustainedLoadRunner` 底層呼叫的正是後者）每次
+   新增一筆樣本後，立即覆寫 `Documents/benchmark_live.csv`——不必等使用者按分享鍵，
+   app 中途當掉也只會漏掉最後一筆而非整批。
+
+**最終結果**：兩個 backend 各自完整跑滿一次 10 分鐘、拔線、單次連續（無背靠背污染）：
+
+- GGUF：`docs/benchmark/2026-07-21-c03-gguf-sustained.{csv,json}`，62 筆樣本，
+  11:33:30–11:43:43，decodeTps 24.2 → 13.7 tok/s，thermalState `nominal → fair →
+  serious` 真實遞進，電量全程 95%（10 分鐘耗電量可能太小沒跳格）。
+- MLX：`docs/benchmark/2026-07-21-c03-mlx-sustained.{csv,json}`，47 筆樣本，
+  11:51:41–12:01:51，decodeTps 24.7 → 12.5 tok/s，thermalState 同樣遞進，
+  電量 95% → 90% → 85%，真實掉電曲線。
 
 ### task-C04: Pilot run — [DONE] ✅ 2026-07-19（實機驗證，iPhone 17 Pro，過程中發現並修好一個 MLX bug）
 
@@ -975,10 +1017,156 @@ JS 裡而非事先手算貼數字，避免抄錄誤差。存在
 跟著主題即時切換，不需要重整頁面。另外也照 dataviz skill 的無障礙檢查清單，補了一個
 可展開的完整資料表（tier × backend × 裝置，供讀不了圖或需要精確數字時查）。
 
-**尚未做**：D01 本身資料層面繼承了 C05 的所有限制（iPhone 熱節流污染、Android 樣本數少+
-未優化建置）——圖表如實呈現這些限制，但正式簡報用的「乾淨」版本仍要等 C05 重跑。
+**尚未做（2026-07-19 當時）**：D01 本身資料層面繼承了 C05 的所有限制（iPhone 熱節流污染、
+Android 樣本數少+未優化建置）——圖表如實呈現這些限制，但正式簡報用的「乾淨」版本仍要等
+C05 重跑。
 
 commit（本次，尚未提交）。
+
+---
+
+### task-D01: 第 4/5 節換成 C03 真實資料 — [DONE] ✅ 2026-07-21
+
+task-C03 實機跑出乾淨資料後（見上方 C03 章節），第 4 節「發熱節流曲線」與第 5 節「電量
+消耗」不再是 C05 矩陣的副產品，改用真正的資料源：
+
+- 新增 `RAW_C03_GGUF_CSV`/`RAW_C03_MLX_CSV`（trim 過的欄位：timestamp/decodeTokensPerSecond/
+  thermalStateAfter/batteryLevelAfter，完整檔案在
+  `docs/benchmark/2026-07-21-c03-{gguf,mlx}-sustained.csv`）+ `parseC03Csv()`。
+- 新增共用渲染函式 `renderSustainedChart()`（x 軸是實際經過秒數而非樣本序，因為兩個
+  backend 的樣本數不同——GGUF 62 筆、MLX 47 筆，生成速度不同步），thermalState 轉換點
+  改成畫在每條線各自的 x 軸下方當小 tick，而非整張圖共用一條垂直線（兩個 backend 轉場
+  時間點差異達兩分鐘以上，共用垂直線會誤導）。第 4 節（decode tps）跟新的第 5 節（電量）
+  共用這個渲染函式。
+- 新發現寫進圖表敘述：MLX 進入 `fair`（33 秒）、`serious`（266 秒）都比 GGUF（分別
+  50 秒、401 秒）早超過兩分鐘——同一裝置同一 prompt，MLX 明顯把裝置推熱更快；MLX 那輪
+  也是本頁第一次拿到真實電量下降曲線（95%→85%），且掉電時間點跟 thermalState 轉換點
+  對得上。誠實加註：這是單次量測，兩個 backend 的順序效應（MLX 接在 GGUF 之後跑，裝置
+  起始溫度已經較高）未排除，方向性可信但不建議當精確功耗對比。
+- 矩陣總覽/TTFT/decode/記憶體四節維持 2026-07-19 的 C05 資料不動（今晚未重跑 C05，見
+  plan.md 的時間評估），頂部 callout 補充說明哪些章節資料已經乾淨、哪些仍受限制。
+- Playwright 重新截圖驗證（light + dark 模式的第 4、5 節與頂部 callout），無 console
+  error，語法通過 `node --check`。Artifact 用同一個 URL 重新發布
+  （`048b8980-f2b1-4eca-8bde-e9c5c5462c5f`）。
+
+### task-D01: 移除 Pixel 8a 數據 — [DONE] ✅ 2026-07-21（使用者拍板）
+
+使用者判斷 Android 那組數據（未優化建置、樣本數縮減、量測時充電中，一路都要附但書）放進
+D01 沒有必要，直接拿掉，全頁收斂成 iPhone 17 Pro 單裝置版本：
+
+- 「矩陣總覽」（2 backend × 2 裝置）改名「快照總覽」，`renderMatrix()` 從 `.matrix` grid
+  改成沿用電量消耗那節已有的 `.stat-row`/`.stat-tile`，兩顆卡片（GGUF/MLX）取代原本
+  2×2 表格；連帶把只剩單一裝置後就是死程式碼的 `.matrix` CSS 整塊刪掉。
+- TTFT/decode/記憶體三個 `buildBarSection`/`buildMemorySection` 拿掉 Android 面板，
+  `.panels` 容器加 `single` modifier class（`grid-template-columns: minmax(0, 560px)`）
+  讓單一面板不會卡在兩欄網格裡留一塊空白。
+- 刪除 `ANDROID_COMBOS` 原始資料與 `ANDROID_AGG` 聚合，`buildDataTable()` 拿掉「裝置」
+  欄位（現在只剩 iPhone，這欄永遠同一個值沒有資訊量）。
+- 頂部 callout、header subtitle/meta-row、thermal section note、footer 資料來源連結
+  一併清掉 Android/Pixel 措辭；也順手清掉一行複製貼上時漏刪、內容已經過時的舊註解
+  （`// Thermal / decay curve — iPhone, all 96 samples...`）。
+- `docs/benchmark/2026-07-19-c05-android-results.md` 與 A03/C05 的 Android 原始數據
+  **不刪除**——只是不再出現在 D01 這份頁面，仍是 repo 裡的有效歷史紀錄。
+- Playwright 重新驗證（light+dark 全頁截圖 + 展開資料表截圖），無 console error。
+  Artifact 用同一個 URL 更新。
+
+### task-C03/D01：發現並修正「MLX 更快推熱」是順序效應假象 — [DONE] ✅ 2026-07-21
+
+D01 發布後使用者主動追問「MLX 比較耗電的原因」，覺得應該進一步查證而非直接寫進圖表。
+
+**驗證過程**：使用者重跑兩組 sustained-load，刻意對調順序：
+1. 「MLX 先跑」（`2026-07-21-c03-mlx-sustained-round2-mlxfirst.csv`，14:06 起，真正冷
+   啟動）——結果 fair@71s、serious@429s，**比原本第一輪 GGUF（fair@50s、serious@401s）
+   還要慢**，直接推翻「MLX 比較會推熱裝置」的假設。
+2. 使用者補充關鍵細節：原本第一輪 GGUF→MLX 之間**其實有間隔約 8 分鐘**，不是零間隔背靠背
+   ——代表就算 iOS 把 thermalState 標籤重置回 `nominal`，8 分鐘也不足以讓裝置真正退燒。
+3. 為驗證這是通則而非 MLX 特有現象，接著補跑「GGUF 排第二」
+   （`2026-07-21-c03-gguf-sustained-round2-mlxfirst.csv`，14:25 起，MLX 跑完後約
+   8-10 分鐘接上）——結果 fair@39s、serious@306s，**同樣比 GGUF 自己當天第一輪
+   （50s/401s）快上不少**。
+
+**結論**：4 筆數據呈現清楚的 2×2 模式——不管哪個 backend，只要是「排第二個跑」都比
+「當天第一個跑」明顯更快進入降頻（GGUF：50s/401s → 39s/306s；MLX：71s/429s →
+33s/266s），跟 backend 身份無關。真正乾淨的 backend 對照（兩者都當天第一個跑）：進入
+fair/serious 的時間點相近，但**穩態降頻後的速度 MLX（~12.9 tok/s）確實略低於 GGUF
+（~13.7 tok/s，約 6%），這個差距在兩輪都一致，看起來是真實的 backend 差異**，跟前面
+被推翻的「推熱速度」假設是兩件事。
+
+**D01 更新**：第 4 節主圖換成兩個「當天第一個跑」的乾淨配對（GGUF round1 維持不變、
+MLX 換成 round2 冷啟動版），新增一個 4 列的順序效應表格（backend × 順位 × fair/serious
+時間點）直接把發現攤開講，而不是藏起來。第 5 節電量消耗比照換成同一組配對
+（GGUF 95%→95%、MLX 75%→70%），並在 callout 註明兩者起始電量不同、不建議當精確功耗
+對比。四份原始 CSV/JSON 都存進 `docs/benchmark/`，footer 資料來源連結全部更新並註明
+「主圖用」vs「僅用於順序效應表格」。
+
+**帶進 talk 的價值**：這比原本「MLX 比較耗電」的簡單結論更值得講——展示了量測方法論上
+的自我修正（發現 confound、設計對照實驗排除、誠實呈現推翻自己原本結論的過程），也留下
+一個對其他人做類似裝置端 benchmark 有用的提醒：**thermalState 標籤重置不能當作裝置已
+真正降溫的依據**。
+
+### task-C03/D01：第三輪 MLX——電量也對齊，鎖定最終配對 — [DONE] ✅ 2026-07-22
+
+上一項發現「排第二個跑」的順序效應後，使用者注意到當時拿來當主圖的 MLX round2
+（`2026-07-21-c03-mlx-sustained-round2-mlxfirst.csv`，75%→70%）雖然排除了順序污染，
+但起始電量（75%）跟 GGUF 那輪（95%）差距不小，兩者仍不是完全對等的起跑點。於是主動
+要求再補一輪：**先把裝置充到 100%，拔線後靜置到 Benchmark 畫面的 preflight banner
+確認 thermalState 顯示 nominal，才開始跑** —— `2026-07-21-c03-mlx-sustained-round3-matched.csv`，
+100%→95%，起始電量甚至比 GGUF 那輪還高。
+
+**結果**：fair@61s、serious@359s——跟 round2（71s/429s）有一定差距（約 10-70 秒），
+但跟「排第二個跑」的 round1（33s/266s）差距（快上一分半到兩分半）完全不是同一個量級。
+這正好呼應 task-C04 pilot 當初就發現的「冷啟動數字有 run-to-run 變異，建議看多次獨立
+取樣」——兩次「有靜置」的 MLX 版本本身就有雜訊，不代表方法論有問題，跟系統性的順序效應
+是兩回事，寫進圖表的措辭需要把這個區分講清楚，不能只列一個數字讓人誤以為是精確值。
+
+**D01 更新**：round3 取代 round2 成為第 4/5 節主圖與 stat-tile 的資料源（GGUF 95%→95%
+vs MLX 100%→95%，目前唯一同時控制了順序與起始電量的配對）；順序效應表格從 4 列擴到
+5 列，把 round2 降級為「當天第一個跑，但電量偏低」的第三筆佐證，表格上方文字明確拆開
+「run-to-run 雜訊」（10-70 秒級）與「順序效應」（1.5-2.5 分鐘級）兩種不同性質的差異，
+避免讀者混為一談。穩態降頻速度的 backend 差距因為改用 round3 略微調整（MLX ~12.7 vs
+~12.9 tok/s），文字同步更新成「三輪 MLX 測試中都一致出現、約 7% 差距」。footer 資料
+來源新增 round3 連結並標注「主圖用」。Playwright light/dark 重新驗證，無 console error，
+Artifact 用同一個 URL 更新。
+
+### task-C03/D01：第四輪 GGUF——確認雜訊比 backend 差異還大，改成誠實揭露版本 — [DONE] ✅ 2026-07-22
+
+使用者隔天早上主動補跑第三次 GGUF（比照 MLX round3 的方法論：充到 100%、拔線靜置到
+thermalState 確認 nominal 才開始）——`2026-07-22-c03-gguf-sustained-round2-matched.csv`，
+100%→90%。目的是讓 GGUF 那邊也有一組跟 MLX round3 同樣嚴謹方法論的資料，原本預期會是
+「最終定案」的配對。
+
+**結果完全打破預期**：fair@160s、serious@547s——比原本拿來當主圖的 GGUF round1
+（50s/401s）慢了超過 2 倍；穩態 decode 反而變快（~14.5 vs ~13.9 tok/s）；電量首次真的
+掉了 10%（vs round1 的 0%、round2 的 5%）。**GGUF 自己三輪之間的差異，比「GGUF vs MLX」
+之間一直在追的差異還大。** 這代表就算方法論完全對齊（充滿+靜置到 nominal），單次量測
+的 run-to-run 變異依然巨大，用任何一組單一配對來宣稱「哪個 backend 比較快推熱/比較
+省電」都站不住腳。
+
+**決策（使用者拍板）**：不再繼續補跑追一個「最終正確數字」，改成誠實揭露版本——
+D01 第 4/5 節全面重寫：
+
+- 主圖改用 GGUF round2-matched（100%→90%）+ MLX round3-matched（100%→95%）這組「方法論
+  最一致」的配對，但文字明確聲明**這只是 6 次重跑裡的其中一組，不代表任何排名**。
+- 順序效應表格從 5 列擴到 6 列（3 GGUF + 3 MLX 全部列出：fair/serious 時間點、穩態
+  tok/s、電量變化），完整攤開所有變異，不挑對自己有利的數字。
+- 額外算出：6 次量測中唯一一致、且兩個 backend 數值範圍完全沒有重疊的訊號——**穩態
+  降頻後的 decode 速度，GGUF（13.6-14.5 tok/s）一致高於 MLX（12.4-13.0 tok/s）**，
+  約 10-15% 差距。這是目前唯一有信心講的 backend 差異；「誰推熱較快」「誰比較省電」
+  明確聲明資料不足以支撐結論，需要更多次獨立取樣+統計顯著性檢定（估計 5 輪以上）才能
+  下定論，這超出本循環的時間預算，記錄為未來待辦而非現在硬湊答案。
+- 電量消耗（第 5 節）比照重寫，callout 直接寫「不建議拿這組數字當精確功耗對比或宣稱
+  任何一個 backend 比較省電」。
+- footer 資料來源全部 7 份檔案（6 份 sustained-load + 1 份 C05 iPhone 結果）都列出並
+  標注用途，方便日後查證。
+
+**帶進 talk 的價值**：這比「找到一個好聽的結論」更難得——完整記錄了從「發現一個看似
+有趣的差異」→「懷疑並設計對照實驗」→「發現順序效應」→「進一步控制起始電量」→
+「發現連控制變因後雜訊還是很大」→「誠實承認資料不足以下結論，只保留真正站得住腳的
+單一訊號」的完整科學方法論過程。C03 的原始目標（拿到乾淨發熱曲線）達成了——曲線本身
+是真實、可重現的現象；但「量化比較兩個 backend」這個延伸問題，最終誠實地留白，是比
+硬湊一個看似精確、實則不可信的數字更負責任的作法。
+
+Playwright light/dark 重新驗證，無 console error。Artifact 用同一個 URL 更新（第五次）。
 
 ---
 

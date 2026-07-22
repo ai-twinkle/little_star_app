@@ -126,12 +126,19 @@
 
 #### task-C03: 持續負載測試（發熱曲線原料）
 - **類型**: 🔧 程式
-- **狀態**: [DONE] ✅ 2026-07-19 — 單元測試驗證，尚未真的跑滿 10 分鐘
+- **狀態**: [DONE] ✅ 2026-07-21 — 實機跑滿 GGUF + MLX 各 10 分鐘，乾淨真實數據（拔線、單次連續、無背靠背污染）
 - **描述**: 連續生成 10 分鐘，記 tokens/s 隨時間衰減、thermalState 變化、電量消耗 —— 「發熱曲線」圖的原料。
 - **驗收標準**:
   - [x] 可執行 10 分鐘連續生成並時間序列記錄 t/s、thermalState、電量（`SustainedLoadRunner`，重複呼叫 C01 的 recorder，`BenchmarkSample.timestamp` 即時間軸，未另外設計 schema）
   - [x] 輸出可直接餵給圖表（D 線）（沿用 C01 的 CSV/JSON 匯出）
-- **預估時間**: 1 天 ｜ 實際：約 0.25 天（邏輯完全重用 C01）
+  - [x] 實機驗證，兩個 backend 皆完成：GGUF `docs/benchmark/2026-07-21-c03-gguf-sustained.csv`（62 筆，10:33-10:43，decodeTps 24.2→13.7 tok/s，thermalState nominal→fair→serious）、MLX `docs/benchmark/2026-07-21-c03-mlx-sustained.csv`（47 筆，11:51-12:01，decodeTps 24.7→12.5 tok/s，thermalState 同樣遞進，電量 95%→85% 真實掉電）
+- **執行過程中的修復**（見 construction.md 詳細記錄）：
+  - Benchmark 畫面新增模型選擇器（folder icon → bottom sheet），不用再手打 app 沙盒路徑
+  - 移除未使用的 `connectivity_plus` 依賴（`GeneratedPluginRegistrant` 階段的 Swift runtime race 導致間歇性閃退的根因之一）
+  - Benchmark 卡片可見性從 `kDebugMode` 改成 `!kReleaseMode`，讓 profile build（無 debug VM service 附加，繞開閃退）能看到
+  - `_share()` 補上 `sharePositionOrigin`（缺這個參數會讓 `shareXFiles` 拋 `PlatformException`，分享面板不會跳出，先前一輪 20 分鐘數據因此遺失）
+  - `BenchmarkViewModel` 加上逐筆自動 checkpoint（每筆樣本產生後立即覆寫 `Documents/benchmark_live.csv`），匯出目錄從 tmp 改到 Documents（Files app 可見），避免 app 中途當掉或分享失敗時整批數據遺失
+- **預估時間**: 1 天 ｜ 實際：約 0.25 天邏輯 + 額外約 0.5 天上機除錯（見 construction.md）
 
 #### task-C04: Pilot run + 方法論修正
 - **類型**: 🔬 研究
@@ -147,20 +154,26 @@
 - **狀態**: [DONE] ✅ 2026-07-19，附重要限制 — iPhone 側 96 筆樣本（組間沒降溫，數據受熱節流污染）；Pixel 8a 側 4 個 GGUF tier（樣本數縮減為 1冷+2暖，發現 decode/prefill 比 iPhone 慢一到三個數量級）
 - **描述**: 同一份繁中 prompt 集，跑 2 backend × 2 裝置（Pixel 8a 視 A03 判定）完整矩陣，資料匯出備 D 線用。
 - **驗收標準**:
-  - [x] 完整矩陣數據產出（CSV/JSON），含冷/暖啟動：iPhone 側（`integration_test/c05_matrix_test.dart`，結果見 [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)）+ Pixel 8a 側（結果見 [docs/benchmark/2026-07-19-c05-android-results.md](../../../docs/benchmark/2026-07-19-c05-android-results.md)）；持續負載（C03）數據尚未產出，harness 已就緒
+  - [x] 完整矩陣數據產出（CSV/JSON），含冷/暖啟動：iPhone 側（`integration_test/c05_matrix_test.dart`，結果見 [docs/benchmark/2026-07-19-c05-iphone-results.md](../../../docs/benchmark/2026-07-19-c05-iphone-results.md)）+ Pixel 8a 側（結果見 [docs/benchmark/2026-07-19-c05-android-results.md](../../../docs/benchmark/2026-07-19-c05-android-results.md)）；2026-07-20 晚間跑過一次時間上限版重跑（`c05_timeboxed_partial_2026-07-20.csv`，L1024/L2048 各 backend），但 thermalState 全程仍是 `serious`，證實**短時間降溫窗口對這台裝置無效，跟原本那份數據是同一種污染**，非乾淨版；持續負載（C03）數據已於 2026-07-21 補齊，見上方 C03 章節
   - [x] 資料足以支撐一張「矩陣圖講完所有對比」——**兩份數據皆附重要限制說明**（iPhone：組間未降溫受熱節流污染；Android：樣本數遠少於 iPhone、低電量充電中量測、prefill 速度異常待查），正式素材前建議各重跑一次乾淨版本，但方向性的跨裝置/跨backend比較已經可用
+  - **若要重跑出乾淨版本**：C03 的成功經驗（見上方）證實乾淨數據要靠「手動 UI、單次連續、無背靠背」才拿得到，不是靠縮短自動化降溫窗口就能解決——真要重跑 C05，建議比照 C03 走法：透過 Benchmark 畫面的「Run standardized protocol」逐一手動跑每個 backend、跑完等真的降回 nominal 再跑下一個 tier，而非用 `integration_test` 背靠背跑完整矩陣；工時上這需要 8 個 tier×backend 組合各自等待真實降溫，可能要拆成好幾個時段，非一次性工作
 - **預估時間**: 2 天 ｜ 實際：約 1 天（iPhone 側 0.5 天 + Android 側 0.5 天，含大量 Android 自動化障礙排除：appops 權限重置、16KB 對齊警告、間歇性 ANR）
 
 ### D 線｜Talk 產出物
 
 #### task-D01: 圖表產出
 - **類型**: 🎨 設計
-- **狀態**: [DONE] ✅ 2026-07-19，附重要限制 — 見 [drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html)
+- **狀態**: [DONE] ✅ 2026-07-21 更新 — 見 [drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html)（[已發布 artifact](https://claude.ai/code/artifact/048b8980-f2b1-4eca-8bde-e9c5c5462c5f)）
 - **描述**: TTFT 對比、decode 速度、記憶體、發熱/降頻曲線、電耗；核心是一張 backend×裝置矩陣圖。
 - **驗收標準**:
-  - [x] 5 類圖表（TTFT/decode/記憶體/發熱/電耗）產出——電耗那張誠實呈現「目前無乾淨資料」而非造假曲線，見下方章節
-  - [x] 一張矩陣圖涵蓋 2 backend × 2 裝置對比（Pixel 8a × MLX 標示為結構性 N/A，非資料缺口）
-- **預估時間**: 1.5 天 ｜ 實際：約 0.5 天（資料已齊備，主要工時在圖表實作與 Playwright 視覺驗證）
+  - [x] 5 類圖表（TTFT/decode/記憶體/發熱/電耗）產出
+  - [x] ~~一張矩陣圖涵蓋 2 backend × 2 裝置對比（Pixel 8a × MLX 標示為結構性 N/A，非資料缺口）~~ → 2026-07-21 使用者決定移除 Pixel 8a，全頁改為 iPhone 17 Pro 單裝置、聚焦 backend 對比（見下一條）
+  - [x] **2026-07-21 更新（C03 資料）**：發熱節流曲線（第 4 節）與電量消耗（第 5 節）換成 task-C03 真實乾淨數據——單次連續 10 分鐘、拔線，取代原本用 C05 矩陣 8 組合背靠背當替代品的做法；新增發現：MLX 進入 `fair`/`serious` 的時間點都比 GGUF 早兩分鐘以上，同一台裝置明顯更快被 MLX 推熱；電量圖也首次有真實掉電曲線（MLX 95%→85%）
+  - [x] **2026-07-21 更新（移除 Pixel 8a）**：使用者判斷 Android 數據（未優化建置、樣本數少、充電中量測，一堆但書）不值得放進圖表，全頁改為 iPhone 17 Pro 單裝置版本——「矩陣總覽」改名「快照總覽」、TTFT/decode/記憶體面板從雙欄縮為單欄、資料表拿掉裝置欄位、移除 `ANDROID_COMBOS` 死程式碼。Android 原始數據與結果文件（`docs/benchmark/2026-07-19-c05-android-results.md`）保留在 repo 供查閱，只是不再出現在這份 D01 頁面裡
+  - [x] **2026-07-21 更新（修正順序效應）**：原本第 4 節「MLX 比 GGUF 快兩分鐘進入 serious」的結論其實是測試順序造成的假象——使用者補跑「MLX 先跑」+「GGUF 排第二」兩組驗證，發現**不管哪個 backend，只要排第二個跑（前面隔 8-10 分鐘）都明顯更快降頻**，跟 backend 身份無關；iOS 的 thermalState 標籤回到 `nominal` 不代表裝置內部殘留熱量真的歸零
+  - [x] **2026-07-22 更新（電量也對齊）**：使用者發現前一版 MLX 對照組起始電量（75%）跟 GGUF（95%）仍有落差，補跑第三輪 MLX——充到 100% 並靜置到 thermalState 確認 nominal 才開始測，起始電量甚至比 GGUF 還高（100%→95%）
+  - [x] **2026-07-22 更新（誠實揭露，最終版）**：用同樣方法論（充滿+靜置）補跑第三輪 GGUF 後，結果完全打破預期——fair/serious 時間點比 GGUF 自己前兩輪慢 2 倍以上，電量首次真的掉 10%，證實**就算控制了順序與起始電量，單次量測的 run-to-run 變異依然大於 backend 之間的差異**。使用者拍板不再追「最終正確數字」，改成誠實揭露版本：D01 第 4/5 節全面重寫，6 次重跑（3 GGUF + 3 MLX）全部列表攤開，明確聲明「不主張哪個 backend 推熱較快或較省電」；唯一保留的結論是 6 次量測中唯一一致、數值範圍完全不重疊的訊號——**穩態降頻後 decode 速度 GGUF（13.6-14.5 tok/s）一致高於 MLX（12.4-13.0 tok/s），約 10-15% 差距**。C03 原始目標（乾淨發熱曲線本身）達成；跨 backend 量化比較誠實留白，需要 N≥5 輪+統計檢定才能下結論，記錄為未來待辦
+- **預估時間**: 1.5 天 ｜ 實際：約 0.5 天（資料已齊備，主要工時在圖表實作與 Playwright 視覺驗證）+ 7/21 約 0.5 小時整合 C03 新資料
 
 #### task-D02: Demo 錄影（不 live）
 - **類型**: 🔬 研究 + 🎨 設計

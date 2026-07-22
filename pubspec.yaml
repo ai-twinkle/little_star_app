@@ -43,7 +43,6 @@ dependencies:
 
   # Network & Download
   dio: ^5.4.0
-  connectivity_plus: ^6.0.3
 
   # File picker
   file_picker: ^8.1.6

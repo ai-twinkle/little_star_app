@@ -25,6 +25,13 @@
 // checkpointed after every combo so a mid-run failure doesn't lose the
 // whole night. This is the one to run before bed.
 //
+// "C05 timeboxed matrix" is the bounded alternative for a session where
+// running all night isn't an option: same per-combo protocol and checkpoint
+// behavior, but capped to kTimeboxBudget wall-clock minutes and combos are
+// interleaved by tier (GGUF/MLX per tier, not all-GGUF-then-all-MLX) so a
+// run that gets cut short still covers both backends across whatever tiers
+// it reached.
+//
 // Android notes (see the results doc's "執行障礙" section for the full story):
 // re-run `flutter install --debug` + `adb shell appops set <pkg>
 // MANAGE_EXTERNAL_STORAGE allow` before each invocation (flutter test's own
@@ -53,6 +60,15 @@ const int kWarmRepeatsPerSession = 3;
 // to hide — documented in the results doc.
 const int kAndroidColdSessionsPerCombo = 1;
 const int kAndroidWarmRepeatsPerSession = 2;
+
+// "C05 timeboxed matrix" budget — tune between 60-90 min depending on how
+// much awake time is actually available tonight. Checked before each combo
+// starts (not mid-combo), so real wall-clock time can run a bit over this by
+// up to one combo's duration.
+const Duration kTimeboxBudget = Duration(minutes: 75);
+// Shorter than the overnight run's 20 min: with only kTimeboxBudget total,
+// a full-length cooldown wait could eat most of the budget by itself.
+const Duration kTimeboxNominalWaitTimeout = Duration(minutes: 5);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -155,16 +171,30 @@ void main() {
     }
   }
 
-  /// Overwrites a fixed-path CSV with every sample recorded so far. Called
-  /// after each combo (not just once at the end) so an unattended overnight
-  /// run that dies partway — device reboot, ANR, USB drop — still leaves the
-  /// completed combos on disk instead of losing the whole night.
+  /// Overwrites a fixed-path CSV with every sample recorded so far, AND
+  /// prints the full CSV text to stdout. Called after each combo (not just
+  /// once at the end) so an unattended run that dies partway — device
+  /// reboot, ANR, USB drop — still leaves the completed combos recoverable.
+  ///
+  /// The stdout dump is the important part: `flutter test` on a physical
+  /// iOS device uninstalls the app (and its data container) once the test
+  /// finishes, so the on-device CSV file becomes permanently unreachable via
+  /// devicectl the moment the run ends — the checkpoint file on disk is not
+  /// actually retrievable after the fact. As long as this run's terminal
+  /// output is captured (`fvm flutter test ... | tee run.log`), the CSV
+  /// survives in the log regardless of what happens to the container.
   Future<void> writeCheckpointCsv(BenchmarkViewModel vm, String path) async {
     final content = benchmarkSamplesToCsv(vm.samples);
     final file = File(path);
     await file.writeAsString(content);
     // ignore: avoid_print
     print('[checkpoint] ${vm.samples.length} samples -> $path (${content.length} bytes)');
+    // ignore: avoid_print
+    print('=== CSV_DUMP_BEGIN ===');
+    // ignore: avoid_print
+    print(content);
+    // ignore: avoid_print
+    print('=== CSV_DUMP_END ===');
   }
 
   // The overnight matrix — one shared session's worth of state (one
@@ -231,6 +261,87 @@ void main() {
     // ignore: avoid_print
     print('=== overnight matrix complete: ${viewModel.samples.length} samples, csv=$csvPath ===');
   }, timeout: const Timeout(Duration(hours: 10)));
+
+  // Bounded alternative to "C05 overnight matrix" — same per-combo protocol
+  // and checkpointing, but stops once kTimeboxBudget wall-clock minutes have
+  // elapsed instead of running unattended for hours. Combos are interleaved
+  // by tier (GGUF then MLX at each tier, ascending) rather than all-GGUF-
+  // then-all-MLX, so a run that only gets through the first few combos still
+  // has both backends represented instead of only ever finishing GGUF.
+  //
+  // Run this for "just run a bit tonight, watch it, stop worrying about the
+  // full matrix":
+  //   fvm flutter test integration_test/c05_matrix_test.dart \
+  //     --plain-name "C05 timeboxed matrix" -d <device>
+  testWidgets('C05 timeboxed matrix', (tester) async {
+    final viewModel = BenchmarkViewModel();
+    final runner = BenchmarkProtocolRunner(viewModel);
+    final gguf = await ggufPath();
+    final mlx = await mlxPath();
+    final docs = await getApplicationDocumentsDirectory();
+    final csvPath = '${docs.path}/c05_timeboxed_matrix.csv';
+    final budgetStart = DateTime.now();
+
+    final combos = <(String, String, PromptTier)>[
+      ('GGUF', gguf, PromptTier.l128),
+      ('MLX', mlx, PromptTier.l128),
+      ('GGUF', gguf, PromptTier.l512),
+      ('MLX', mlx, PromptTier.l512),
+      ('GGUF', gguf, PromptTier.l1024),
+      ('MLX', mlx, PromptTier.l1024),
+      ('GGUF', gguf, PromptTier.l2048),
+      ('MLX', mlx, PromptTier.l2048),
+    ];
+
+    for (var ci = 0; ci < combos.length; ci++) {
+      final elapsedSoFar = DateTime.now().difference(budgetStart);
+      if (elapsedSoFar >= kTimeboxBudget) {
+        // ignore: avoid_print
+        print('[timebox] budget (${kTimeboxBudget.inMinutes}min) exhausted '
+            'after ${elapsedSoFar.inMinutes}min, stopping before combo '
+            '${ci + 1}/${combos.length}');
+        break;
+      }
+
+      final (backend, path, tier) = combos[ci];
+      // ignore: avoid_print
+      print('=== combo ${ci + 1}/${combos.length}: $backend ${tier.label} '
+          '(${elapsedSoFar.inMinutes}/${kTimeboxBudget.inMinutes}min used) ===');
+
+      if (ci > 0) {
+        await waitForNominal(viewModel, timeout: kTimeboxNominalWaitTimeout);
+      }
+
+      final beforeCount = viewModel.samples.length;
+      for (var i = 1; i <= kColdSessionsPerCombo; i++) {
+        try {
+          await runner.runTier(
+            path,
+            tier,
+            warmRepeats: kWarmRepeatsPerSession,
+            isFirstSessionThisLaunch: false,
+          );
+          if (viewModel.lastError != null) {
+            // ignore: avoid_print
+            print('[warn] $backend ${tier.label} session $i: ${viewModel.lastError}');
+          }
+        } catch (e) {
+          // ignore: avoid_print
+          print('[error] $backend ${tier.label} session $i threw: $e — continuing');
+        }
+      }
+
+      for (final s in viewModel.samples.skip(beforeCount)) {
+        logSample('$backend-${tier.label}', s);
+      }
+      await writeCheckpointCsv(viewModel, csvPath);
+    }
+
+    final totalElapsed = DateTime.now().difference(budgetStart);
+    // ignore: avoid_print
+    print('=== timeboxed matrix complete: ${viewModel.samples.length} samples, '
+        '${totalElapsed.inMinutes}min elapsed, csv=$csvPath ===');
+  }, timeout: const Timeout(Duration(hours: 3)));
 
   testWidgets('C05 GGUF L128', (tester) async {
     await runCombo('GGUF-L128', await ggufPath(), PromptTier.l128);

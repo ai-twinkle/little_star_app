@@ -1,11 +1,56 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
 import 'package:little_star_app/core/benchmark/protocol_runner.dart';
 import 'package:little_star_app/core/benchmark/sustained_load_runner.dart';
+import 'package:little_star_app/data/services/directory_service.dart';
 import 'package:little_star_app/models/chat_message.dart';
 import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart';
+
+/// One entry in the "pick a downloaded model" list — scanned straight off
+/// disk (same directories the app's own model manager screens use) so the
+/// user never has to hand-type an app-sandboxed path (which changes every
+/// reinstall, e.g. `/var/mobile/Containers/Data/Application/<UUID>/...`).
+class _ModelOption {
+  final String label;
+  final String path;
+  const _ModelOption(this.label, this.path);
+}
+
+Future<List<_ModelOption>> _discoverLocalModels() async {
+  final options = <_ModelOption>[];
+  try {
+    final modelsDir = await DirectoryServiceFactory.create().getModelsDirectory();
+    if (await modelsDir.exists()) {
+      await for (final entity in modelsDir.list()) {
+        if (entity is File && entity.path.toLowerCase().endsWith('.gguf')) {
+          options.add(_ModelOption('GGUF · ${p.basename(entity.path)}', entity.path));
+        }
+      }
+    }
+  } catch (_) {
+    // Best-effort discovery — falls back to manual path entry.
+  }
+  try {
+    final appSupportDir = await getApplicationSupportDirectory();
+    final mlxDir = Directory(p.join(appSupportDir.path, 'Models', 'mlx'));
+    if (await mlxDir.exists()) {
+      await for (final entity in mlxDir.list()) {
+        if (entity is Directory) {
+          options.add(_ModelOption('MLX · ${p.basename(entity.path)}', entity.path));
+        }
+      }
+    }
+  } catch (_) {
+    // Best-effort discovery — falls back to manual path entry.
+  }
+  return options;
+}
 
 /// Internal-only benchmark harness screen (task-C01) — not part of the
 /// customer-facing app (plan.md scoped C-line as "內部量測工具"). Reachable
@@ -29,6 +74,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   PreflightStatus? _preflight;
   bool _appJustLaunched = false;
   bool _sustainedLoadRunning = false;
+  List<_ModelOption> _availableModels = [];
 
   static const _defaultPrompt = '請用三句話介紹台灣夜市文化,並推薦三樣必吃小吃。';
 
@@ -41,6 +87,37 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     _pathController = TextEditingController(text: widget.initialModelPath ?? '');
     _promptController = TextEditingController(text: _defaultPrompt);
     _refreshPreflight();
+    _discoverLocalModels().then((models) {
+      if (mounted) setState(() => _availableModels = models);
+    });
+  }
+
+  Future<void> _pickModel() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: _availableModels.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('No downloaded models found in the app\'s model directories.'),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final m in _availableModels)
+                    ListTile(
+                      title: Text(m.label),
+                      subtitle: Text(m.path, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onTap: () => Navigator.pop(context, m.path),
+                    ),
+                ],
+              ),
+      ),
+    );
+    if (selected != null) {
+      setState(() => _pathController.text = selected);
+    }
   }
 
   Future<void> _refreshPreflight() async {
@@ -81,7 +158,13 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
 
   Future<void> _share(Future<dynamic> Function() export) async {
     final file = await export();
-    await Share.shareXFiles([XFile(file.path)]);
+    if (!mounted) return;
+    // iOS requires a non-zero sharePositionOrigin for the share sheet's
+    // popover anchor — without it, shareXFiles throws a PlatformException
+    // and the sheet never appears (silently dropping the export).
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+    await Share.shareXFiles([XFile(file.path)], sharePositionOrigin: origin);
   }
 
   @override
@@ -98,9 +181,14 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
             TextField(
               controller: _pathController,
               enabled: !_viewModel.hasOpenSession,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Model path (.gguf file or MLX directory)',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.folder_open),
+                  tooltip: 'Pick a downloaded model',
+                  onPressed: _viewModel.hasOpenSession ? null : _pickModel,
+                ),
               ),
             ),
             const SizedBox(height: 8),

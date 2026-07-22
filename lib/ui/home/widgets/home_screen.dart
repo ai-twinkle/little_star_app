@@ -179,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ],
-                      if (kDebugMode) ...[
+                      if (!kReleaseMode) ...[
                         const SizedBox(height: 16),
                         _buildNavigationCard(
                           context: context,

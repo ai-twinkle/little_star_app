@@ -88,6 +88,7 @@ class BenchmarkViewModel extends ChangeNotifier {
       _session = result.session;
       _profile = profile;
       _samples.add(result.sample);
+      await _checkpointCsv();
     } catch (e, st) {
       _log.error('openSessionAndRun failed', error: e, st: st);
       lastError = e.toString();
@@ -120,6 +121,7 @@ class BenchmarkViewModel extends ChangeNotifier {
         label: label ?? 'session-warm',
       );
       _samples.add(sample);
+      await _checkpointCsv();
     } catch (e, st) {
       _log.error('runOnOpenSession failed', error: e, st: st);
       lastError = e.toString();
@@ -154,11 +156,30 @@ class BenchmarkViewModel extends ChangeNotifier {
 
   Future<File> exportJson() => _writeExport('json', benchmarkSamplesToJson(_samples));
 
+  /// Writes into Documents (not a temp dir) so the export survives an app
+  /// restart and shows up in the Files app under "On My iPhone" — the app
+  /// already ships `UIFileSharingEnabled`/`LSSupportsOpeningDocumentsInPlace`,
+  /// which only exposes Documents, not tmp.
   Future<File> _writeExport(String extension, String content) async {
-    final dir = await getTemporaryDirectory();
+    final dir = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().toIso8601String().replaceAll(RegExp('[:.]'), '-');
     final file = File('${dir.path}/benchmark_$timestamp.$extension');
     return file.writeAsString(content);
+  }
+
+  /// Overwrites a fixed-name checkpoint CSV in Documents after every sample
+  /// — so a mid-run crash (or a broken share sheet — see task-C03 2026-07-21
+  /// incident, `sharePositionOrigin` PlatformException dropped a full run)
+  /// still leaves completed samples recoverable via the Files app or
+  /// `devicectl device copy from`, without needing the user to tap anything.
+  Future<void> _checkpointCsv() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/benchmark_live.csv');
+      await file.writeAsString(benchmarkSamplesToCsv(_samples));
+    } catch (e, st) {
+      _log.error('checkpoint write failed', error: e, st: st);
+    }
   }
 
   @override
