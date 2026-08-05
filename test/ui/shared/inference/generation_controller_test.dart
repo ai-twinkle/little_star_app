@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_star_app/core/inference/generation_metrics.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/models/chat_message.dart';
 import 'package:little_star_app/ui/shared/inference/generation_controller.dart';
@@ -111,12 +112,18 @@ void main() {
       final events = await ctrl.run(session, [_user('Hi')]).toList();
 
       expect(events, hasLength(4));
-      expect(events[0], isA<GenerationToken>()
-          .having((e) => e.token, 'token', 'Hello'));
-      expect(events[1], isA<GenerationToken>()
-          .having((e) => e.token, 'token', ' world'));
-      expect(events[2], isA<GenerationToken>()
-          .having((e) => e.token, 'token', '!'));
+      expect(
+        events[0],
+        isA<GenerationToken>().having((e) => e.token, 'token', 'Hello'),
+      );
+      expect(
+        events[1],
+        isA<GenerationToken>().having((e) => e.token, 'token', ' world'),
+      );
+      expect(
+        events[2],
+        isA<GenerationToken>().having((e) => e.token, 'token', '!'),
+      );
       expect(events[3], isA<GenerationDone>());
     });
 
@@ -310,19 +317,22 @@ void main() {
       expect(done.metrics.prefillTokensPerSecond, isNull);
     });
 
-    test('prefillTokensPerSecond is null when lastPrefillDuration is zero', () async {
-      final session = _PromptMetricsSession(
-        ['a'],
-        lastPromptTokenCount: 10,
-        lastPrefillDuration: Duration.zero,
-      );
-      final ctrl = GenerationController();
+    test(
+      'prefillTokensPerSecond is null when lastPrefillDuration is zero',
+      () async {
+        final session = _PromptMetricsSession(
+          ['a'],
+          lastPromptTokenCount: 10,
+          lastPrefillDuration: Duration.zero,
+        );
+        final ctrl = GenerationController();
 
-      final events = await ctrl.run(session, [_user('x')]).toList();
-      final done = events.last as GenerationDone;
+        final events = await ctrl.run(session, [_user('x')]).toList();
+        final done = events.last as GenerationDone;
 
-      expect(done.metrics.prefillTokensPerSecond, isNull);
-    });
+        expect(done.metrics.prefillTokensPerSecond, isNull);
+      },
+    );
 
     test('promptTokenCount is null when the source has not run yet', () async {
       final session = _PromptMetricsSession(['a']);

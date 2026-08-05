@@ -1,6 +1,6 @@
 import 'package:little_star_app/core/model/model_profile.dart';
+import 'package:little_star_app/core/inference/generation_metrics.dart';
 import 'package:little_star_app/core/platform/thermal_probe.dart';
-import 'package:little_star_app/ui/shared/inference/generation_controller.dart';
 
 /// One completed benchmark run: load time + the existing TTFT/decode-tps/
 /// prefill metrics from [GenerationController], plus device telemetry

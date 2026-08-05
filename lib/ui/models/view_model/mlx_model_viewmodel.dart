@@ -5,6 +5,7 @@ import 'package:little_star_app/data/services/mlx_repo_fetcher.dart';
 import 'package:little_star_app/models/mlx_model_info.dart';
 import 'package:little_star_app/utils/logger.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
 /// Records which HF repo a downloaded snapshot came from — the directory
 /// name alone can't reliably round-trip a repo id containing arbitrary
@@ -25,11 +26,28 @@ class MlxModelViewModel extends ChangeNotifier {
   String _status = '';
   String? _error;
 
-  MlxModelViewModel({
-    required Directory mlxModelsDir,
+  MlxModelViewModel({required Directory mlxModelsDir, MlxRepoFetcher? fetcher})
+    : _mlxModelsDir = mlxModelsDir,
+      _fetcher = fetcher ?? HttpMlxRepoFetcher();
+
+  /// Creates the production ViewModel without exposing platform-directory
+  /// resolution to the Widget. Tests may substitute the application-support
+  /// directory while exercising the same public initialization path.
+  static Future<MlxModelViewModel> createDefault({
+    Future<Directory> Function()? applicationSupportDirectory,
     MlxRepoFetcher? fetcher,
-  })  : _mlxModelsDir = mlxModelsDir,
-        _fetcher = fetcher ?? HttpMlxRepoFetcher();
+  }) async {
+    final supportDirectory =
+        await (applicationSupportDirectory ?? getApplicationSupportDirectory)();
+    final viewModel = MlxModelViewModel(
+      mlxModelsDir: Directory(
+        path.join(supportDirectory.path, 'Models', 'mlx'),
+      ),
+      fetcher: fetcher,
+    );
+    await viewModel.init();
+    return viewModel;
+  }
 
   List<MlxModelInfo> get localModels => List.unmodifiable(_localModels);
   bool get isLoadingLocal => _isLoadingLocal;
@@ -50,11 +68,12 @@ class MlxModelViewModel extends ChangeNotifier {
         await for (final entity in _mlxModelsDir.list()) {
           if (entity is! Directory) continue;
 
-          final files = entity
-              .listSync()
-              .whereType<File>()
-              .where((f) => path.basename(f.path) != _repoIdMarkerFile)
-              .toList();
+          final files =
+              entity
+                  .listSync()
+                  .whereType<File>()
+                  .where((f) => path.basename(f.path) != _repoIdMarkerFile)
+                  .toList();
           if (files.isEmpty) continue;
 
           var totalSize = 0;
@@ -62,11 +81,13 @@ class MlxModelViewModel extends ChangeNotifier {
             totalSize += await f.length();
           }
 
-          models.add(MlxModelInfo(
-            repoId: await _readRepoId(entity),
-            directoryPath: entity.path,
-            totalSizeBytes: totalSize,
-          ));
+          models.add(
+            MlxModelInfo(
+              repoId: await _readRepoId(entity),
+              directoryPath: entity.path,
+              totalSizeBytes: totalSize,
+            ),
+          );
         }
       }
       _localModels = models;
@@ -98,7 +119,9 @@ class MlxModelViewModel extends ChangeNotifier {
         return false;
       }
 
-      final targetDir = Directory(path.join(_mlxModelsDir.path, _slugify(trimmed)));
+      final targetDir = Directory(
+        path.join(_mlxModelsDir.path, _slugify(trimmed)),
+      );
       await targetDir.create(recursive: true);
 
       for (var i = 0; i < files.length; i++) {
@@ -118,7 +141,9 @@ class MlxModelViewModel extends ChangeNotifier {
         );
       }
 
-      await File(path.join(targetDir.path, _repoIdMarkerFile)).writeAsString(trimmed);
+      await File(
+        path.join(targetDir.path, _repoIdMarkerFile),
+      ).writeAsString(trimmed);
 
       _status = 'Download complete ✓';
       _downloadProgress = 1;

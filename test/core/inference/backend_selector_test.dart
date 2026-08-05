@@ -4,19 +4,31 @@ import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
 import 'package:little_star_app/core/inference/llama_cpp_backend.dart';
+import 'package:little_star_app/core/inference/mlx_backend.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
-import 'package:little_star_app/models/chat_message.dart';
+import 'package:little_star_app/core/platform/platform_adapter.dart';
+import 'package:little_star_app/data/services/directory_service.dart';
 
 // ─── Fake platform ────────────────────────────────────────────────────────────
 
-class _FakePlatform implements BackendPlatform {
+class _FakePlatform implements PlatformAdapter {
   @override
-  final bool supportsMLX;
-  _FakePlatform({required this.supportsMLX});
+  final bool supportsMlx;
+
+  _FakePlatform({required this.supportsMlx});
+
+  @override
+  String get platformId => 'test';
+
+  @override
+  bool get supportsInference => true;
+
+  @override
+  DirectoryService get directoryService => DesktopDirectoryService();
 }
 
-final _appleDevice = _FakePlatform(supportsMLX: true);
-final _nonAppleDevice = _FakePlatform(supportsMLX: false);
+final _appleDevice = _FakePlatform(supportsMlx: true);
+final _nonAppleDevice = _FakePlatform(supportsMlx: false);
 
 // ─── Stub MLX backend ─────────────────────────────────────────────────────────
 
@@ -25,8 +37,10 @@ class _StubMlxBackend implements InferenceBackend {
   bool canHandle(ModelProfile profile) => profile.format == ModelFormat.mlx;
 
   @override
-  InferenceSession createSession(ModelProfile profile, InferenceSettings settings) =>
-      throw UnimplementedError();
+  InferenceSession createSession(
+    ModelProfile profile,
+    InferenceSettings settings,
+  ) => throw UnimplementedError();
 }
 
 // ─── Profiles ─────────────────────────────────────────────────────────────────
@@ -85,31 +99,19 @@ void main() {
       platform: _nonAppleDevice,
       mlxBackendFactory: () => _StubMlxBackend(),
     );
-    expect(
-      () => selector.select(_mlxProfile),
-      throwsUnsupportedError,
-    );
+    expect(() => selector.select(_mlxProfile), throwsUnsupportedError);
   });
 
   // Scenario 6: MLX on Android → UnsupportedError
   test('mlx on android → throws UnsupportedError', () {
     final selector = BackendSelector(platform: _nonAppleDevice);
-    expect(
-      () => selector.select(_mlxProfile),
-      throwsUnsupportedError,
-    );
+    expect(() => selector.select(_mlxProfile), throwsUnsupportedError);
   });
 
-  // Scenario 7: MLX on Apple but no factory → UnimplementedError
-  test('mlx on apple without factory → throws UnimplementedError', () {
-    final selector = BackendSelector(
-      platform: _appleDevice,
-      // mlxBackendFactory intentionally not provided
-    );
-    expect(
-      () => selector.select(_mlxProfile),
-      throwsA(isA<UnimplementedError>()),
-    );
+  // Scenario 7: Production selector owns the default MLX registration.
+  test('mlx on apple without an override → MlxBackend', () {
+    final selector = BackendSelector(platform: _appleDevice);
+    expect(selector.select(_mlxProfile), isA<MlxBackend>());
   });
 
   // Override scenarios
@@ -150,6 +152,9 @@ void main() {
 
   // BackendOverride enum completeness
   test('BackendOverride has llamaCpp and mlx values', () {
-    expect(BackendOverride.values, containsAll([BackendOverride.llamaCpp, BackendOverride.mlx]));
+    expect(
+      BackendOverride.values,
+      containsAll([BackendOverride.llamaCpp, BackendOverride.mlx]),
+    );
   });
 }

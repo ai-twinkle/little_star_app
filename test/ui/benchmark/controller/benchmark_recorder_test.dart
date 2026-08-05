@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
+import 'package:little_star_app/ui/benchmark/controller/benchmark_recorder.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
@@ -8,7 +8,7 @@ import 'package:little_star_app/core/platform/battery_probe.dart';
 import 'package:little_star_app/core/platform/memory_probe.dart';
 import 'package:little_star_app/core/platform/thermal_probe.dart';
 import 'package:little_star_app/models/chat_message.dart';
-import 'package:little_star_app/ui/shared/inference/generation_controller.dart';
+import 'package:little_star_app/core/inference/generation_metrics.dart';
 
 // ─── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,10 @@ class _FakeBackend implements InferenceBackend {
   bool canHandle(ModelProfile profile) => true;
 
   @override
-  InferenceSession createSession(ModelProfile profile, InferenceSettings settings) {
+  InferenceSession createSession(
+    ModelProfile profile,
+    InferenceSettings settings,
+  ) {
     lastProfile = profile;
     lastSettings = settings;
     return session;
@@ -107,12 +110,11 @@ BenchmarkRecorder _recorder({
   List<int> memory = const [100],
   List<ThermalStatus> thermal = const [ThermalStatus.nominal],
   List<int?> battery = const [80],
-}) =>
-    BenchmarkRecorder(
-      memoryProbe: _FakeMemoryProbe(memory),
-      thermalProbe: _FakeThermalProbe(thermal),
-      batteryProbe: _FakeBatteryProbe(battery),
-    );
+}) => BenchmarkRecorder(
+  memoryProbe: _FakeMemoryProbe(memory),
+  thermalProbe: _FakeThermalProbe(thermal),
+  batteryProbe: _FakeBatteryProbe(battery),
+);
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -199,20 +201,26 @@ void main() {
       expect(sample.modelLoadDuration, Duration.zero);
     });
 
-    test('rethrows the generation error instead of returning a sample', () async {
-      final session = _FakeSession(tokens: ['a'], errorAfter: StateError('boom'));
-      final recorder = _recorder();
+    test(
+      'rethrows the generation error instead of returning a sample',
+      () async {
+        final session = _FakeSession(
+          tokens: ['a'],
+          errorAfter: StateError('boom'),
+        );
+        final recorder = _recorder();
 
-      expect(
-        () => recorder.runOnExistingSession(
-          session: session,
-          format: ModelFormat.gguf,
-          modelId: 'model-1',
-          messages: [_userMsg],
-        ),
-        throwsA(isA<StateError>()),
-      );
-    });
+        expect(
+          () => recorder.runOnExistingSession(
+            session: session,
+            format: ModelFormat.gguf,
+            modelId: 'model-1',
+            messages: [_userMsg],
+          ),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
   });
 
   group('BenchmarkRecorder.runNewSession', () {
@@ -224,7 +232,6 @@ void main() {
 
       final result = await recorder.runNewSession(
         backend: backend,
-        format: ModelFormat.gguf,
         profile: _profile,
         settings: settings,
         messages: [_userMsg],
@@ -236,7 +243,10 @@ void main() {
       expect(backend.lastSettings, settings);
       expect(result.sample.modelId, 'model-1');
       expect(result.sample.label, 'session-cold');
-      expect(result.sample.modelLoadDuration, greaterThanOrEqualTo(Duration.zero));
+      expect(
+        result.sample.modelLoadDuration,
+        greaterThanOrEqualTo(Duration.zero),
+      );
     });
   });
 }

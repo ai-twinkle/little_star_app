@@ -32,10 +32,10 @@ class _FakeFetcher implements MlxRepoFetcher {
 }
 
 HFModelFile _file(String name, {int size = 10}) => HFModelFile(
-      filename: name,
-      size: size,
-      downloadUrl: 'https://huggingface.co/fake/repo/resolve/main/$name',
-    );
+  filename: name,
+  size: size,
+  downloadUrl: 'https://huggingface.co/fake/repo/resolve/main/$name',
+);
 
 void main() {
   late Directory tempDir;
@@ -51,9 +51,30 @@ void main() {
   });
 
   group('MlxModelViewModel — loadLocalModels', () {
+    test(
+      'createDefault resolves the MLX root and initializes local models',
+      () async {
+        final mlxRoot = Directory('${tempDir.path}/Models/mlx');
+        final snapshot = Directory('${mlxRoot.path}/some_repo')
+          ..createSync(recursive: true);
+        File('${snapshot.path}/config.json').writeAsStringSync('{}');
+
+        final vm = await MlxModelViewModel.createDefault(
+          applicationSupportDirectory: () async => tempDir,
+          fetcher: _FakeFetcher([]),
+        );
+        addTearDown(vm.dispose);
+
+        expect(vm.localModels.single.repoId, 'some/repo');
+      },
+    );
+
     test('empty when directory does not exist', () async {
       final dir = Directory('${tempDir.path}/does-not-exist');
-      final vm = MlxModelViewModel(mlxModelsDir: dir, fetcher: _FakeFetcher([]));
+      final vm = MlxModelViewModel(
+        mlxModelsDir: dir,
+        fetcher: _FakeFetcher([]),
+      );
       addTearDown(vm.dispose);
 
       await vm.init();
@@ -67,7 +88,10 @@ void main() {
       File('${snapshot.path}/config.json').writeAsStringSync('{}');
       File('${snapshot.path}/.repo_id').writeAsStringSync('Real/RepoId');
 
-      final vm = MlxModelViewModel(mlxModelsDir: tempDir, fetcher: _FakeFetcher([]));
+      final vm = MlxModelViewModel(
+        mlxModelsDir: tempDir,
+        fetcher: _FakeFetcher([]),
+      );
       addTearDown(vm.dispose);
       await vm.init();
 
@@ -76,33 +100,49 @@ void main() {
       expect(vm.localModels.first.displayName, 'RepoId');
     });
 
-    test('falls back to unslugified directory name without marker file', () async {
-      final snapshot = Directory('${tempDir.path}/Bbson_gemma-3-4B-T1-it-MLX-4bit')
-        ..createSync();
-      File('${snapshot.path}/config.json').writeAsStringSync('{}');
+    test(
+      'falls back to unslugified directory name without marker file',
+      () async {
+        final snapshot = Directory(
+          '${tempDir.path}/Bbson_gemma-3-4B-T1-it-MLX-4bit',
+        )..createSync();
+        File('${snapshot.path}/config.json').writeAsStringSync('{}');
 
-      final vm = MlxModelViewModel(mlxModelsDir: tempDir, fetcher: _FakeFetcher([]));
-      addTearDown(vm.dispose);
-      await vm.init();
+        final vm = MlxModelViewModel(
+          mlxModelsDir: tempDir,
+          fetcher: _FakeFetcher([]),
+        );
+        addTearDown(vm.dispose);
+        await vm.init();
 
-      expect(vm.localModels.first.repoId, 'Bbson/gemma-3-4B-T1-it-MLX-4bit');
-    });
+        expect(vm.localModels.first.repoId, 'Bbson/gemma-3-4B-T1-it-MLX-4bit');
+      },
+    );
 
-    test('skips a snapshot directory containing only the marker file', () async {
-      final snapshot = Directory('${tempDir.path}/empty_slug')..createSync();
-      File('${snapshot.path}/.repo_id').writeAsStringSync('some/repo');
+    test(
+      'skips a snapshot directory containing only the marker file',
+      () async {
+        final snapshot = Directory('${tempDir.path}/empty_slug')..createSync();
+        File('${snapshot.path}/.repo_id').writeAsStringSync('some/repo');
 
-      final vm = MlxModelViewModel(mlxModelsDir: tempDir, fetcher: _FakeFetcher([]));
-      addTearDown(vm.dispose);
-      await vm.init();
+        final vm = MlxModelViewModel(
+          mlxModelsDir: tempDir,
+          fetcher: _FakeFetcher([]),
+        );
+        addTearDown(vm.dispose);
+        await vm.init();
 
-      expect(vm.localModels, isEmpty);
-    });
+        expect(vm.localModels, isEmpty);
+      },
+    );
   });
 
   group('MlxModelViewModel — downloadModel', () {
     test('downloads every file into a slugified snapshot directory', () async {
-      final fetcher = _FakeFetcher([_file('config.json'), _file('model.safetensors')]);
+      final fetcher = _FakeFetcher([
+        _file('config.json'),
+        _file('model.safetensors'),
+      ]);
       final vm = MlxModelViewModel(mlxModelsDir: tempDir, fetcher: fetcher);
       addTearDown(vm.dispose);
       await vm.init();
@@ -115,19 +155,25 @@ void main() {
       expect(vm.downloadProgress, 1);
       expect(vm.error, isNull);
 
-      final snapshotDir =
-          Directory('${tempDir.path}/Bbson_gemma-3-4B-T1-it-MLX-4bit');
+      final snapshotDir = Directory(
+        '${tempDir.path}/Bbson_gemma-3-4B-T1-it-MLX-4bit',
+      );
       expect(await snapshotDir.exists(), isTrue);
       expect(await File('${snapshotDir.path}/config.json').exists(), isTrue);
-      expect(await File('${snapshotDir.path}/.repo_id').readAsString(),
-          'Bbson/gemma-3-4B-T1-it-MLX-4bit');
+      expect(
+        await File('${snapshotDir.path}/.repo_id').readAsString(),
+        'Bbson/gemma-3-4B-T1-it-MLX-4bit',
+      );
 
       expect(vm.localModels, hasLength(1));
       expect(vm.localModels.first.repoId, 'Bbson/gemma-3-4B-T1-it-MLX-4bit');
     });
 
     test('sets error and returns false when repo has no MLX files', () async {
-      final vm = MlxModelViewModel(mlxModelsDir: tempDir, fetcher: _FakeFetcher([]));
+      final vm = MlxModelViewModel(
+        mlxModelsDir: tempDir,
+        fetcher: _FakeFetcher([]),
+      );
       addTearDown(vm.dispose);
       await vm.init();
 
@@ -151,7 +197,10 @@ void main() {
     });
 
     test('ignores blank repo id and does not touch isDownloading', () async {
-      final vm = MlxModelViewModel(mlxModelsDir: tempDir, fetcher: _FakeFetcher([]));
+      final vm = MlxModelViewModel(
+        mlxModelsDir: tempDir,
+        fetcher: _FakeFetcher([]),
+      );
       addTearDown(vm.dispose);
       await vm.init();
 

@@ -1,8 +1,8 @@
-import 'dart:io';
-
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/llama_cpp_backend.dart';
+import 'package:little_star_app/core/inference/mlx_backend.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
+import 'package:little_star_app/core/platform/platform_adapter.dart';
 
 // ─── Override ─────────────────────────────────────────────────────────────────
 
@@ -16,23 +16,6 @@ enum BackendOverride {
   mlx,
 }
 
-// ─── Platform abstraction (for testability) ──────────────────────────────────
-
-/// Answers platform questions that [BackendSelector] needs.
-/// Decoupled from [dart:io] so unit tests can inject fakes.
-abstract class BackendPlatform {
-  /// True when the device can run MLX (iOS or macOS on Apple Silicon).
-  bool get supportsMLX;
-}
-
-/// Production implementation backed by [Platform].
-class SystemBackendPlatform implements BackendPlatform {
-  const SystemBackendPlatform();
-
-  @override
-  bool get supportsMLX => Platform.isIOS || Platform.isMacOS;
-}
-
 // ─── BackendSelector ──────────────────────────────────────────────────────────
 
 /// Picks the right [InferenceBackend] for a [ModelProfile].
@@ -42,19 +25,17 @@ class SystemBackendPlatform implements BackendPlatform {
 /// - MLX + Apple Silicon → MlxBackend (task-1001).
 /// - MLX on any other platform → [UnsupportedError].
 ///
-/// Pass a [BackendOverride] to bypass the default logic.
-/// Wire [mlxBackendFactory] once task-1001 is complete.
+/// Pass a [BackendOverride] to bypass the default logic. Tests may replace the
+/// production MLX registration through [mlxBackendFactory].
 class BackendSelector {
-  final BackendPlatform _platform;
-
-  /// Factory called when an MLX backend is needed.
-  /// Throws [UnimplementedError] if null (until task-1001 lands).
-  final InferenceBackend Function()? mlxBackendFactory;
+  final PlatformAdapter _platform;
+  final InferenceBackend Function() _mlxBackendFactory;
 
   BackendSelector({
-    BackendPlatform? platform,
-    this.mlxBackendFactory,
-  }) : _platform = platform ?? const SystemBackendPlatform();
+    PlatformAdapter? platform,
+    InferenceBackend Function()? mlxBackendFactory,
+  }) : _platform = platform ?? PlatformAdapter.current(),
+       _mlxBackendFactory = mlxBackendFactory ?? MlxBackend.new;
 
   /// Returns the [InferenceBackend] appropriate for [profile].
   ///
@@ -71,23 +52,19 @@ class BackendSelector {
   }
 
   InferenceBackend _selectMlx(ModelProfile profile) {
-    if (!_platform.supportsMLX) {
+    if (!_platform.supportsMlx) {
       throw UnsupportedError(
         'MLX models require Apple Silicon (iOS or macOS). '
         'Profile: ${profile.id}',
       );
     }
-    final factory = mlxBackendFactory;
-    if (factory == null) {
-      throw UnimplementedError(
-        'MlxBackend is not yet wired up (task-1001). '
-        'Provide mlxBackendFactory to BackendSelector.',
-      );
-    }
-    return factory();
+    return _mlxBackendFactory();
   }
 
-  InferenceBackend _resolveOverride(BackendOverride override, ModelProfile profile) {
+  InferenceBackend _resolveOverride(
+    BackendOverride override,
+    ModelProfile profile,
+  ) {
     return switch (override) {
       BackendOverride.llamaCpp => LlamaCppBackend(),
       BackendOverride.mlx => _selectMlx(profile),

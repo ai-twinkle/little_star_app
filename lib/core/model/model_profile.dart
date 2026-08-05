@@ -1,7 +1,15 @@
 import 'package:little_star_app/core/inference/sampling_params.dart';
 
 /// Supported model file formats.
-enum ModelFormat { gguf, mlx }
+enum ModelFormat {
+  gguf,
+  mlx;
+
+  /// Infers the format using the app's existing local-path convention:
+  /// GGUF models are files ending in `.gguf`; MLX models are directories.
+  static ModelFormat fromLocalPath(String path) =>
+      path.toLowerCase().endsWith('.gguf') ? gguf : mlx;
+}
 
 /// Hints the chat-template layer (task-301) about which template family to
 /// apply when the GGUF's built-in template is absent or unrecognised.
@@ -72,6 +80,14 @@ class ModelProfile {
     this.localPath,
   }) : hfRepoId = hfRepoId ?? id;
 
+  /// Builds the profile used when opening a model already stored locally.
+  factory ModelProfile.fromLocalPath(String path) => ModelProfile(
+    id: path,
+    displayName: path.split('/').last,
+    format: ModelFormat.fromLocalPath(path),
+    localPath: path,
+  );
+
   ModelProfile copyWith({
     String? id,
     String? displayName,
@@ -93,10 +109,12 @@ class ModelProfile {
       displayName: displayName ?? this.displayName,
       format: format ?? this.format,
       hfRepoId: hfRepoId ?? this.hfRepoId,
-      recommendedQuantization: recommendedQuantization ?? this.recommendedQuantization,
+      recommendedQuantization:
+          recommendedQuantization ?? this.recommendedQuantization,
       chatTemplateHint: chatTemplateHint ?? this.chatTemplateHint,
       ctxLen: ctxLen ?? this.ctxLen,
-      defaultSamplingParams: defaultSamplingParams ?? this.defaultSamplingParams,
+      defaultSamplingParams:
+          defaultSamplingParams ?? this.defaultSamplingParams,
       backendHint: backendHint ?? this.backendHint,
       quickDescription: quickDescription ?? this.quickDescription,
       useCases: useCases ?? this.useCases,
@@ -108,21 +126,21 @@ class ModelProfile {
   // ── JSON ──────────────────────────────────────────────────────────────────
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'displayName': displayName,
-        'format': format.name,
-        'hfRepoId': hfRepoId,
-        if (recommendedQuantization != null)
-          'recommendedQuantization': recommendedQuantization,
-        'chatTemplateHint': chatTemplateHint.name,
-        'ctxLen': ctxLen,
-        'defaultSamplingParams': defaultSamplingParams.toJson(),
-        'backendHint': backendHint.name,
-        if (quickDescription != null) 'quickDescription': quickDescription,
-        if (useCases.isNotEmpty) 'useCases': useCases,
-        if (badge != null) 'badge': badge,
-        if (localPath != null) 'localPath': localPath,
-      };
+    'id': id,
+    'displayName': displayName,
+    'format': format.name,
+    'hfRepoId': hfRepoId,
+    if (recommendedQuantization != null)
+      'recommendedQuantization': recommendedQuantization,
+    'chatTemplateHint': chatTemplateHint.name,
+    'ctxLen': ctxLen,
+    'defaultSamplingParams': defaultSamplingParams.toJson(),
+    'backendHint': backendHint.name,
+    if (quickDescription != null) 'quickDescription': quickDescription,
+    if (useCases.isNotEmpty) 'useCases': useCases,
+    if (badge != null) 'badge': badge,
+    if (localPath != null) 'localPath': localPath,
+  };
 
   factory ModelProfile.fromJson(Map<String, dynamic> json) {
     return ModelProfile(
@@ -135,10 +153,12 @@ class ModelProfile {
         (json['chatTemplateHint'] as String?) ?? 'unknown',
       ),
       ctxLen: (json['ctxLen'] as num?)?.toInt() ?? 2048,
-      defaultSamplingParams: json['defaultSamplingParams'] != null
-          ? SamplingParams.fromJson(
-              json['defaultSamplingParams'] as Map<String, dynamic>)
-          : const SamplingParams(),
+      defaultSamplingParams:
+          json['defaultSamplingParams'] != null
+              ? SamplingParams.fromJson(
+                json['defaultSamplingParams'] as Map<String, dynamic>,
+              )
+              : const SamplingParams(),
       backendHint: BackendHint.values.byName(
         (json['backendHint'] as String?) ?? 'auto',
       ),

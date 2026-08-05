@@ -40,6 +40,7 @@ that owns generation orchestration:
 |----------------|----------|
 | Driving `InferenceSession.generate` | `GenerationController` |
 | Measuring TTFT and TPS | `GenerationController` |
+| Defining generation metric value types | `lib/core/inference/generation_metrics.dart` |
 | Cooperative cancellation (`cancel()`) | `GenerationController` |
 | Emitting `Stream<GenerationEvent>` | `GenerationController` |
 | UI state (messages list, `isGenerating`, error text) | ViewModel |
@@ -143,8 +144,10 @@ manage the async lifecycle.
 
 ## References
 
-- `lib/ui/shared/inference/generation_controller.dart` — `GenerationController`,
-  `GenerationEvent` hierarchy, `GenerationMetrics`, `StopReason`.
+- `lib/ui/shared/inference/generation_controller.dart` — `GenerationController`
+  and the `GenerationEvent` hierarchy.
+- `lib/core/inference/generation_metrics.dart` — shared `GenerationMetrics`
+  and `StopReason` value types.
 - `lib/ui/completion/view_model/completion_viewmodel.dart` — ViewModel after
   extraction (244 lines); `MetricsData` mapping.
 - `lib/ui/chat/view_model/chat_viewmodel.dart` — ViewModel after extraction

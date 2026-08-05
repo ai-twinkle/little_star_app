@@ -3,15 +3,16 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:little_star_app/core/benchmark/benchmark_export.dart';
-import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
+import 'package:little_star_app/core/benchmark/prompt_tiers.dart';
 import 'package:little_star_app/core/inference/backend_selector.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
-import 'package:little_star_app/core/inference/mlx_backend.dart';
 import 'package:little_star_app/core/inference/sampling_params.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
+import 'package:little_star_app/data/services/local_model_catalog.dart';
 import 'package:little_star_app/models/chat_message.dart';
+import 'package:little_star_app/ui/benchmark/controller/benchmark_recorder.dart';
 import 'package:little_star_app/utils/logger.dart';
 
 /// Official T1 model-card recommended sampling for benchmark runs — see
@@ -27,50 +28,71 @@ const InferenceSettings kBenchmarkDefaultSettings = InferenceSettings(
 /// model path, runs recorded generations against it (cold on session-open,
 /// warm on repeat calls), and exports the accumulated [BenchmarkSample]s.
 ///
-/// Deliberately mirrors [ChatViewModel]/[CompletionViewModel]'s format
-/// detection (`.gguf` extension vs. MLX directory) rather than introducing a
-/// third convention.
+/// Uses [ModelProfile.fromLocalPath], the same local-path policy shared by
+/// [ChatViewModel] and [CompletionViewModel].
 class BenchmarkViewModel extends ChangeNotifier {
   final BenchmarkRecorder _recorder;
   final BackendSelector _backendSelector;
+  final LocalModelCatalog _localModelCatalog;
   final InferenceSettings settings;
   final Logger _log = Logger('BenchmarkViewModel');
 
   InferenceSession? _session;
   ModelProfile? _profile;
   final List<BenchmarkSample> _samples = [];
+  List<LocalModelEntry> _availableModels = [];
+  PreflightStatus? _preflight;
 
   bool isRunning = false;
+  bool isSustainedRunning = false;
   String? lastError;
+  bool _appJustLaunched = false;
+  bool _sustainedCancelled = false;
 
   BenchmarkViewModel({
     BenchmarkRecorder? recorder,
     BackendSelector? backendSelector,
+    LocalModelCatalog? localModelCatalog,
     this.settings = kBenchmarkDefaultSettings,
-  })  : _recorder = recorder ?? BenchmarkRecorder(),
-        _backendSelector = backendSelector ?? BackendSelector(mlxBackendFactory: MlxBackend.new);
+  }) : _recorder = recorder ?? BenchmarkRecorder(),
+       _backendSelector = backendSelector ?? BackendSelector(),
+       _localModelCatalog = localModelCatalog ?? LocalModelCatalog();
 
   List<BenchmarkSample> get samples => List.unmodifiable(_samples);
+  List<LocalModelEntry> get availableModels =>
+      List.unmodifiable(_availableModels);
   bool get hasOpenSession => _session != null;
   String? get openModelId => _profile?.id;
+  bool get appJustLaunched => _appJustLaunched;
+  PreflightStatus? get preflight => _preflight;
 
-  static ModelFormat _detectFormat(String modelPath) =>
-      modelPath.toLowerCase().endsWith('.gguf') ? ModelFormat.gguf : ModelFormat.mlx;
+  void setAppJustLaunched(bool value) {
+    if (_appJustLaunched == value) return;
+    _appJustLaunched = value;
+    notifyListeners();
+  }
+
+  Future<void> refreshLocalModels() async {
+    _availableModels = await _localModelCatalog.discover();
+    notifyListeners();
+  }
+
+  Future<void> refreshPreflight() async {
+    _preflight = await _recorder.checkPreflight();
+    notifyListeners();
+  }
 
   /// Opens a fresh session for [modelPath] and records the first ("session
   /// cold") generation on it. Closes any previously open session first —
   /// mirrors the no-leak pattern in `LlamaCppBackend`/`MlxBackend` callers.
-  Future<void> openSessionAndRun(String modelPath, List<ChatMessage> messages,
-      {String? label}) async {
+  Future<void> openSessionAndRun(
+    String modelPath,
+    List<ChatMessage> messages, {
+    String? label,
+  }) async {
     closeSession();
 
-    final format = _detectFormat(modelPath);
-    final profile = ModelProfile(
-      id: modelPath,
-      displayName: modelPath,
-      format: format,
-      localPath: modelPath,
-    );
+    final profile = ModelProfile.fromLocalPath(modelPath);
 
     isRunning = true;
     lastError = null;
@@ -79,7 +101,6 @@ class BenchmarkViewModel extends ChangeNotifier {
       final backend = _backendSelector.select(profile);
       final result = await _recorder.runNewSession(
         backend: backend,
-        format: format,
         profile: profile,
         settings: settings,
         messages: messages,
@@ -99,12 +120,20 @@ class BenchmarkViewModel extends ChangeNotifier {
   }
 
   /// Convenience for [openSessionAndRun] with a single user turn.
-  Future<void> openSessionAndRunPrompt(String modelPath, String prompt, {String? label}) =>
-      openSessionAndRun(modelPath, [ChatMessage(content: prompt, isUser: true)], label: label);
+  Future<void> openSessionAndRunPrompt(
+    String modelPath,
+    String prompt, {
+    String? label,
+  }) => openSessionAndRun(modelPath, [
+    ChatMessage(content: prompt, isUser: true),
+  ], label: label);
 
   /// Records another ("session warm") generation on the currently open
   /// session. No-op if no session is open.
-  Future<void> runOnOpenSession(List<ChatMessage> messages, {String? label}) async {
+  Future<void> runOnOpenSession(
+    List<ChatMessage> messages, {
+    String? label,
+  }) async {
     final session = _session;
     final profile = _profile;
     if (session == null || profile == null) return;
@@ -133,7 +162,101 @@ class BenchmarkViewModel extends ChangeNotifier {
 
   /// Convenience for [runOnOpenSession] with a single user turn.
   Future<void> runOnOpenSessionPrompt(String prompt, {String? label}) =>
-      runOnOpenSession([ChatMessage(content: prompt, isUser: true)], label: label);
+      runOnOpenSession([
+        ChatMessage(content: prompt, isUser: true),
+      ], label: label);
+
+  /// Runs the standardized benchmark protocol across every requested tier.
+  Future<void> runProtocol(
+    String modelPath, {
+    List<PromptTier>? tiers,
+    int warmRepeats = 2,
+  }) async {
+    final labelFirstTierAppCold = _appJustLaunched;
+    if (_appJustLaunched) {
+      _appJustLaunched = false;
+      notifyListeners();
+    }
+    final list = tiers ?? PromptTier.all;
+    for (var i = 0; i < list.length; i++) {
+      await _runProtocolTier(
+        modelPath,
+        list[i],
+        warmRepeats: warmRepeats,
+        isFirstSessionThisLaunch: labelFirstTierAppCold && i == 0,
+      );
+    }
+  }
+
+  Future<void> _runProtocolTier(
+    String modelPath,
+    PromptTier tier, {
+    required int warmRepeats,
+    required bool isFirstSessionThisLaunch,
+  }) async {
+    final coldLabel =
+        isFirstSessionThisLaunch
+            ? '${tier.label}-app-cold'
+            : '${tier.label}-session-cold';
+    await openSessionAndRun(modelPath, tier.toMessages(), label: coldLabel);
+
+    for (var i = 1; i <= warmRepeats; i++) {
+      await runOnOpenSession(
+        tier.toMessages(),
+        label: '${tier.label}-session-warm-$i',
+      );
+    }
+    closeSession();
+  }
+
+  /// Convenience for sustained generation from Widget-owned prompt text.
+  Future<void> runSustainedPrompt(
+    String prompt, {
+    Duration duration = const Duration(minutes: 10),
+    int? maxIterations,
+    String labelPrefix = 'sustained',
+  }) => runSustained(
+    messages: [ChatMessage(content: prompt, isUser: true)],
+    duration: duration,
+    maxIterations: maxIterations,
+    labelPrefix: labelPrefix,
+  );
+
+  /// Repeatedly generates on the open session for a fixed wall-clock period.
+  Future<void> runSustained({
+    required List<ChatMessage> messages,
+    Duration duration = const Duration(minutes: 10),
+    int? maxIterations,
+    String labelPrefix = 'sustained',
+  }) async {
+    if (!hasOpenSession) {
+      throw StateError('runSustained requires an already-open session');
+    }
+
+    _sustainedCancelled = false;
+    isSustainedRunning = true;
+    notifyListeners();
+    final start = DateTime.now();
+    var i = 0;
+    try {
+      while (!_sustainedCancelled &&
+          DateTime.now().difference(start) < duration &&
+          (maxIterations == null || i < maxIterations)) {
+        i++;
+        final elapsedMs = DateTime.now().difference(start).inMilliseconds;
+        await runOnOpenSession(
+          messages,
+          label: '$labelPrefix-t${elapsedMs}ms-$i',
+        );
+      }
+    } finally {
+      isSustainedRunning = false;
+      notifyListeners();
+    }
+  }
+
+  /// Stops sustained mode after the in-flight generation completes.
+  void cancelSustained() => _sustainedCancelled = true;
 
   /// Current thermal/battery reading — task-C02 pre-flight check, shown in
   /// the UI before a protocol run so the tester can confirm the manual
@@ -152,9 +275,11 @@ class BenchmarkViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<File> exportCsv() => _writeExport('csv', benchmarkSamplesToCsv(_samples));
+  Future<File> exportCsv() =>
+      _writeExport('csv', benchmarkSamplesToCsv(_samples));
 
-  Future<File> exportJson() => _writeExport('json', benchmarkSamplesToJson(_samples));
+  Future<File> exportJson() =>
+      _writeExport('json', benchmarkSamplesToJson(_samples));
 
   /// Writes into Documents (not a temp dir) so the export survives an app
   /// restart and shows up in the Files app under "On My iPhone" — the app
@@ -162,7 +287,10 @@ class BenchmarkViewModel extends ChangeNotifier {
   /// which only exposes Documents, not tmp.
   Future<File> _writeExport(String extension, String content) async {
     final dir = await getApplicationDocumentsDirectory();
-    final timestamp = DateTime.now().toIso8601String().replaceAll(RegExp('[:.]'), '-');
+    final timestamp = DateTime.now().toIso8601String().replaceAll(
+      RegExp('[:.]'),
+      '-',
+    );
     final file = File('${dir.path}/benchmark_$timestamp.$extension');
     return file.writeAsString(content);
   }

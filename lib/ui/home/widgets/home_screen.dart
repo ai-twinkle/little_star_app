@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -70,9 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return ListenableBuilder(
@@ -86,14 +82,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 elevation: 0,
                 actions: [
-                  if (kDebugMode && (Platform.isIOS || Platform.isMacOS))
+                  if (kDebugMode && _viewModel.supportsMlx)
                     IconButton(
                       icon: const Icon(Icons.science_outlined),
                       tooltip: 'MLX Spike',
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MlxSpikeScreen()),
-                      ),
+                      onPressed:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MlxSpikeScreen(),
+                            ),
+                          ),
                     ),
                   IconButton(
                     icon: const Icon(Icons.info_outline),
@@ -122,7 +121,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         DownloadedModelsSection(
                           models: _viewModel.localModels,
                           onChat: (model) => _navigateToChat(context, model),
-                          onTest: (model) => _navigateToCompletion(context, model),
+                          onTest:
+                              (model) => _navigateToCompletion(context, model),
                           onManage: () => _openModelManager(context),
                         ),
                         const SizedBox(height: 24),
@@ -136,47 +136,60 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildNavigationCard(
                         context: context,
                         title: 'Model Completion',
-                        subtitle: 'Test models with single prompts and view performance metrics',
+                        subtitle:
+                            'Test models with single prompts and view performance metrics',
                         icon: Icons.science,
                         color: Colors.blue,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const CompletionScreen()),
-                        ),
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CompletionScreen(),
+                              ),
+                            ),
                       ),
                       const SizedBox(height: 16),
                       _buildNavigationCard(
                         context: context,
                         title: 'AI Chat (Experimental)',
-                        subtitle: 'Have conversations with AI models in a chat interface',
+                        subtitle:
+                            'Have conversations with AI models in a chat interface',
                         icon: Icons.chat,
                         color: Colors.green,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ChatScreen()),
-                        ),
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ChatScreen(),
+                              ),
+                            ),
                       ),
                       const SizedBox(height: 16),
                       _buildNavigationCard(
                         context: context,
                         title: 'Model Manager',
-                        subtitle: 'Browse, download and manage GGUF models from Hugging Face',
+                        subtitle:
+                            'Browse, download and manage GGUF models from Hugging Face',
                         icon: Icons.download,
                         color: Colors.orange,
                         onTap: () => _openModelManager(context),
                       ),
-                      if (Platform.isIOS || Platform.isMacOS) ...[
+                      if (_viewModel.supportsMlx) ...[
                         const SizedBox(height: 16),
                         _buildNavigationCard(
                           context: context,
                           title: 'MLX Models (Apple Silicon)',
-                          subtitle: 'Download and chat with MLX models on-device',
+                          subtitle:
+                              'Download and chat with MLX models on-device',
                           icon: Icons.memory,
                           color: Colors.deepPurple,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const MlxModelsScreen()),
-                          ),
+                          onTap:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const MlxModelsScreen(),
+                                ),
+                              ),
                         ),
                       ],
                       if (!kReleaseMode) ...[
@@ -184,13 +197,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         _buildNavigationCard(
                           context: context,
                           title: 'Benchmark (Internal)',
-                          subtitle: 'C-line measurement harness — not part of the shipped app',
+                          subtitle:
+                              'C-line measurement harness — not part of the shipped app',
                           icon: Icons.speed,
                           color: Colors.teal,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const BenchmarkScreen()),
-                          ),
+                          onTap:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const BenchmarkScreen(),
+                                ),
+                              ),
                         ),
                       ],
                       const SizedBox(height: 20),
@@ -204,7 +221,10 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!_viewModel.hasCompletedOnboarding)
               OnboardingGuide(
                 currentStep: _viewModel.currentOnboardingStep,
-                onNext: () => _viewModel.completeOnboardingStep(_viewModel.currentOnboardingStep),
+                onNext:
+                    () => _viewModel.completeOnboardingStep(
+                      _viewModel.currentOnboardingStep,
+                    ),
                 onSkip: () => _viewModel.skipOnboarding(),
                 onComplete: () => _viewModel.skipOnboarding(),
               ),
@@ -234,15 +254,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     'Welcome to Little Star',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Choose how you want to interact with AI models',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -262,11 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
         initiallyExpanded: true,
         tilePadding: const EdgeInsets.symmetric(horizontal: 8.0),
         childrenPadding: const EdgeInsets.only(bottom: 12),
-        leading: Icon(
-          Icons.star,
-          size: 20,
-          color: Colors.amber,
-        ),
+        leading: Icon(Icons.star, size: 20, color: Colors.amber),
         title: Text(
           'Recommended Models',
           style: theme.textTheme.titleMedium?.copyWith(
@@ -291,14 +307,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: 320,
                     child: RecommendedModelCard(
                       modelState: modelState,
-                      onDownload: () => _viewModel.startOneClickDownload(
-                        modelState,
-                        requestPermission: () => _directoryService.requestPermissions(context: context),
-                      ),
-                      onOpen: () => _navigateToChat(
-                        context,
-                        _findLocalModel(modelState.recommendedFile?.filename),
-                      ),
+                      onDownload:
+                          () => _viewModel.startOneClickDownload(
+                            modelState,
+                            requestPermission:
+                                () => _directoryService.requestPermissions(
+                                  context: context,
+                                ),
+                          ),
+                      onOpen:
+                          () => _navigateToChat(
+                            context,
+                            _findLocalModel(
+                              modelState.recommendedFile?.filename,
+                            ),
+                          ),
                     ),
                   );
                 },
@@ -341,11 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: color,
-                ),
+                child: Icon(icon, size: 32, color: color),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -355,24 +374,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.grey[400],
-                size: 20,
-              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 20),
             ],
           ),
         ),
@@ -385,9 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          initialModelPath: model.filePath,
-        ),
+        builder: (context) => ChatScreen(initialModelPath: model.filePath),
       ),
     );
   }
@@ -397,9 +410,8 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CompletionScreen(
-          initialModelPath: model.filePath,
-        ),
+        builder:
+            (context) => CompletionScreen(initialModelPath: model.filePath),
       ),
     );
   }
@@ -425,9 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openAboutScreen(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const AboutScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const AboutScreen()),
     );
   }
 }

@@ -1,56 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
-import 'package:little_star_app/core/benchmark/protocol_runner.dart';
-import 'package:little_star_app/core/benchmark/sustained_load_runner.dart';
-import 'package:little_star_app/data/services/directory_service.dart';
-import 'package:little_star_app/models/chat_message.dart';
+import 'package:little_star_app/ui/benchmark/controller/benchmark_recorder.dart';
 import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart';
-
-/// One entry in the "pick a downloaded model" list — scanned straight off
-/// disk (same directories the app's own model manager screens use) so the
-/// user never has to hand-type an app-sandboxed path (which changes every
-/// reinstall, e.g. `/var/mobile/Containers/Data/Application/<UUID>/...`).
-class _ModelOption {
-  final String label;
-  final String path;
-  const _ModelOption(this.label, this.path);
-}
-
-Future<List<_ModelOption>> _discoverLocalModels() async {
-  final options = <_ModelOption>[];
-  try {
-    final modelsDir = await DirectoryServiceFactory.create().getModelsDirectory();
-    if (await modelsDir.exists()) {
-      await for (final entity in modelsDir.list()) {
-        if (entity is File && entity.path.toLowerCase().endsWith('.gguf')) {
-          options.add(_ModelOption('GGUF · ${p.basename(entity.path)}', entity.path));
-        }
-      }
-    }
-  } catch (_) {
-    // Best-effort discovery — falls back to manual path entry.
-  }
-  try {
-    final appSupportDir = await getApplicationSupportDirectory();
-    final mlxDir = Directory(p.join(appSupportDir.path, 'Models', 'mlx'));
-    if (await mlxDir.exists()) {
-      await for (final entity in mlxDir.list()) {
-        if (entity is Directory) {
-          options.add(_ModelOption('MLX · ${p.basename(entity.path)}', entity.path));
-        }
-      }
-    }
-  } catch (_) {
-    // Best-effort discovery — falls back to manual path entry.
-  }
-  return options;
-}
 
 /// Internal-only benchmark harness screen (task-C01) — not part of the
 /// customer-facing app (plan.md scoped C-line as "內部量測工具"). Reachable
@@ -66,15 +18,8 @@ class BenchmarkScreen extends StatefulWidget {
 
 class _BenchmarkScreenState extends State<BenchmarkScreen> {
   late final BenchmarkViewModel _viewModel;
-  late final BenchmarkProtocolRunner _protocolRunner;
-  late final SustainedLoadRunner _sustainedLoadRunner;
   late final TextEditingController _pathController;
   late final TextEditingController _promptController;
-
-  PreflightStatus? _preflight;
-  bool _appJustLaunched = false;
-  bool _sustainedLoadRunning = false;
-  List<_ModelOption> _availableModels = [];
 
   static const _defaultPrompt = '請用三句話介紹台灣夜市文化,並推薦三樣必吃小吃。';
 
@@ -82,68 +27,52 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   void initState() {
     super.initState();
     _viewModel = BenchmarkViewModel()..addListener(_onChanged);
-    _protocolRunner = BenchmarkProtocolRunner(_viewModel);
-    _sustainedLoadRunner = SustainedLoadRunner(_viewModel);
-    _pathController = TextEditingController(text: widget.initialModelPath ?? '');
+    _pathController = TextEditingController(
+      text: widget.initialModelPath ?? '',
+    );
     _promptController = TextEditingController(text: _defaultPrompt);
-    _refreshPreflight();
-    _discoverLocalModels().then((models) {
-      if (mounted) setState(() => _availableModels = models);
-    });
+    _viewModel.refreshPreflight();
+    _viewModel.refreshLocalModels();
   }
 
   Future<void> _pickModel() async {
     final selected = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: _availableModels.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('No downloaded models found in the app\'s model directories.'),
-              )
-            : ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final m in _availableModels)
-                    ListTile(
-                      title: Text(m.label),
-                      subtitle: Text(m.path, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      onTap: () => Navigator.pop(context, m.path),
+      builder:
+          (context) => SafeArea(
+            child:
+                _viewModel.availableModels.isEmpty
+                    ? const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'No downloaded models found in the app\'s model directories.',
+                      ),
+                    )
+                    : ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final m in _viewModel.availableModels)
+                          ListTile(
+                            title: Text(m.label),
+                            subtitle: Text(
+                              m.path,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () => Navigator.pop(context, m.path),
+                          ),
+                      ],
                     ),
-                ],
-              ),
-      ),
+          ),
     );
     if (selected != null) {
       setState(() => _pathController.text = selected);
     }
   }
 
-  Future<void> _refreshPreflight() async {
-    final status = await _viewModel.checkPreflight();
-    if (mounted) setState(() => _preflight = status);
-  }
-
-  Future<void> _runProtocol() async {
-    final wasAppJustLaunched = _appJustLaunched;
-    setState(() => _appJustLaunched = false); // consumed — only applies once
-    await _protocolRunner.runAll(
-      _pathController.text.trim(),
-      appJustLaunched: wasAppJustLaunched,
-    );
-  }
-
-  Future<void> _runSustainedLoad() async {
-    setState(() => _sustainedLoadRunning = true);
-    try {
-      await _sustainedLoadRunner.run(
-        messages: [ChatMessage(content: _promptController.text, isUser: true)],
-      );
-    } finally {
-      if (mounted) setState(() => _sustainedLoadRunning = false);
-    }
-  }
+  Future<void> _runSustainedLoad() =>
+      _viewModel.runSustainedPrompt(_promptController.text);
 
   void _onChanged() => setState(() {});
 
@@ -163,7 +92,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     // popover anchor — without it, shareXFiles throws a PlatformException
     // and the sheet never appears (silently dropping the export).
     final box = context.findRenderObject() as RenderBox?;
-    final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+    final origin =
+        box != null ? box.localToGlobal(Offset.zero) & box.size : null;
     await Share.shareXFiles([XFile(file.path)], sharePositionOrigin: origin);
   }
 
@@ -176,7 +106,10 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _PreflightBanner(status: _preflight, onRefresh: _refreshPreflight),
+            _PreflightBanner(
+              status: _viewModel.preflight,
+              onRefresh: _viewModel.refreshPreflight,
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _pathController,
@@ -206,9 +139,11 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _viewModel.isRunning || _pathController.text.trim().isEmpty
-                      ? null
-                      : () => _viewModel.openSessionAndRunPrompt(
+                  onPressed:
+                      _viewModel.isRunning ||
+                              _pathController.text.trim().isEmpty
+                          ? null
+                          : () => _viewModel.openSessionAndRunPrompt(
                             _pathController.text.trim(),
                             _promptController.text,
                           ),
@@ -216,54 +151,73 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                   label: const Text('Open session + run (cold)'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _viewModel.isRunning || !_viewModel.hasOpenSession
-                      ? null
-                      : () => _viewModel.runOnOpenSessionPrompt(_promptController.text),
+                  onPressed:
+                      _viewModel.isRunning || !_viewModel.hasOpenSession
+                          ? null
+                          : () => _viewModel.runOnOpenSessionPrompt(
+                            _promptController.text,
+                          ),
                   icon: const Icon(Icons.replay),
                   label: const Text('Run again (warm)'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: !_viewModel.hasOpenSession ? null : _viewModel.closeSession,
+                  onPressed:
+                      !_viewModel.hasOpenSession
+                          ? null
+                          : _viewModel.closeSession,
                   icon: const Icon(Icons.stop),
                   label: const Text('Close session'),
                 ),
               ],
             ),
             const Divider(height: 24),
-            Text('Standardized protocol (task-C02)', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Standardized protocol (task-C02)',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               dense: true,
-              value: _appJustLaunched,
-              onChanged: _viewModel.isRunning
-                  ? null
-                  : (v) => setState(() => _appJustLaunched = v ?? false),
-              title: const Text('App was just force-quit + relaunched (labels first sample app-cold)'),
+              value: _viewModel.appJustLaunched,
+              onChanged:
+                  _viewModel.isRunning
+                      ? null
+                      : (v) => _viewModel.setAppJustLaunched(v ?? false),
+              title: const Text(
+                'App was just force-quit + relaunched (labels first sample app-cold)',
+              ),
             ),
             FilledButton.icon(
-              onPressed: _viewModel.isRunning || _pathController.text.trim().isEmpty
-                  ? null
-                  : _runProtocol,
+              onPressed:
+                  _viewModel.isRunning || _pathController.text.trim().isEmpty
+                      ? null
+                      : () =>
+                          _viewModel.runProtocol(_pathController.text.trim()),
               icon: const Icon(Icons.playlist_play),
               label: const Text('Run standardized protocol (all 4 tiers)'),
             ),
             const Divider(height: 24),
-            Text('Sustained load (task-C03)', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Sustained load (task-C03)',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _sustainedLoadRunning || !_viewModel.hasOpenSession
-                      ? null
-                      : _runSustainedLoad,
+                  onPressed:
+                      _viewModel.isSustainedRunning ||
+                              !_viewModel.hasOpenSession
+                          ? null
+                          : _runSustainedLoad,
                   icon: const Icon(Icons.timelapse),
                   label: const Text('Run 10 min sustained load'),
                 ),
-                if (_sustainedLoadRunning)
+                if (_viewModel.isSustainedRunning)
                   OutlinedButton.icon(
-                    onPressed: _sustainedLoadRunner.cancel,
+                    onPressed: _viewModel.cancelSustained,
                     icon: const Icon(Icons.stop_circle_outlined),
                     label: const Text('Stop'),
                   ),
@@ -283,22 +237,31 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Text('${_viewModel.samples.length} sample(s)',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  '${_viewModel.samples.length} sample(s)',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const Spacer(),
                 TextButton(
-                  onPressed: _viewModel.samples.isEmpty ? null : _viewModel.clearSamples,
+                  onPressed:
+                      _viewModel.samples.isEmpty
+                          ? null
+                          : _viewModel.clearSamples,
                   child: const Text('Clear'),
                 ),
                 TextButton.icon(
                   onPressed:
-                      _viewModel.samples.isEmpty ? null : () => _share(_viewModel.exportCsv),
+                      _viewModel.samples.isEmpty
+                          ? null
+                          : () => _share(_viewModel.exportCsv),
                   icon: const Icon(Icons.ios_share, size: 16),
                   label: const Text('CSV'),
                 ),
                 TextButton.icon(
                   onPressed:
-                      _viewModel.samples.isEmpty ? null : () => _share(_viewModel.exportJson),
+                      _viewModel.samples.isEmpty
+                          ? null
+                          : () => _share(_viewModel.exportJson),
                   icon: const Icon(Icons.ios_share, size: 16),
                   label: const Text('JSON'),
                 ),
@@ -308,9 +271,13 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
               child: ListView.separated(
                 itemCount: _viewModel.samples.length,
                 separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) => _SampleTile(
-                  sample: _viewModel.samples[_viewModel.samples.length - 1 - index],
-                ),
+                itemBuilder:
+                    (context, index) => _SampleTile(
+                      sample:
+                          _viewModel.samples[_viewModel.samples.length -
+                              1 -
+                              index],
+                    ),
               ),
             ),
           ],
