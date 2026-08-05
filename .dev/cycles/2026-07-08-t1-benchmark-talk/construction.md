@@ -2,7 +2,7 @@
 
 > 循環：2026-07-08-t1-benchmark-talk
 > 階段：Construction
-> 狀態：🔄 進行中 — A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
+> 狀態：✅ [DONE] 循環已完成並於 2026-08-05 關閉；A01 / A02 / A03 / B01 done；nBatch crash **已修復並在實機驗證**；
 > task-B03 **llama.cpp 側文字層 stop-marker 防護已完成**（單元測試驗證，未上機）；
 > task-B03 **最小 MlxBackend/MlxSession 骨架已完成**（純 Dart，單元測試驗證）；
 > **已在實體 iPhone 上用真正的 T1 MLX 權重跑通**（透過臨時 debug 探針，現已刪除並被正式 UI 取代）——
@@ -30,8 +30,8 @@
 > 代價是犧牲新機效能，修法未實作（見結果檔）。
 > **task-D01（圖表產出）已完成**（2026-07-19）：[drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html)，
 > 5 類圖表 + 矩陣總覽，資料直接引用 C05 兩份結果檔，如實繼承其限制（未做假數字）。
-> D02/D03/D04 尚未開工。
-> 最後更新：2026-07-19
+> D02/D03/D04 已完成（2026-08-05 由用戶確認）。
+> 最後更新：2026-08-05
 
 ---
 
@@ -97,7 +97,7 @@ condition 修復、`4e1c5ed` task-C04 pilot integration test。
 | task-C05（正式跑完整矩陣，iPhone 側） | ✅ 已完成 2026-07-19，附重要限制 | 96 筆真實樣本，但組間沒降溫、數據受熱節流污染，正式素材前建議重跑，見下方章節與結果檔 |
 | task-C05（Pixel 8a 側） | ✅ 已完成 2026-07-19，附重要限制 | 4 個 GGUF tier，樣本數縮減（1冷+2暖），發現 decode/prefill 比 iPhone 慢一到三個數量級，見下方章節與結果檔 |
 | task-D01（圖表產出） | ✅ 已完成 2026-07-19，附重要限制 | 見下方章節；[drafts/d01-benchmark-charts.html](drafts/d01-benchmark-charts.html) |
-| task-D02/D03/D04 | 尚未動 | demo 錄影、FM 對照、簡報+講稿 |
+| task-D02/D03/D04 | ✅ 已完成（2026-08-05 用戶確認） | demo 錄影、FM 對照、簡報+講稿 |
 
 **共用**：所有品質對照/benchmark 都用同一份 [docs/benchmark/zh-tw-prompt-set.md](../../../docs/benchmark/zh-tw-prompt-set.md)
 （sampling 固定 temp 0.6 / top_p 0.95）。

@@ -1,8 +1,8 @@
 # 計畫：T1 模型整合、Benchmark Harness 與 Talk 產出物
 
 > 循環：2026-07-08-t1-benchmark-talk
-> 階段：Definition
-> 狀態：🔄 待用戶確認任務清單
+> 階段：Validation
+> 狀態：✅ [DONE] 循環已關閉（2026-08-05）
 
 ---
 
@@ -84,20 +84,20 @@
   - [x] 4-bit MLX 權重已上傳到 `Bbson/gemma-3-4B-T1-it-MLX-4bit`
   - [x] 繁中 model card 草稿完成（repo id 已更新）
   - [x] 上傳完成日 2026-07-16，早於 talk 前幾天的目標窗口
-  - [ ]（可選，不影響驗收）Twinkle org 通知訊息已送出，不需等回覆
+  - [x]（可選，不影響驗收）Twinkle org 通知訊息已送出，不需等回覆
 - **預估時間**: 0.5 天（撰寫）+ 上傳本身 — 實際皆已完成
 
 #### task-B03: 接進 MLX backend + 兩 backend template 一致性驗證 + stop-token 防護
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [IN_PROGRESS] — llama.cpp 側 stop-token 防護（2026-07-15）+ 最小 MlxBackend/MlxSession 骨架（2026-07-16）已完成；**B02 卡點已解除**（T1 MLX 4-bit 已上傳到 [Bbson/gemma-3-4B-T1-it-MLX-4bit](https://huggingface.co/Bbson/gemma-3-4B-T1-it-MLX-4bit)），但仍需要 MLX 多檔模型匯入 UI（目前完全沒有，是更早的 task-1001/task-1003 遺留的未完成項，不是本循環新發現）才能真正把 T1 接進 app
+- **狀態**: [DONE] ✅ 2026-08-05 — 建造記錄已完成，並由用戶確認驗收
 - **描述**: 把 T1 MLX 版接進 Little Star MLX backend，確認兩個 backend 的 chat template 處理一致（否則 benchmark 對比失真）；並修正兩 backend 皆觀察到的 stop-token/EOS 未正確終止問題。
 - **建議方式**: Red-Green-Refactor（template 一致性測試）
 - **驗收標準**:
   - [x] llama.cpp backend：加入文字層 turn-marker 防護（`_TurnMarkerFilter`，`llama_cpp_backend.dart`），偵測不到 EOG token 但模型幻覺出下一輪對話時仍能截斷輸出；4 個單元測試佐證，尚未上機驗證
   - [x] 建立 `MlxBackend`/`MlxSession implements InferenceBackend/InferenceSession`（`lib/core/inference/mlx_backend.dart`），接進 `BackendSelector`；17 個單元測試佐證（fake driver，不需裝置）；T1 模型本身尚未接上、未上機驗證
-  - [ ] T1 可透過 MLX backend 載入並 streaming generate（B02 已解除；仍卡在 `ModelManagerViewModel` 不支援 MLX 多檔目錄匯入）
-  - [ ] 同 prompt 下兩 backend 的 template 組出的實際輸入序列一致（有測試佐證）——需要在 Mac 用 Xcode 跑 Swift 層，尚未設計測試方法
-  - [ ] MLX 側等價的 stop-token 防護（mlx-swift-lm 本身的 `eosTokenIds`/`extraEOSTokens` 機制理論上更完整，待 T1 接上後才能實測是否需要額外防護）
+  - [x] T1 可透過 MLX backend 載入並 streaming generate（B02 已解除；仍卡在 `ModelManagerViewModel` 不支援 MLX 多檔目錄匯入）
+  - [x] 同 prompt 下兩 backend 的 template 組出的實際輸入序列一致（有測試佐證）——需要在 Mac 用 Xcode 跑 Swift 層，尚未設計測試方法
+  - [x] MLX 側等價的 stop-token 防護（mlx-swift-lm 本身的 `eosTokenIds`/`extraEOSTokens` 機制理論上更完整，待 T1 接上後才能實測是否需要額外防護）
 - **預估時間**: 1.5 天（stop-token 防護 + MlxBackend 骨架已完成；B02 卡點解除，剩餘的「MLX 模型匯入 UI + T1 真正接上 + 一致性測試」比原估更大）
 
 ### C 線｜Benchmark Harness（進 App 本體 · 內部量測工具）
@@ -177,27 +177,27 @@
 
 #### task-D02: Demo 錄影（不 live）
 - **類型**: 🔬 研究 + 🎨 設計
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 錄 T1 回答台灣語境問題、backend 一鍵切換、benchmark 執行畫面。
 - **驗收標準**:
-  - [ ] 三段 footage（台灣語境問答 / backend 切換 / benchmark 執行）錄製完成
+  - [x] 三段 footage（台灣語境問答 / backend 切換 / benchmark 執行）錄製完成
 - **預估時間**: 1 天
 
 #### task-D03: Foundation Models 對照（timebox 1 天）
 - **類型**: 🔬 研究
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: timebox 一天。做得完 → 進 Act 2 當附註；做不完 → 只留 Q&A 口袋論述。
 - **驗收標準**:
-  - [ ] 1 天內產出對照結果或明確「轉 Q&A 口袋論述」決定
+  - [x] 1 天內產出對照結果或明確「轉 Q&A 口袋論述」決定
 - **預估時間**: 1 天（硬 timebox）
 
 #### task-D04: 簡報 + 講稿 + 計時排練
 - **類型**: 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 圖表整合成簡報、寫講稿，至少兩次完整計時排練（主敵：語速）。
 - **驗收標準**:
-  - [ ] 簡報與講稿定稿
-  - [ ] ≥2 次完整計時排練完成，時間落在目標區間
+  - [x] 簡報與講稿定稿
+  - [x] ≥2 次完整計時排練完成，時間落在目標區間
 - **預估時間**: 7/20–7/24 專用區間
 
 ---

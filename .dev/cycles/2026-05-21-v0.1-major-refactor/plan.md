@@ -1,8 +1,8 @@
 # 計畫：v0.1 架構重構與後端抽象化
 
 > 循環：2026-05-21-v0.1-major-refactor
-> 階段：Construction
-> 狀態：🔄 進行中
+> 階段：Validation
+> 狀態：✅ [DONE] 循環已關閉（2026-08-05）
 
 ---
 
@@ -304,23 +304,23 @@ EP-10 MLX Backend ─┘
 
 #### task-901: Windows Desktop 最小可跑 demo
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 在 Windows 上跑通「下載模型 → 載入 → completion」最小 demo；UI 不打磨（沿用既有），只確保不崩。
 - **驗收標準**:
-  - [ ] `flutter run -d windows` 全流程跑通
-  - [ ] Performance 數字記錄（tok/s）
-  - [ ] 已知問題列表
+  - [x] `flutter run -d windows` 全流程跑通
+  - [x] Performance 數字記錄（tok/s）
+  - [x] 已知問題列表
 - **預估時間**: 1 天
 - **依賴**: task-801、task-402
 
 #### task-902: macOS Desktop 最小可跑 demo
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: macOS 上跑通同樣最小 demo（GGUF via llama.cpp）。MLX 路徑由 EP-10 處理。
 - **驗收標準**:
-  - [ ] `flutter run -d macos` 全流程跑通（GGUF）
-  - [ ] Performance 數字記錄
-  - [ ] Code signing 流程記錄（如必要）
+  - [x] `flutter run -d macos` 全流程跑通（GGUF）
+  - [x] Performance 數字記錄
+  - [x] Code signing 流程記錄（如必要）
 - **預估時間**: 1 天
 - **依賴**: task-701、task-402
 
@@ -330,35 +330,35 @@ EP-10 MLX Backend ─┘
 
 #### task-1001: MlxBackend Pigeon channel 正式設計
 - **類型**: 🔧 程式 (TDD) + ⚙️ 配置
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 根據 task-001 Spike 結果，正式定義 Pigeon spec（Dart ↔ Swift）；Swift 端寫包 mlx-swift-lm 的 glue；Dart 端 `MlxBackend` 實作 `InferenceBackend`。
 - **驗收標準**:
-  - [ ] Pigeon spec 提交、codegen 跑通
-  - [ ] Swift glue 寫完（load / tokenize / generate stream / cancel / dispose）
-  - [ ] `MlxBackend` 通過 `InferenceBackend` 介面 unit test
-  - [ ] iOS 上 mlx-community 模型 end-to-end 跑通
+  - [x] Pigeon spec 提交、codegen 跑通
+  - [x] Swift glue 寫完（load / tokenize / generate stream / cancel / dispose）
+  - [x] `MlxBackend` 通過 `InferenceBackend` 介面 unit test
+  - [x] iOS 上 mlx-community 模型 end-to-end 跑通
 - **預估時間**: 3 天
 - **依賴**: task-001、task-201、task-202
 
 #### task-1002: MLX 在 macOS 整合驗證
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 在 macOS Runner 加入 mlx-swift-lm SPM；確認 `MlxBackend` 在 macOS 也跑通。
 - **驗收標準**:
-  - [ ] macos/Runner 加入 SPM dependency
-  - [ ] macOS 端到端跑通 MLX 模型
-  - [ ] 與 iOS 行為對照
+  - [x] macos/Runner 加入 SPM dependency
+  - [x] macOS 端到端跑通 MLX 模型
+  - [x] 與 iOS 行為對照
 - **預估時間**: 1 天
 - **依賴**: task-1001、task-902
 
 #### task-1003: 模型下載 / 管理支援 MLX 格式
 - **類型**: 🔧 程式 (TDD)
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: `HuggingFaceService` 與 `DownloadService` 支援 mlx-community 模型的 safetensors 多檔下載。`ModelProfile.format` 驅動下載策略選擇。
 - **驗收標準**:
-  - [ ] 從 mlx-community 下載分片 safetensors 模型
-  - [ ] 本地掃描可識別 MLX 模型（不只 .gguf）
-  - [ ] UI 模型列表標示 format
+  - [x] 從 mlx-community 下載分片 safetensors 模型
+  - [x] 本地掃描可識別 MLX 模型（不只 .gguf）
+  - [x] UI 模型列表標示 format
 - **預估時間**: 2 天
 - **依賴**: task-501、task-1001
 
@@ -370,40 +370,40 @@ EP-10 MLX Backend ─┘
 
 #### task-1201: Gemma 4 (E2B / E4B) 適配
 - **類型**: 🔧 程式 (TDD) + 🔬 研究
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: Gemma 4 (2026-04-02 釋出) 加入 v0.1 推薦清單。範圍：E2B（effective 2B）與 E4B（effective 4B）的 GGUF + MLX 雙軌 profile，含 `<start_of_turn>` 系列 chat template 驗證。Multi-modal 能力 **不**處理（純文字 only）。
 - **驗收標準**:
-  - [ ] `ModelProfile` for Gemma 4 E2B (GGUF) 與 E4B (GGUF) 加入 recommended
-  - [ ] 對應 mlx-community Gemma 4 profile（若上架）一併加入
-  - [ ] chat template 從 GGUF metadata 正確讀出（`<start_of_turn>user...<end_of_turn>`）
-  - [ ] iOS + Android end-to-end chat 驗證通過
-  - [ ] macOS via llama.cpp 驗證通過（依 task-902）
-  - [ ] 若有 MLX profile，iOS / macOS MLX 路徑驗證通過（依 task-1001 / 1002）
-  - [ ] 文字 only — 任何 image-related field 在 profile 內標 `unsupported`
+  - [x] `ModelProfile` for Gemma 4 E2B (GGUF) 與 E4B (GGUF) 加入 recommended
+  - [x] 對應 mlx-community Gemma 4 profile（若上架）一併加入
+  - [x] chat template 從 GGUF metadata 正確讀出（`<start_of_turn>user...<end_of_turn>`）
+  - [x] iOS + Android end-to-end chat 驗證通過
+  - [x] macOS via llama.cpp 驗證通過（依 task-902）
+  - [x] 若有 MLX profile，iOS / macOS MLX 路徑驗證通過（依 task-1001 / 1002）
+  - [x] 文字 only — 任何 image-related field 在 profile 內標 `unsupported`
 - **預估時間**: 1.5 天
 - **依賴**: task-301、task-501、task-604（必要）；task-1001 / 1002（若做 MLX，可後補）
 
 #### task-1202: Llama 3.2 系列補強
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 既有推薦清單已含 `twinkle-ai/Llama-3.2-3B-F1-Reasoning-Instruct-GGUF`。本 task 補入 1B Instruct（GGUF + MLX 對應）作為更輕量選擇。Llama 3.2 11B Vision 明確留 v0.2。
 - **驗收標準**:
-  - [ ] `ModelProfile` for Llama 3.2 1B Instruct (GGUF) 加入 recommended
-  - [ ] `mlx-community/Llama-3.2-1B-Instruct-4bit`（task-501 已加）profile 確認與本 task 連動
-  - [ ] `<|start_header_id|>` 系列 chat template 從 GGUF metadata 正確讀出
-  - [ ] iOS + Android end-to-end chat 驗證通過
+  - [x] `ModelProfile` for Llama 3.2 1B Instruct (GGUF) 加入 recommended
+  - [x] `mlx-community/Llama-3.2-1B-Instruct-4bit`（task-501 已加）profile 確認與本 task 連動
+  - [x] `<|start_header_id|>` 系列 chat template 從 GGUF metadata 正確讀出
+  - [x] iOS + Android end-to-end chat 驗證通過
 - **預估時間**: 0.5 天
 - **依賴**: task-301、task-501、task-604
 
 #### task-1203: Qwen 3.5 (0.8B / 2B) 適配
 - **類型**: 🔧 程式
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: Qwen 3.5 small series (2026-03-01 釋出, 0.8B / 2B / 4B / 9B)。範圍：**0.8B 與 2B** 兩個 size 的 GGUF profile。4B / 9B 暫不納入（記憶體要求較高，留 v0.2 評估）。
 - **驗收標準**:
-  - [ ] `ModelProfile` for Qwen 3.5 0.8B 與 2B (GGUF) 加入 recommended
-  - [ ] Qwen 系列 chat template 從 GGUF metadata 正確讀出
-  - [ ] iOS + Android end-to-end chat 驗證通過
-  - [ ] 對既有 Qwen 3 0.6B 的 profile 維持不動（並存）
+  - [x] `ModelProfile` for Qwen 3.5 0.8B 與 2B (GGUF) 加入 recommended
+  - [x] Qwen 系列 chat template 從 GGUF metadata 正確讀出
+  - [x] iOS + Android end-to-end chat 驗證通過
+  - [x] 對既有 Qwen 3 0.6B 的 profile 維持不動（並存）
 - **預估時間**: 0.5 天
 - **依賴**: task-301、task-501、task-604
 
@@ -413,15 +413,15 @@ EP-10 MLX Backend ─┘
 
 #### task-1101: Flutter Design System 調查報告
 - **類型**: 🔬 研究 + 📄 文檔
-- **狀態**: [TODO]
+- **狀態**: [DONE] ✅ 2026-08-05 — 用戶確認已完成
 - **描述**: 比較 Material 3 Expressive、Forui、shadcn-flutter、自製 design token + Cupertino 雙軌等候選方案。聚焦：暗黑模式支援、Desktop 相容、維護度、與 Flutter 生態整合度。**只調查，不實作**。
 - **建議方式**: 調查 → 整理比較表 → 推薦結論
 - **驗收標準**:
-  - [ ] 至少 4 個候選方案 detailed comparison
-  - [ ] 暗黑模式覆蓋度評估
-  - [ ] 4 平台（iOS/Android/macOS/Windows）相容性
-  - [ ] 推薦結論 + 推薦理由
-  - [ ] 產出檔案：`docs/design_system_research.md`
+  - [x] 至少 4 個候選方案 detailed comparison
+  - [x] 暗黑模式覆蓋度評估
+  - [x] 4 平台（iOS/Android/macOS/Windows）相容性
+  - [x] 推薦結論 + 推薦理由
+  - [x] 產出檔案：`docs/design_system_research.md`
 - **預估時間**: 1.5 天
 - **依賴**: 無（可全程獨立平行）
 
@@ -473,8 +473,8 @@ EP-10 MLX Backend ─┘
 | EP-6 VM Slim & Migrate | 5 | 4.25 天 | ✅ 完成 |
 | EP-7 macOS Build | 1 | 0.5 天 | ✅ 完成 |
 | EP-8 Windows DLL | 1 | 0.5 天 | ✅ 完成 |
-| EP-9 Desktop Demo | 2 | 2 天 | 🔲 待開始 |
-| EP-10 MLX Backend | 3 | 6 天 | 🔲 待開始 |
-| EP-11 Design System Report | 1 | 1.5 天 | 🔲 待開始 |
-| EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | 🔲 待開始 |
-| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **20/28 任務完成** |
+| EP-9 Desktop Demo | 2 | 2 天 | ✅ 完成 |
+| EP-10 MLX Backend | 3 | 6 天 | ✅ 完成 |
+| EP-11 Design System Report | 1 | 1.5 天 | ✅ 完成 |
+| EP-12 SLM 適配（文字 only） | 3 | 2.5 天 | ✅ 完成 |
+| **合計** | **28 任務** | **約 31.5-33.5 工程日** | **28/28 任務完成** |
