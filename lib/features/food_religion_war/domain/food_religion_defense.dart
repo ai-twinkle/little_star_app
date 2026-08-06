@@ -20,20 +20,14 @@ class FoodReligionDefenseValidation {
 
   final FoodReligionDefense? defense;
   final FoodReligionDefenseError? error;
-
-  bool get isValid => error == null;
 }
 
 class FoodReligionDefense {
-  const FoodReligionDefense._({
-    required this.text,
-    required this.normalizedText,
-  });
+  const FoodReligionDefense._({required this.text});
 
   static const maxCharacters = 50;
 
   final String text;
-  final String normalizedText;
 
   int get characterCount => text.characters.length;
 
@@ -53,7 +47,7 @@ class FoodReligionDefense {
       );
     }
     return FoodReligionDefenseValidation.valid(
-      FoodReligionDefense._(text: value, normalizedText: normalizedText),
+      FoodReligionDefense._(text: value),
     );
   }
 }

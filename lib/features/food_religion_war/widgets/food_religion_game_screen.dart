@@ -145,11 +145,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
 
     _isExitDialogVisible = false;
     if (shouldLeave != true || !mounted) return;
-
-    setState(() => _canLeave = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.of(context).pop();
-    });
+    _leaveToHome();
   }
 }
 
