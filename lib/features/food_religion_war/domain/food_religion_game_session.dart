@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 
 enum FoodReligionGameStage {
@@ -18,18 +18,15 @@ class FoodReligionGameSession extends ChangeNotifier {
   static const selectionFeedbackDuration = Duration(milliseconds: 800);
   static const fallbackJudgmentDelay = Duration(milliseconds: 500);
 
-  FoodReligionGameSession({FallbackJudgmentService? fallbackJudgmentService})
-    : _fallbackJudgmentService =
-          fallbackJudgmentService ?? FallbackJudgmentService();
-
-  final FallbackJudgmentService _fallbackJudgmentService;
+  final FallbackJudgmentService _fallbackJudgmentService =
+      FallbackJudgmentService();
 
   FoodReligionGameStage _stage = FoodReligionGameStage.semifinalZongzi;
   FoodFaith? _selectedFaith;
   FoodFaith? _zongziWinner;
   FoodFaith? _cilantroWinner;
   FoodFaith? _champion;
-  String? _defense;
+  FoodReligionDefense? _defense;
   FoodReligionJudgment? _judgment;
   Timer? _transitionTimer;
   Timer? _judgmentTimer;
@@ -37,7 +34,7 @@ class FoodReligionGameSession extends ChangeNotifier {
   FoodReligionGameStage get stage => _stage;
   FoodFaith? get selectedFaith => _selectedFaith;
   FoodFaith? get champion => _champion;
-  String? get defense => _defense;
+  FoodReligionDefense? get defense => _defense;
   FoodReligionJudgment? get judgment => _judgment;
   bool get isSelectionLocked => _selectedFaith != null;
 
@@ -101,10 +98,8 @@ class FoodReligionGameSession extends ChangeNotifier {
     });
   }
 
-  void submitDefense(String defense) {
+  void submitDefense(FoodReligionDefense defense) {
     if (_stage != FoodReligionGameStage.defense) return;
-    final defenseLength = defense.trim().characters.length;
-    if (defenseLength < 1 || defenseLength > 50) return;
 
     _defense = defense;
     _stage = FoodReligionGameStage.judging;

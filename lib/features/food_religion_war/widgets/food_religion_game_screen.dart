@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 
@@ -53,14 +54,25 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
                     FoodReligionGameStage.defense => _DefenseView(
                       champion: _session.champion!,
                       controller: _defenseController,
-                      characterCount: _defenseController.text.characters.length,
+                      characterCount: FoodReligionDefense.countCharacters(
+                        _defenseController.text,
+                      ),
                       errorText: _defenseError,
+                      isJudging: false,
                       onChanged: (_) {
                         setState(() => _defenseError = null);
                       },
                       onSubmit: _submitDefense,
                     ),
-                    FoodReligionGameStage.judging => const _JudgingView(),
+                    FoodReligionGameStage.judging => _DefenseView(
+                      champion: _session.champion!,
+                      controller: _defenseController,
+                      characterCount: _session.defense!.characterCount,
+                      errorText: null,
+                      isJudging: true,
+                      onChanged: (_) {},
+                      onSubmit: _submitDefense,
+                    ),
                     FoodReligionGameStage.result => _ResultView(
                       champion: _session.champion!,
                       judgment: _session.judgment!,
@@ -75,22 +87,18 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
     );
   }
 
-  bool _validateDefense() {
-    final defenseLength = _defenseController.text.trim().characters.length;
-    final error = switch (defenseLength) {
-      0 => '請輸入 1～50 字的辯護',
-      > 50 => '最多只能輸入 50 字',
-      _ => null,
-    };
+  FoodReligionDefense? _validateDefense() {
+    final validation = FoodReligionDefense.validate(_defenseController.text);
     setState(() {
-      _defenseError = error;
+      _defenseError = validation.error?.message;
     });
-    return error == null;
+    return validation.defense;
   }
 
   void _submitDefense() {
-    if (!_validateDefense()) return;
-    _session.submitDefense(_defenseController.text);
+    final defense = _validateDefense();
+    if (defense == null) return;
+    _session.submitDefense(defense);
   }
 
   void _restartGame() {
@@ -179,6 +187,7 @@ class _DefenseView extends StatelessWidget {
     required this.controller,
     required this.characterCount,
     required this.errorText,
+    required this.isJudging,
     required this.onChanged,
     required this.onSubmit,
   });
@@ -187,6 +196,7 @@ class _DefenseView extends StatelessWidget {
   final TextEditingController controller;
   final int characterCount;
   final String? errorText;
+  final bool isJudging;
   final ValueChanged<String> onChanged;
   final VoidCallback onSubmit;
 
@@ -211,6 +221,7 @@ class _DefenseView extends StatelessWidget {
         const SizedBox(height: 24),
         TextField(
           controller: controller,
+          enabled: !isJudging,
           onChanged: onChanged,
           decoration: InputDecoration(
             labelText: '你的辯護',
@@ -219,31 +230,22 @@ class _DefenseView extends StatelessWidget {
             border: const OutlineInputBorder(),
           ),
           textInputAction: TextInputAction.done,
-          onSubmitted: (_) => onSubmit(),
+          onSubmitted: isJudging ? null : (_) => onSubmit(),
         ),
         const SizedBox(height: 8),
         Text('$characterCount / 50', textAlign: TextAlign.end),
         const SizedBox(height: 16),
-        FilledButton(onPressed: onSubmit, child: const Text('送出辯護')),
-      ],
-    );
-  }
-}
-
-class _JudgingView extends StatelessWidget {
-  const _JudgingView();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 24),
-          Text('AI 鄉民評審正在審判…'),
+        FilledButton(
+          onPressed: isJudging ? null : onSubmit,
+          child: const Text('送出辯護'),
+        ),
+        if (isJudging) ...[
+          const SizedBox(height: 24),
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 16),
+          const Text('AI 鄉民評審正在審判…', textAlign: TextAlign.center),
         ],
-      ),
+      ],
     );
   }
 }

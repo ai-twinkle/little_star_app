@@ -54,7 +54,16 @@ void main() {
     await tester.pump();
 
     expect(find.text('AI 鄉民評審正在審判…'), findsOneWidget);
-    expect(find.byType(TextField), findsNothing);
+    expect(find.text('北部粽派'), findsOneWidget);
+    expect(find.text('北部粽不就是包在粽葉裡的油飯嗎？'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '送出辯護'))
+          .onPressed,
+      isNull,
+    );
 
     await tester.pump(const Duration(milliseconds: 499));
     expect(find.text('AI 鄉民評審正在審判…'), findsOneWidget);
