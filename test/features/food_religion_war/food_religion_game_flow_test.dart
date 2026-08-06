@@ -1,13 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_star_app/data/repositories/download_repository.dart';
+import 'package:little_star_app/data/services/directory_service.dart';
+import 'package:little_star_app/data/services/download_service.dart';
+import 'package:little_star_app/data/services/huggingface_service.dart';
+import 'package:little_star_app/data/services/onboarding_service.dart';
 import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_home_card.dart';
+import 'package:little_star_app/ui/home/view_model/home_viewmodel.dart';
+import 'package:little_star_app/ui/home/widgets/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('玩家從 Home 卡片直接進入第一場粽子準決賽', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final directoryService = DesktopDirectoryService();
+    final viewModel = _LoadedHomeViewModel(
+      hfService: HuggingFaceService(),
+      downloadService: DownloadService(),
+      downloadRepository: DownloadRepository(),
+      directoryService: directoryService,
+      onboardingService: OnboardingService(preferences),
     );
 
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomeScreen.withDependencies(
+          viewModel: viewModel,
+          directoryService: directoryService,
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('台灣食物宗教戰爭'));
     await tester.tap(find.text('台灣食物宗教戰爭'));
     await tester.pumpAndSettle();
 
@@ -18,11 +43,7 @@ void main() {
   });
 
   testWidgets('每場只接受第一個選擇並在 800 ms 後前進', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
-    );
-    await tester.tap(find.text('台灣食物宗教戰爭'));
-    await tester.pumpAndSettle();
+    await _launchGame(tester);
 
     await tester.tap(find.text('北部粽派'));
     await tester.tap(find.text('南部粽派'));
@@ -44,11 +65,7 @@ void main() {
   });
 
   testWidgets('兩場準決賽勝方進入決賽並產生正確冠軍質疑', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
-    );
-    await tester.tap(find.text('台灣食物宗教戰爭'));
-    await tester.pumpAndSettle();
+    await _launchGame(tester);
 
     await tester.tap(find.text('北部粽派'));
     await tester.pump(const Duration(milliseconds: 800));
@@ -70,11 +87,7 @@ void main() {
   });
 
   testWidgets('離開需確認，取消保留進度而確認會清除本局', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
-    );
-    await tester.tap(find.text('台灣食物宗教戰爭'));
-    await tester.pumpAndSettle();
+    await _launchGame(tester);
     await tester.tap(find.text('北部粽派'));
     await tester.pump(const Duration(milliseconds: 800));
 
@@ -118,11 +131,7 @@ void main() {
     ),
   ]) {
     testWidgets('${path.champion}冠軍會顯示對應的終極質疑', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
-      );
-      await tester.tap(find.text('台灣食物宗教戰爭'));
-      await tester.pumpAndSettle();
+      await _launchGame(tester);
 
       await tester.tap(find.text(path.zongzi));
       await tester.pump(const Duration(milliseconds: 800));
@@ -135,4 +144,31 @@ void main() {
       expect(find.text(path.challenge), findsOneWidget);
     });
   }
+}
+
+Future<void> _launchGame(WidgetTester tester) async {
+  await tester.pumpWidget(
+    const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
+  );
+  await tester.tap(find.text('台灣食物宗教戰爭'));
+  await tester.pumpAndSettle();
+}
+
+class _LoadedHomeViewModel extends HomeViewModel {
+  _LoadedHomeViewModel({
+    required super.hfService,
+    required super.downloadService,
+    required super.downloadRepository,
+    required super.directoryService,
+    required super.onboardingService,
+  });
+
+  @override
+  bool get hasCompletedOnboarding => true;
+
+  @override
+  bool get isLoadingLocal => false;
+
+  @override
+  bool get supportsMlx => false;
 }
