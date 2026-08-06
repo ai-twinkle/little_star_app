@@ -164,7 +164,10 @@ class _MatchView extends StatelessWidget {
         const Text('點擊你支持的飲食信仰', textAlign: TextAlign.center),
         const SizedBox(height: 24),
         for (final (index, faith) in session.contenders.indexed) ...[
-          if (index > 0) const SizedBox(height: 16),
+          if (index > 0 && session.stage == FoodReligionGameStage.finalMatch)
+            const _VersusBadge()
+          else if (index > 0)
+            const SizedBox(height: 16),
           _FaithCard(
             faith: faith,
             isSelected: session.selectedFaith == faith,
@@ -173,6 +176,31 @@ class _MatchView extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _VersusBadge extends StatelessWidget {
+  const _VersusBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        key: const ValueKey('final-match-versus'),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.tertiaryContainer,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          'VS',
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+      ),
     );
   }
 }
@@ -265,6 +293,17 @@ class _ResultView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
+          '冠軍',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        _ChampionCelebration(champion: champion),
+        const SizedBox(height: 4),
+        Text(
           champion.label,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineMedium,
@@ -288,6 +327,53 @@ class _ResultView extends StatelessWidget {
   }
 }
 
+class _ChampionCelebration extends StatelessWidget {
+  const _ChampionCelebration({required this.champion});
+
+  final FoodFaith champion;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const ValueKey('champion-confetti'),
+      height: 168,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 28,
+            top: 18,
+            child: Icon(Icons.auto_awesome, color: colors.tertiary, size: 24),
+          ),
+          Positioned(
+            right: 34,
+            top: 8,
+            child: Icon(Icons.celebration, color: colors.primary, size: 30),
+          ),
+          Positioned(
+            left: 50,
+            bottom: 26,
+            child: Icon(Icons.circle, color: colors.secondary, size: 10),
+          ),
+          Positioned(
+            right: 52,
+            bottom: 34,
+            child: Icon(Icons.star, color: colors.tertiary, size: 18),
+          ),
+          Image.asset(
+            champion.characterAssetPath,
+            key: ValueKey('food-faith-art-${champion.name}'),
+            height: 160,
+            fit: BoxFit.contain,
+            semanticLabel: champion.label,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FaithCard extends StatelessWidget {
   const _FaithCard({
     required this.faith,
@@ -301,18 +387,78 @@ class _FaithCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: isSelected ? 1.05 : 1,
-      duration: const Duration(milliseconds: 200),
-      child: Card(
-        color:
-            isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(faith.label, textAlign: TextAlign.center),
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('winner-feedback-${faith.name}'),
+      tween: Tween(end: isSelected ? 1 : 0),
+      duration: FoodReligionGameSession.selectionFeedbackDuration,
+      curve: Curves.easeInOut,
+      builder: (context, progress, child) {
+        final pulse = 4 * progress * (1 - progress);
+        final colorScheme = Theme.of(context).colorScheme;
+        return Transform(
+          key: ValueKey('winner-motion-${faith.name}'),
+          transform:
+              Matrix4.identity()
+                ..setEntry(0, 0, 1 + 0.08 * pulse)
+                ..setEntry(1, 1, 1 + 0.08 * pulse)
+                ..setEntry(1, 3, -14 * pulse),
+          alignment: Alignment.center,
+          child: DecoratedBox(
+            key: ValueKey('winner-glow-${faith.name}'),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow:
+                  isSelected
+                      ? [
+                        BoxShadow(
+                          color: colorScheme.primary.withValues(
+                            alpha: 0.55 * pulse,
+                          ),
+                          blurRadius: 28 * pulse,
+                          spreadRadius: 5 * pulse,
+                        ),
+                      ]
+                      : const [],
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: Semantics(
+        selected: isSelected,
+        child: Card(
+          color:
+              isSelected
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : null,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    faith.characterAssetPath,
+                    key: ValueKey('food-faith-art-${faith.name}'),
+                    height: 112,
+                    fit: BoxFit.contain,
+                    semanticLabel: faith.label,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(faith.label, textAlign: TextAlign.center),
+                  if (isSelected)
+                    Text(
+                      '${faith.label}晉級！',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
