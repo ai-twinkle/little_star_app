@@ -20,6 +20,7 @@ import 'package:little_star_app/ui/models/widgets/mlx_models_screen.dart';
 import 'package:little_star_app/ui/benchmark/widgets/benchmark_screen.dart';
 import 'package:little_star_app/ui/about/about_screen.dart';
 import 'package:little_star_app/debug/mlx_spike_screen.dart';
+import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_home_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -133,6 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 24),
 
                       // Navigation Cards
+                      const FoodReligionGameHomeCard(),
+                      const SizedBox(height: 16),
                       _buildNavigationCard(
                         context: context,
                         title: 'Model Completion',
