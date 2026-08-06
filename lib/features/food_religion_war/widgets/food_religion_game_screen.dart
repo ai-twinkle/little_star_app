@@ -44,42 +44,56 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
           child: AnimatedBuilder(
             animation: _session,
             builder:
-                (context, _) => Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: switch (_session.stage) {
-                    FoodReligionGameStage.semifinalZongzi ||
-                    FoodReligionGameStage.semifinalCilantro ||
-                    FoodReligionGameStage
-                        .finalMatch => _MatchView(session: _session),
-                    FoodReligionGameStage.defense => _DefenseView(
-                      champion: _session.champion!,
-                      controller: _defenseController,
-                      characterCount: FoodReligionDefense.countCharacters(
-                        _defenseController.text,
+                (context, _) => CustomScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        16,
+                        16,
+                        16 + MediaQuery.viewInsetsOf(context).bottom,
                       ),
-                      errorText: _defenseError,
-                      isJudging: false,
-                      onChanged: (_) {
-                        setState(() => _defenseError = null);
-                      },
-                      onSubmit: _submitDefense,
+                      sliver: SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: switch (_session.stage) {
+                          FoodReligionGameStage.semifinalZongzi ||
+                          FoodReligionGameStage.semifinalCilantro ||
+                          FoodReligionGameStage
+                              .finalMatch => _MatchView(session: _session),
+                          FoodReligionGameStage.defense => _DefenseView(
+                            champion: _session.champion!,
+                            controller: _defenseController,
+                            characterCount: FoodReligionDefense.countCharacters(
+                              _defenseController.text,
+                            ),
+                            errorText: _defenseError,
+                            isJudging: false,
+                            onChanged: (_) {
+                              setState(() => _defenseError = null);
+                            },
+                            onSubmit: _submitDefense,
+                          ),
+                          FoodReligionGameStage.judging => _DefenseView(
+                            champion: _session.champion!,
+                            controller: _defenseController,
+                            characterCount: _session.defense!.characterCount,
+                            errorText: null,
+                            isJudging: true,
+                            onChanged: (_) {},
+                            onSubmit: _submitDefense,
+                          ),
+                          FoodReligionGameStage.result => _ResultView(
+                            champion: _session.champion!,
+                            judgment: _session.judgment!,
+                            onReplay: _restartGame,
+                            onHome: _leaveToHome,
+                          ),
+                        },
+                      ),
                     ),
-                    FoodReligionGameStage.judging => _DefenseView(
-                      champion: _session.champion!,
-                      controller: _defenseController,
-                      characterCount: _session.defense!.characterCount,
-                      errorText: null,
-                      isJudging: true,
-                      onChanged: (_) {},
-                      onSubmit: _submitDefense,
-                    ),
-                    FoodReligionGameStage.result => _ResultView(
-                      champion: _session.champion!,
-                      judgment: _session.judgment!,
-                      onReplay: _restartGame,
-                      onHome: _leaveToHome,
-                    ),
-                  },
+                  ],
                 ),
           ),
         ),
@@ -159,7 +173,14 @@ class _MatchView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(session.progressLabel, textAlign: TextAlign.center),
+        Semantics(
+          container: true,
+          liveRegion: true,
+          label: '對戰進度：${session.progressLabel}',
+          child: ExcludeSemantics(
+            child: Text(session.progressLabel, textAlign: TextAlign.center),
+          ),
+        ),
         const SizedBox(height: 8),
         const Text('點擊你支持的飲食信仰', textAlign: TextAlign.center),
         const SizedBox(height: 24),
@@ -241,7 +262,13 @@ class _DefenseView extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 24),
-        Text(champion.finalChallenge, textAlign: TextAlign.center),
+        Semantics(
+          container: true,
+          label: '固定質疑：${champion.finalChallenge}',
+          child: ExcludeSemantics(
+            child: Text(champion.finalChallenge, textAlign: TextAlign.center),
+          ),
+        ),
         const SizedBox(height: 24),
         TextField(
           controller: controller,
@@ -257,7 +284,19 @@ class _DefenseView extends StatelessWidget {
           onSubmitted: isJudging ? null : (_) => onSubmit(),
         ),
         const SizedBox(height: 8),
-        Text('$characterCount / 50', textAlign: TextAlign.end),
+        Semantics(
+          liveRegion: true,
+          label: '字數：$characterCount / 50',
+          child: ExcludeSemantics(
+            child: Text('$characterCount / 50', textAlign: TextAlign.end),
+          ),
+        ),
+        if (errorText != null)
+          Semantics(
+            liveRegion: true,
+            label: '錯誤：$errorText',
+            child: const SizedBox.shrink(),
+          ),
         const SizedBox(height: 16),
         FilledButton(
           onPressed: isJudging ? null : onSubmit,
@@ -265,9 +304,17 @@ class _DefenseView extends StatelessWidget {
         ),
         if (isJudging) ...[
           const SizedBox(height: 24),
-          const Center(child: CircularProgressIndicator()),
+          const ExcludeSemantics(
+            child: Center(child: CircularProgressIndicator()),
+          ),
           const SizedBox(height: 16),
-          const Text('AI 鄉民評審正在審判…', textAlign: TextAlign.center),
+          Semantics(
+            liveRegion: true,
+            label: '等待裁決：AI 鄉民評審正在審判…',
+            child: ExcludeSemantics(
+              child: Text('AI 鄉民評審正在審判…', textAlign: TextAlign.center),
+            ),
+          ),
         ],
       ],
     );
@@ -309,15 +356,30 @@ class _ResultView extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 24),
-        Text(
-          judgment.verdict.label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleLarge,
+        Semantics(
+          liveRegion: true,
+          label: '判決：${judgment.verdict.label}',
+          child: ExcludeSemantics(
+            child: Text(
+              judgment.verdict.label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         Text(judgment.roast, textAlign: TextAlign.center),
         const SizedBox(height: 24),
-        const Text('AI 主持人暫時離線，改由備援鄉民評審裁決！', textAlign: TextAlign.center),
+        Semantics(
+          liveRegion: true,
+          label: '備援提示：AI 主持人暫時離線，改由備援鄉民評審裁決！',
+          child: ExcludeSemantics(
+            child: Text(
+              'AI 主持人暫時離線，改由備援鄉民評審裁決！',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
         const Spacer(),
         FilledButton(onPressed: onReplay, child: const Text('再玩一次')),
         const SizedBox(height: 12),
@@ -425,6 +487,16 @@ class _FaithCard extends StatelessWidget {
         );
       },
       child: Semantics(
+        container: true,
+        excludeSemantics: true,
+        label:
+            '${faith.label}，${isSelected
+                ? '已選擇並晉級，已鎖定'
+                : onTap == null
+                ? '已鎖定'
+                : '未選擇'}',
+        button: true,
+        enabled: onTap != null,
         selected: isSelected,
         child: Card(
           color:
