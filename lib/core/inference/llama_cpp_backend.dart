@@ -2,6 +2,7 @@ import 'package:little_star_app/core/engine/llama_cpp/llama_cpp_ffi.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
+import 'package:little_star_app/core/inference/turn_marker_filter.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/core/platform/native_library_loader.dart';
 import 'package:little_star_app/models/chat_message.dart';
@@ -35,7 +36,16 @@ abstract class LlamaFfiDriver {
   /// Returns the number of prompt tokens, or 0 on failure.
   int tokenizePrompt(String prompt);
 
+  /// Clears the context's KV cache so a fresh, independent generation can
+  /// start at sequence position 0 — call before each [tokenizePrompt] on a
+  /// context reused across multiple [generateStream] calls.
+  void resetForNewGeneration();
+
   Stream<String> generateStream(int nPrompt, {required int maxTokens});
+
+  /// Wall-clock time spent decoding the prompt (prefill) in the most recent
+  /// [generateStream] call. Null until a generation has run.
+  Duration? get lastPrefillDuration;
 
   void freeContext();
   void freeModel();
@@ -82,8 +92,14 @@ class _RealFfiDriver implements LlamaFfiDriver {
   int tokenizePrompt(String prompt) => _ffi.tokenizePrompt(prompt);
 
   @override
+  void resetForNewGeneration() => _ffi.clearMemory();
+
+  @override
   Stream<String> generateStream(int nPrompt, {required int maxTokens}) =>
       _ffi.generateStream(nPrompt, maxTokens: maxTokens);
+
+  @override
+  Duration? get lastPrefillDuration => _ffi.lastPrefillDuration;
 
   @override
   void freeContext() => _ffi.freeContext();
@@ -94,16 +110,59 @@ class _RealFfiDriver implements LlamaFfiDriver {
 
 // ─── LlamaCppSession ──────────────────────────────────────────────────────────
 
-class LlamaCppSession implements InferenceSession {
+class LlamaCppSession implements InferenceSession, PromptMetricsSource {
   final LlamaFfiDriver _driver;
   final InferenceSettings _settings;
   final Logger _log = Logger('LlamaCppSession');
 
   bool _cancelled = false;
   bool _disposed = false;
+  bool _contextReady = false;
+
+  int? _lastPromptTokenCount;
 
   /// Production constructor — used by [LlamaCppBackend].
-  LlamaCppSession(this._driver, this._settings);
+  ///
+  /// Creates the context and sampler once, up front, rather than per
+  /// [generate] call — this both matches how TTFT/prefill throughput are
+  /// conventionally measured elsewhere (excluding one-time session setup)
+  /// and avoids paying the KV-cache allocation cost on every run. Each
+  /// [generate] call instead clears the existing context's KV cache via
+  /// [LlamaFfiDriver.resetForNewGeneration].
+  LlamaCppSession(this._driver, this._settings) {
+    _contextReady = _initContext();
+  }
+
+  bool _initContext() {
+    final sp = _settings.samplingParams;
+    // 4096 chosen in task-A02 (2026-07-08-t1-benchmark-talk): the benchmark's
+    // own L2048 prompt tier needs 2048 input + up to 512 generated tokens
+    // (2560 total), and on-device measurement showed no SWA-aware KV cache
+    // savings for Gemma 3 in the bundled llama.cpp build -- every 1024 tokens
+    // of context costs ~136MB uniformly across all layers, so this is the
+    // smallest value that comfortably covers the benchmark's needs on both
+    // the iPhone 17 Pro (increased-memory-limit entitlement) and Pixel 8a.
+    if (!_driver.createContext(nCtx: 4096, nBatch: 512, nThreads: 8, nThreadsBatch: 8)) {
+      _log.warn('createContext failed during session init');
+      return false;
+    }
+    if (!_driver.createSampler(
+      useGreedy: false,
+      topK: sp.topK,
+      topP: sp.topP,
+      temp: sp.temperature,
+    )) {
+      _log.warn('createSampler failed during session init');
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  int? get lastPromptTokenCount => _lastPromptTokenCount;
+
+  @override
+  Duration? get lastPrefillDuration => _driver.lastPrefillDuration;
 
   @override
   Stream<String> generate(List<ChatMessage> messages) {
@@ -113,6 +172,11 @@ class LlamaCppSession implements InferenceSession {
   }
 
   Stream<String> _runGeneration(List<ChatMessage> messages) async* {
+    if (!_contextReady) {
+      _log.warn('generate called but context/sampler failed to initialize');
+      return;
+    }
+
     // Build chat template input, prepending system prompt when set.
     final maps = _toMessageMaps(messages);
 
@@ -122,29 +186,33 @@ class LlamaCppSession implements InferenceSession {
     // that existed in the previous UnifiedLM implementation.
     final prompt = _driver.applyChatTemplate(maps);
 
-    final sp = _settings.samplingParams;
-    _driver.createContext(
-      nCtx: 2048,
-      nBatch: 512,
-      nThreads: 8,
-      nThreadsBatch: 8,
-    );
-    _driver.createSampler(
-      useGreedy: false,
-      topK: sp.topK,
-      topP: sp.topP,
-      temp: sp.temperature,
-    );
+    // Context and sampler are created once in the constructor; reset the KV
+    // cache so this generation starts fresh instead of continuing from
+    // whatever the previous run on this session left behind.
+    _driver.resetForNewGeneration();
 
     final nPrompt = _driver.tokenizePrompt(prompt);
     if (nPrompt == 0) {
       _log.warn('tokenizePrompt returned 0 — aborting generation');
       return;
     }
+    _lastPromptTokenCount = nPrompt;
 
+    final filter = TurnMarkerFilter();
+    var stoppedByMarker = false;
     await for (final token in _driver.generateStream(nPrompt, maxTokens: _settings.maxTokens)) {
       if (_cancelled) break;
-      yield token;
+      final result = filter.feed(token);
+      if (result.text.isNotEmpty) yield result.text;
+      if (result.stop) {
+        _log.debug('Turn-marker guard: truncated fabricated next turn');
+        stoppedByMarker = true;
+        break;
+      }
+    }
+    if (!stoppedByMarker && !_cancelled) {
+      final remainder = filter.flush();
+      if (remainder.isNotEmpty) yield remainder;
     }
   }
 

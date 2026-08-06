@@ -1,3 +1,4 @@
+import 'package:little_star_app/core/inference/generation_metrics.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/models/chat_message.dart';
 
@@ -23,30 +24,6 @@ class GenerationError extends GenerationEvent {
   final Object error;
   final StackTrace? stackTrace;
   GenerationError(this.error, [this.stackTrace]);
-}
-
-// ── Metrics ──────────────────────────────────────────────────────────────────
-
-enum StopReason { completed, cancelled, error }
-
-class GenerationMetrics {
-  /// Number of tokens emitted by the model.
-  final int tokenCount;
-
-  /// Time from [run] call to the first token.
-  final Duration? ttft;
-
-  /// Approximate decode throughput (tokens / decode-phase seconds).
-  final double? tokensPerSecond;
-
-  final StopReason stopReason;
-
-  const GenerationMetrics({
-    required this.tokenCount,
-    required this.stopReason,
-    this.ttft,
-    this.tokensPerSecond,
-  });
 }
 
 // ── Controller ───────────────────────────────────────────────────────────────
@@ -92,21 +69,45 @@ class GenerationController {
       }
 
       final finishedTime = DateTime.now();
-      final stopReason = _cancelled ? StopReason.cancelled : StopReason.completed;
+      final stopReason =
+          _cancelled ? StopReason.cancelled : StopReason.completed;
       final ttft = firstTokenTime?.difference(startTime);
-      final decodeDuration = firstTokenTime != null
-          ? finishedTime.difference(firstTokenTime)
-          : null;
-      final tps = decodeDuration != null && decodeDuration.inMilliseconds > 0
-          ? tokenCount / (decodeDuration.inMilliseconds / 1000.0)
-          : null;
+      final decodeDuration =
+          firstTokenTime != null
+              ? finishedTime.difference(firstTokenTime)
+              : null;
+      final tps =
+          decodeDuration != null && decodeDuration.inMilliseconds > 0
+              ? tokenCount / (decodeDuration.inMilliseconds / 1000.0)
+              : null;
 
-      yield GenerationDone(GenerationMetrics(
-        tokenCount: tokenCount,
-        stopReason: stopReason,
-        ttft: ttft,
-        tokensPerSecond: tps,
-      ));
+      int? promptTokenCount;
+      double? prefillTokensPerSecond;
+      final promptMetricsSource =
+          session is PromptMetricsSource
+              ? session as PromptMetricsSource
+              : null;
+      if (promptMetricsSource != null) {
+        promptTokenCount = promptMetricsSource.lastPromptTokenCount;
+        final prefillDuration = promptMetricsSource.lastPrefillDuration;
+        if (promptTokenCount != null &&
+            prefillDuration != null &&
+            prefillDuration.inMicroseconds > 0) {
+          prefillTokensPerSecond =
+              promptTokenCount / (prefillDuration.inMicroseconds / 1000000.0);
+        }
+      }
+
+      yield GenerationDone(
+        GenerationMetrics(
+          tokenCount: tokenCount,
+          stopReason: stopReason,
+          ttft: ttft,
+          tokensPerSecond: tps,
+          promptTokenCount: promptTokenCount,
+          prefillTokensPerSecond: prefillTokensPerSecond,
+        ),
+      );
     } finally {
       _isRunning = false;
       _activeSession = null;

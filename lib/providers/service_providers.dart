@@ -23,7 +23,6 @@ final onboardingServiceProvider = FutureProvider<OnboardingService>(
 );
 
 /// Selects the inference backend for a given model profile.
-/// Wire [mlxBackendFactory] here once task-1001 (MlxBackend) is complete.
 final backendSelectorProvider = Provider<BackendSelector>(
   (ref) => BackendSelector(),
 );

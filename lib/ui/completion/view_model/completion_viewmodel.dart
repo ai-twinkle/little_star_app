@@ -48,8 +48,10 @@ class MetricsData {
       generatedTokenCount: generatedTokenCount ?? this.generatedTokenCount,
       ttft: ttft ?? this.ttft,
       totalDuration: totalDuration ?? this.totalDuration,
-      prefillTokensPerSecond: prefillTokensPerSecond ?? this.prefillTokensPerSecond,
-      decodeTokensPerSecond: decodeTokensPerSecond ?? this.decodeTokensPerSecond,
+      prefillTokensPerSecond:
+          prefillTokensPerSecond ?? this.prefillTokensPerSecond,
+      decodeTokensPerSecond:
+          decodeTokensPerSecond ?? this.decodeTokensPerSecond,
       stopReason: stopReason ?? this.stopReason,
     );
   }
@@ -76,19 +78,28 @@ class CompletionViewModel extends ChangeNotifier {
 
   // Public notifiers — same API as before for widget compat.
   final ValueNotifier<String> outputTextNotifier = ValueNotifier('');
-  final ValueNotifier<MetricsData> metricsNotifier = ValueNotifier(MetricsData());
+  final ValueNotifier<MetricsData> metricsNotifier = ValueNotifier(
+    MetricsData(),
+  );
 
   CompletionViewModel({
     required String modelPath,
-    @visibleForTesting InferenceSession Function(ModelProfile, InferenceSettings)? sessionFactory,
-  })  : _settings = const InferenceSettings(maxTokens: 256),
-        _selectedModelPath = modelPath,
-        _sessionFactory = sessionFactory {
-    _profile = _buildProfile(modelPath);
-    _session = _openSession();
+    @visibleForTesting
+    InferenceSession Function(ModelProfile, InferenceSettings)? sessionFactory,
+    @visibleForTesting BackendSelector? backendSelector,
+  }) : _settings = const InferenceSettings(maxTokens: 256),
+       _selectedModelPath = modelPath,
+       _sessionFactory = sessionFactory,
+       _backendSelector = backendSelector ?? BackendSelector() {
+    if (modelPath.isNotEmpty) {
+      _profile = ModelProfile.fromLocalPath(modelPath);
+      _session = _openSession();
+    }
   }
 
-  final InferenceSession Function(ModelProfile, InferenceSettings)? _sessionFactory;
+  final InferenceSession Function(ModelProfile, InferenceSettings)?
+  _sessionFactory;
+  final BackendSelector _backendSelector;
 
   // ── Public getters ────────────────────────────────────────────────────────
 
@@ -109,7 +120,7 @@ class CompletionViewModel extends ChangeNotifier {
   Future<void> selectModel(String modelPath) async {
     _session?.dispose();
     _selectedModelPath = modelPath;
-    _profile = _buildProfile(modelPath);
+    _profile = ModelProfile.fromLocalPath(modelPath);
     _session = _openSession();
     _sessionDirty = false;
     notifyListeners();
@@ -144,7 +155,9 @@ class CompletionViewModel extends ChangeNotifier {
     _controller.cancel();
     await _sub?.cancel();
     _isRunning = false;
-    metricsNotifier.value = metricsNotifier.value.copyWith(stopReason: 'cancelled');
+    metricsNotifier.value = metricsNotifier.value.copyWith(
+      stopReason: 'cancelled',
+    );
     notifyListeners();
   }
 
@@ -168,14 +181,15 @@ class CompletionViewModel extends ChangeNotifier {
       samplingParams: SamplingParams(
         topK: (topK ?? _settings.samplingParams.topK).clamp(1, 100),
         topP: (topP ?? _settings.samplingParams.topP).clamp(0.1, 1.0),
-        temperature:
-            (temperature ?? _settings.samplingParams.temperature).clamp(0.0, 2.0),
+        temperature: (temperature ?? _settings.samplingParams.temperature)
+            .clamp(0.0, 2.0),
       ),
       systemPrompt: systemPrompt ?? _settings.systemPrompt,
       maxTokens: (maxTokens ?? _settings.maxTokens).clamp(16, 2048),
-      stopSequences: stopSequences != null
-          ? stopSequences.where((s) => s.trim().isNotEmpty).toList()
-          : _settings.stopSequences,
+      stopSequences:
+          stopSequences != null
+              ? stopSequences.where((s) => s.trim().isNotEmpty).toList()
+              : _settings.stopSequences,
     );
     if (_settings != prev) _sessionDirty = true;
     notifyListeners();
@@ -191,6 +205,7 @@ class CompletionViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _controller.cancel();
     _sub?.cancel();
     _session?.dispose();
     outputTextNotifier.dispose();
@@ -208,8 +223,10 @@ class CompletionViewModel extends ChangeNotifier {
       case GenerationDone(:final metrics):
         _isRunning = false;
         metricsNotifier.value = MetricsData(
+          promptTokenCount: metrics.promptTokenCount ?? 0,
           generatedTokenCount: metrics.tokenCount,
           ttft: metrics.ttft,
+          prefillTokensPerSecond: metrics.prefillTokensPerSecond,
           decodeTokensPerSecond: metrics.tokensPerSecond,
           stopReason: metrics.stopReason.name,
         );
@@ -217,7 +234,9 @@ class CompletionViewModel extends ChangeNotifier {
 
       case GenerationError():
         _isRunning = false;
-        metricsNotifier.value = metricsNotifier.value.copyWith(stopReason: 'error');
+        metricsNotifier.value = metricsNotifier.value.copyWith(
+          stopReason: 'error',
+        );
         notifyListeners();
     }
   }
@@ -226,16 +245,9 @@ class CompletionViewModel extends ChangeNotifier {
     final profile = _profile;
     if (profile == null) return null;
     if (_sessionFactory != null) return _sessionFactory(profile, _settings);
-    final backend = BackendSelector().select(profile);
+    final backend = _backendSelector.select(profile);
     return backend.createSession(profile, _settings);
   }
-
-  static ModelProfile _buildProfile(String modelPath) => ModelProfile(
-        id: modelPath,
-        displayName: modelPath.split('/').last,
-        format: ModelFormat.gguf,
-        localPath: modelPath,
-      );
 
   void _resetRunState() {
     outputTextNotifier.value = '';

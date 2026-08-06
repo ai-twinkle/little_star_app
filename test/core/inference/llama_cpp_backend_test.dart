@@ -12,13 +12,19 @@ class _FakeDriver implements LlamaFfiDriver {
 
   bool createContextCalled = false;
   bool createSamplerCalled = false;
+  int createContextCallCount = 0;
+  int createSamplerCallCount = 0;
+  int resetForNewGenerationCallCount = 0;
   bool freeContextCalled = false;
   bool freeModelCalled = false;
   bool useGreedyCaptured = false;
   int topKCaptured = 0;
   double topPCaptured = 0;
   double tempCaptured = 0;
+  bool contextCreationSucceeds = true;
+  bool samplerCreationSucceeds = true;
   List<Map<String, dynamic>>? lastMessageMaps;
+  Duration? fakePrefillDuration = const Duration(milliseconds: 10);
 
   _FakeDriver({this.tokens = const ['tok1', ' tok2', ' tok3']});
 
@@ -36,7 +42,8 @@ class _FakeDriver implements LlamaFfiDriver {
     required int nThreadsBatch,
   }) {
     createContextCalled = true;
-    return true;
+    createContextCallCount++;
+    return contextCreationSucceeds;
   }
 
   @override
@@ -47,15 +54,19 @@ class _FakeDriver implements LlamaFfiDriver {
     required double temp,
   }) {
     createSamplerCalled = true;
+    createSamplerCallCount++;
     useGreedyCaptured = useGreedy;
     topKCaptured = topK;
     topPCaptured = topP;
     tempCaptured = temp;
-    return true;
+    return samplerCreationSucceeds;
   }
 
   @override
   int tokenizePrompt(String prompt) => prompt.split(' ').length;
+
+  @override
+  void resetForNewGeneration() => resetForNewGenerationCallCount++;
 
   @override
   Stream<String> generateStream(int nPrompt, {required int maxTokens}) async* {
@@ -63,6 +74,9 @@ class _FakeDriver implements LlamaFfiDriver {
       yield t;
     }
   }
+
+  @override
+  Duration? get lastPrefillDuration => fakePrefillDuration;
 
   @override
   void freeContext() => freeContextCalled = true;
@@ -164,6 +178,60 @@ void main() {
       session.dispose();
     });
 
+    test('createContext and createSampler run during construction, before '
+        'any generate call', () {
+      final driver = _FakeDriver();
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      expect(driver.createContextCalled, isTrue);
+      expect(driver.createSamplerCalled, isTrue);
+      session.dispose();
+    });
+
+    test('createContext and createSampler run exactly once across multiple '
+        'generate calls (KV cache is reset, not the whole context)', () async {
+      final driver = _FakeDriver();
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      await session.generate([_userMsg]).drain<void>();
+      await session.generate([_userMsg]).drain<void>();
+
+      expect(driver.createContextCallCount, 1);
+      expect(driver.createSamplerCallCount, 1);
+      session.dispose();
+    });
+
+    test('resetForNewGeneration is called once per generate call', () async {
+      final driver = _FakeDriver();
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      await session.generate([_userMsg]).drain<void>();
+      expect(driver.resetForNewGenerationCallCount, 1);
+
+      await session.generate([_userMsg]).drain<void>();
+      expect(driver.resetForNewGenerationCallCount, 2);
+
+      session.dispose();
+    });
+
+    test('generate yields no tokens when createContext fails', () async {
+      final driver = _FakeDriver()..contextCreationSucceeds = false;
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens, isEmpty);
+      session.dispose();
+    });
+
+    test('generate yields no tokens when createSampler fails', () async {
+      final driver = _FakeDriver()..samplerCreationSucceeds = false;
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens, isEmpty);
+      session.dispose();
+    });
+
     test('passes SamplingParams to createSampler', () async {
       final driver = _FakeDriver();
       final settings = const InferenceSettings(
@@ -219,6 +287,89 @@ void main() {
       await session
           .generate([ChatMessage(content: 'hi', isUser: false)]).drain<void>();
       expect(driver.lastMessageMaps!.last['role'], 'assistant');
+      session.dispose();
+    });
+  });
+
+  group('LlamaCppSession — prompt metrics (PromptMetricsSource)', () {
+    test('lastPromptTokenCount and lastPrefillDuration are null before any '
+        'generate call', () {
+      // fakePrefillDuration defaults non-null for convenience in the other
+      // tests below; the real LlamaCppFFI field is null until generateStream
+      // has actually run, so this test overrides it to match that.
+      final driver = _FakeDriver()..fakePrefillDuration = null;
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      expect(session.lastPromptTokenCount, isNull);
+      expect(session.lastPrefillDuration, isNull);
+      session.dispose();
+    });
+
+    test('lastPromptTokenCount reflects tokenizePrompt after generation', () async {
+      final driver = _FakeDriver();
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      await session.generate([_userMsg]).drain<void>();
+
+      // _FakeDriver renders "user: Hello!" and tokenizePrompt counts words.
+      expect(session.lastPromptTokenCount, 2);
+      session.dispose();
+    });
+
+    test('lastPrefillDuration is forwarded from the driver', () async {
+      final driver = _FakeDriver()
+        ..fakePrefillDuration = const Duration(milliseconds: 42);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      await session.generate([_userMsg]).drain<void>();
+
+      expect(session.lastPrefillDuration, const Duration(milliseconds: 42));
+      session.dispose();
+    });
+  });
+
+  // --- LlamaCppSession: turn-marker guard -----------------------------------
+  group('LlamaCppSession turn-marker guard', () {
+    test('truncates output at a fabricated <start_of_turn>user marker', () async {
+      final driver = _FakeDriver(tokens: [
+        'Sure, here', ' is the answer.',
+        '<start_of_turn>user', 'What about tomorrow?',
+      ]);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'Sure, here is the answer.');
+      session.dispose();
+    });
+
+    test('truncates output at a fabricated <|assistant|> marker', () async {
+      final driver = _FakeDriver(tokens: [
+        'The answer is 42.', '<|assistant|>', 'Fabricated follow-up',
+      ]);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'The answer is 42.');
+      session.dispose();
+    });
+
+    test('detects a marker split across multiple token chunks', () async {
+      final driver = _FakeDriver(tokens: [
+        'Answer text', '<start_of', '_turn>user', 'garbage',
+      ]);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'Answer text');
+      session.dispose();
+    });
+
+    test('does not truncate or drop normal output with no marker', () async {
+      final driver = _FakeDriver(tokens: ['tok1', ' tok2', ' tok3']);
+      final session = LlamaCppSession(driver, const InferenceSettings());
+
+      final tokens = await session.generate([_userMsg]).toList();
+      expect(tokens.join(), 'tok1 tok2 tok3');
       session.dispose();
     });
   });

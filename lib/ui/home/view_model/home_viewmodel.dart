@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 
 import 'package:little_star_app/config/recommended_model_config.dart';
 import 'package:little_star_app/config/recommended_models.dart';
+import 'package:little_star_app/core/platform/platform_adapter.dart';
 import 'package:little_star_app/data/repositories/download_repository.dart';
 import 'package:little_star_app/data/services/directory_service.dart';
 import 'package:little_star_app/data/services/download_service.dart';
@@ -71,6 +72,7 @@ class HomeViewModel extends ChangeNotifier {
   final DownloadRepository _downloadRepository;
   final DirectoryService _directoryService;
   final OnboardingService _onboardingService;
+  final PlatformAdapter _platformAdapter;
 
   final Logger _log = Logger('HomeViewModel');
 
@@ -95,6 +97,7 @@ class HomeViewModel extends ChangeNotifier {
   bool get isInitialized => _isInitialized;
   bool get hasCompletedOnboarding => _hasCompletedOnboarding;
   int get currentOnboardingStep => _currentOnboardingStep;
+  bool get supportsMlx => _platformAdapter.supportsMlx;
 
   HomeViewModel({
     required HuggingFaceService hfService,
@@ -102,11 +105,13 @@ class HomeViewModel extends ChangeNotifier {
     required DownloadRepository downloadRepository,
     required DirectoryService directoryService,
     required OnboardingService onboardingService,
+    PlatformAdapter? platformAdapter,
   }) : _hfService = hfService,
        _downloadService = downloadService,
        _downloadRepository = downloadRepository,
        _directoryService = directoryService,
-       _onboardingService = onboardingService;
+       _onboardingService = onboardingService,
+       _platformAdapter = platformAdapter ?? PlatformAdapter.current();
 
   /// Initialize the ViewModel
   Future<void> init() async {

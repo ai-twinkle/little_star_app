@@ -1,3 +1,4 @@
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:little_star_app/data/services/directory_service.dart';
@@ -5,10 +6,12 @@ import 'package:little_star_app/data/services/directory_service.dart';
 /// Abstraction over platform-specific capabilities used by the inference layer.
 ///
 /// Each platform provides its own [directoryService], reports its [platformId],
-/// and declares whether on-device inference is available via [supportsInference].
+/// and declares inference capabilities via [supportsInference] and
+/// [supportsMlx].
 abstract class PlatformAdapter {
   String get platformId;
   bool get supportsInference;
+  bool get supportsMlx;
   DirectoryService get directoryService;
 
   /// Returns the [PlatformAdapter] for the running platform.
@@ -23,6 +26,9 @@ class AndroidPlatformAdapter implements PlatformAdapter {
   bool get supportsInference => true;
 
   @override
+  bool get supportsMlx => false;
+
+  @override
   DirectoryService get directoryService => AndroidDirectoryService();
 }
 
@@ -34,15 +40,25 @@ class IOSPlatformAdapter implements PlatformAdapter {
   bool get supportsInference => true;
 
   @override
+  bool get supportsMlx => true;
+
+  @override
   DirectoryService get directoryService => IOSDirectoryService();
 }
 
 class MacOSPlatformAdapter implements PlatformAdapter {
+  final Abi _abi;
+
+  MacOSPlatformAdapter({Abi? abi}) : _abi = abi ?? Abi.current();
+
   @override
   String get platformId => 'macos';
 
   @override
   bool get supportsInference => true;
+
+  @override
+  bool get supportsMlx => _abi == Abi.macosArm64;
 
   @override
   DirectoryService get directoryService => MacOsDirectoryService();
@@ -57,6 +73,9 @@ class WindowsPlatformAdapter implements PlatformAdapter {
   bool get supportsInference => false;
 
   @override
+  bool get supportsMlx => false;
+
+  @override
   DirectoryService get directoryService => WindowsDirectoryService();
 }
 
@@ -66,6 +85,9 @@ class LinuxPlatformAdapter implements PlatformAdapter {
 
   @override
   bool get supportsInference => false;
+
+  @override
+  bool get supportsMlx => false;
 
   @override
   DirectoryService get directoryService => DesktopDirectoryService();
@@ -80,4 +102,3 @@ class PlatformAdapterFactory {
     return LinuxPlatformAdapter();
   }
 }
-

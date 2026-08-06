@@ -1,6 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:ffi/ffi.dart';
 
 import '../../platform/native_library_loader.dart';
@@ -94,6 +95,10 @@ final class llama_model_params extends ffi.Struct {
 final class llama_vocab extends ffi.Opaque {} // struct llama_vocab
 
 final class llama_context extends ffi.Opaque {}
+
+final class llama_memory_i extends ffi.Opaque {}
+
+typedef llama_memory_t = ffi.Pointer<llama_memory_i>;
 
 final class llama_context_params extends ffi.Struct {
   @ffi.Uint32()
@@ -334,6 +339,12 @@ typedef LlamaNSeqMax = int Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaGetModelNative = ffi.Pointer<llama_model> Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaGetModel = ffi.Pointer<llama_model> Function(ffi.Pointer<llama_context> ctx);
 
+typedef LlamaGetMemoryNative = llama_memory_t Function(ffi.Pointer<llama_context> ctx);
+typedef LlamaGetMemory = llama_memory_t Function(ffi.Pointer<llama_context> ctx);
+
+typedef LlamaMemoryClearNative = ffi.Void Function(llama_memory_t mem, ffi.Bool data);
+typedef LlamaMemoryClear = void Function(llama_memory_t mem, bool data);
+
 typedef LlamaNThreadsNative = ffi.Int32 Function(ffi.Pointer<llama_context> ctx);
 typedef LlamaNThreads = int Function(ffi.Pointer<llama_context> ctx);
 
@@ -462,6 +473,8 @@ class LlamaCppFFI {
   late LlamaGetModel llama_get_model;
   late LlamaNThreads llama_n_threads;
   late LlamaNThreadsBatch llama_n_threads_batch;
+  late LlamaGetMemory llama_get_memory;
+  late LlamaMemoryClear llama_memory_clear;
   //
   late LlamaVocabIsEog llama_vocab_is_eog;
   //
@@ -500,12 +513,19 @@ class LlamaCppFFI {
   ffi.Pointer<llama_context>? _context;
   ffi.Pointer<llama_sampler>? _sampler;
   llama_batch? _batch;
+  ffi.Pointer<llama_token>? _promptTokens;
   bool logVerbose = false;
-  
+
+  /// Wall-clock time spent decoding the prompt (prefill) in the most recent
+  /// [generateStream] call — set right after [_prefillPrompt] returns, before
+  /// the token-by-token decode loop starts. Null until a generation has run.
+  Duration? _lastPrefillDuration;
+
   ffi.Pointer<llama_model>? get model => _model;
   ffi.Pointer<llama_context>? get context => _context;
   ffi.Pointer<llama_sampler>? get sampler => _sampler;
   llama_batch? get batch => _batch;
+  Duration? get lastPrefillDuration => _lastPrefillDuration;
   
   // Check if model is loaded
   bool get isModelLoaded => _model != null && _model != ffi.nullptr;
@@ -602,6 +622,14 @@ class LlamaCppFFI {
       llama_n_threads_batch = _lib
           .lookup<ffi.NativeFunction<LlamaNThreadsBatchNative>>('llama_n_threads_batch')
           .asFunction<LlamaNThreadsBatch>();
+
+      llama_get_memory = _lib
+          .lookup<ffi.NativeFunction<LlamaGetMemoryNative>>('llama_get_memory')
+          .asFunction<LlamaGetMemory>();
+
+      llama_memory_clear = _lib
+          .lookup<ffi.NativeFunction<LlamaMemoryClearNative>>('llama_memory_clear')
+          .asFunction<LlamaMemoryClear>();
 
       //
       llama_vocab_is_eog = _lib
@@ -803,12 +831,44 @@ class LlamaCppFFI {
       // Free the prompt memory now that we're done with it
       malloc.free(promptUtf8);
 
-      _batch = llama_batch_get_one(tokens, nPrompt);
+      // Keep the raw token buffer around — it's consumed in chunks (each no
+      // larger than the context's n_batch) by _prefillPrompt, rather than
+      // handed to llama_decode as a single oversized batch. llama_decode
+      // hard-aborts the process (GGML_ASSERT) if a batch exceeds n_batch,
+      // so any prompt longer than n_batch tokens would otherwise crash.
+      _promptTokens = tokens;
       return nPrompt;
     } catch (e) {
       log.error('Error tokenizing prompt: $e');
       return 0;
     }
+  }
+
+  /// Decodes [nPrompt] tokens from [_promptTokens] in chunks that each
+  /// respect the context's configured n_batch, so no single llama_decode
+  /// call ever receives more tokens than the context can accept.
+  ///
+  /// Returns true once the whole prompt has been decoded, false if any
+  /// chunk fails (logged; caller should abort generation).
+  bool _prefillPrompt(int nPrompt) {
+    final promptTokens = _promptTokens;
+    if (promptTokens == null || promptTokens == ffi.nullptr) {
+      log.warn('No prompt tokens to prefill');
+      return false;
+    }
+
+    final nBatchLimit = llama_n_batch(_context!);
+    int pos = 0;
+    while (pos < nPrompt) {
+      final chunkSize = math.min(nBatchLimit, nPrompt - pos);
+      _batch = llama_batch_get_one(promptTokens + pos, chunkSize);
+      if (llama_decode(_context!, _batch!) != 0) {
+        log.error('Error: failed to decode prompt chunk at pos $pos (size $chunkSize)');
+        return false;
+      }
+      pos += chunkSize;
+    }
+    return true;
   }
 
   // Create context for inference
@@ -860,6 +920,24 @@ class LlamaCppFFI {
     }
   }
 
+  /// Resets the context's KV cache back to empty (sequence position 0)
+  /// without destroying and recreating the context itself. Call this before
+  /// each independent generation on a reused context — `data: false` skips
+  /// zeroing the underlying buffers, which isn't needed since prefill
+  /// overwrites them anyway, so this is cheap relative to [createContext].
+  void clearMemory() {
+    if (_context == null || _context == ffi.nullptr) {
+      log.warn('clearMemory called with no context');
+      return;
+    }
+    final mem = llama_get_memory(_context!);
+    if (mem == ffi.nullptr) {
+      log.warn('llama_get_memory returned null');
+      return;
+    }
+    llama_memory_clear(mem, false);
+  }
+
   bool createSampler({bool useGreedy = false, int? topK, double? topP, double? temp}) {
     log.debug('\n\ncreateSampler(useGreedy: $useGreedy, topK: $topK, topP: $topP, temp: $temp)');
     try {
@@ -907,18 +985,13 @@ class LlamaCppFFI {
         return '';
       }
 
-      if (_batch == null || _batch == ffi.nullptr) {
-        log.warn('Batch not initialized');
+      if (_promptTokens == null || _promptTokens == ffi.nullptr) {
+        log.warn('Prompt not tokenized');
         return '';
       }
 
       if (_sampler == null || _sampler == ffi.nullptr) {
         log.warn('Sampler not initialized');
-        return '';
-      }
-
-      if (_context == null || _context == ffi.nullptr) {
-        log.warn('Context not initialized');
         return '';
       }
 
@@ -932,11 +1005,10 @@ class LlamaCppFFI {
       // Print prompt tokens
       for (int i = 0; i < nPrompt; i++) {
         final buf = malloc<ffi.Char>(128);
-        int n = llama_token_to_piece(vocab, _batch!.token[i], buf, 128, 0, true);
+        int n = llama_token_to_piece(vocab, (_promptTokens! + i).value, buf, 128, 0, true);
         if (n < 0) {
           log.error("error: failed to convert token to piece");
           malloc.free(buf);
-          malloc.free(_batch!.token);
           return '';
         }
         String piece = utf8.decode(buf.cast<ffi.Uint8>().asTypedList(n), allowMalformed: true);
@@ -944,19 +1016,18 @@ class LlamaCppFFI {
         malloc.free(buf);
       }
 
-      // Main generation loop
+      // Decode the prompt in chunks no larger than n_batch before sampling —
+      // a single oversized llama_decode call hard-aborts the process.
+      if (!_prefillPrompt(nPrompt)) {
+        return '';
+      }
+
+      // Main generation loop — one new token decoded per iteration.
       final sb = StringBuffer();
       int newTokenId;
       final tokenPtr = malloc<llama_token>();
 
-      for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
-        if (llama_decode(_context!, _batch!) != 0) {
-          log.error("Error: failed to decode batch");
-          break;
-        }
-
-        nPos += _batch!.n_tokens;
-
+      for (int nPos = nPrompt; nPos < nPrompt + maxTokens; nPos++) {
         // Sample next token
         newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
 
@@ -980,9 +1051,13 @@ class LlamaCppFFI {
         sb.write(piece);
         malloc.free(buf);
 
-        // Prepare next batch
+        // Decode the sampled token so the next iteration can sample its successor.
         tokenPtr.value = newTokenId;
         _batch = llama_batch_get_one(tokenPtr, 1);
+        if (llama_decode(_context!, _batch!) != 0) {
+          log.error("Error: failed to decode batch");
+          break;
+        }
       }
 
       malloc.free(tokenPtr);
@@ -1002,8 +1077,8 @@ class LlamaCppFFI {
         return;
       }
 
-      if (_batch == null || _batch == ffi.nullptr) {
-        log.warn('Batch not initialized');
+      if (_promptTokens == null || _promptTokens == ffi.nullptr) {
+        log.warn('Prompt not tokenized');
         return;
       }
 
@@ -1019,20 +1094,23 @@ class LlamaCppFFI {
         return;
       }
 
+      // Decode the prompt in chunks no larger than n_batch before sampling —
+      // a single oversized llama_decode call hard-aborts the process.
+      final prefillStopwatch = Stopwatch()..start();
+      final prefillOk = _prefillPrompt(nPrompt);
+      prefillStopwatch.stop();
+      _lastPrefillDuration = prefillStopwatch.elapsed;
+      if (!prefillOk) {
+        return;
+      }
+
       final tokenPtr = malloc<llama_token>();
       final byteBuffer = <int>[];
 
       try {
         int newTokenId;
 
-        for (int nPos = 0; nPos + _batch!.n_tokens < nPrompt + maxTokens;) {
-          if (llama_decode(_context!, _batch!) != 0) {
-            log.error("Error: failed to decode batch");
-            break;
-          }
-
-          nPos += _batch!.n_tokens;
-
+        for (int nPos = nPrompt; nPos < nPrompt + maxTokens; nPos++) {
           // Sample next token
           newTokenId = llama_sampler_sample(_sampler!, _context!, -1);
 
@@ -1072,9 +1150,13 @@ class LlamaCppFFI {
             }
           }
 
-          // Prepare next batch
+          // Decode the sampled token so the next iteration can sample its successor.
           tokenPtr.value = newTokenId;
           _batch = llama_batch_get_one(tokenPtr, 1);
+          if (llama_decode(_context!, _batch!) != 0) {
+            log.error("Error: failed to decode batch");
+            break;
+          }
 
           // Keep UI responsive
           await Future.delayed(Duration.zero);

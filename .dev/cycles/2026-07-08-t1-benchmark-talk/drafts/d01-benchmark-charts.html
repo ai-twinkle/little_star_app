@@ -1,0 +1,1123 @@
+<title>T1 效能矩陣 — D01 圖表</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f2f1ec;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --blue: #2a78d6;      /* GGUF / llama.cpp */
+    --orange: #eb6834;    /* MLX */
+    --warn: #fab219;
+    --warn-ink: #6b4a05;
+    --warn-bg: #fdf1d8;
+    --critical: #d03b3b;
+    --good: #0ca30c;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK TC", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0f;
+      --surface: #15171d;
+      --surface-2: #1c1f27;
+      --ink: #f2f2f0;
+      --ink-2: #c3c2b7;
+      --muted: #8b8a84;
+      --grid: #2a2c33;
+      --baseline: #3a3c44;
+      --border: rgba(255,255,255,0.10);
+      --blue: #3987e5;
+      --orange: #d95926;
+      --warn: #c98500;
+      --warn-ink: #ffe6a8;
+      --warn-bg: #2b2210;
+      --critical: #e66767;
+      --good: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0f;
+    --surface: #15171d;
+    --surface-2: #1c1f27;
+    --ink: #f2f2f0;
+    --ink-2: #c3c2b7;
+    --muted: #8b8a84;
+    --grid: #2a2c33;
+    --baseline: #3a3c44;
+    --border: rgba(255,255,255,0.10);
+    --blue: #3987e5;
+    --orange: #d95926;
+    --warn: #c98500;
+    --warn-ink: #ffe6a8;
+    --warn-bg: #2b2210;
+    --critical: #e66767;
+    --good: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 40px 24px 96px;
+  }
+  header.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--ink-2);
+    font-size: 15px;
+    max-width: 70ch;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  section { margin: 48px 0; }
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.005em;
+  }
+  .section-note {
+    color: var(--ink-2);
+    font-size: 14px;
+    max-width: 72ch;
+    margin: 0 0 20px;
+  }
+
+  .callout {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--warn-bg);
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+    color: var(--warn-ink);
+    margin: 16px 0;
+  }
+  .callout .dot {
+    flex: none;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    margin-top: 6px;
+  }
+  .callout b { font-weight: 700; }
+  .callout a { color: inherit; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .stat-tile {
+    background: var(--surface);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-tile .label { font-size: 12.5px; color: var(--muted); }
+  .stat-tile .value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .stat-tile .value.accent-blue { color: var(--blue); }
+  .stat-tile .value.accent-orange { color: var(--orange); }
+  .stat-tile .sub { font-size: 12.5px; color: var(--ink-2); font-family: var(--mono); }
+
+  .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+  .panels.single { grid-template-columns: minmax(0, 560px); }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 18px 14px;
+  }
+  .panel h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 2px;
+  }
+  .panel .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .legend .step { width: 10px; height: 10px; border-radius: 2px; opacity: .5; }
+
+  svg { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--mono); }
+  .tick-label { fill: var(--muted); font-size: 10.5px; }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .bar-label { fill: var(--ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--ink);
+    color: var(--page);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    line-height: 1.5;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translate(-50%, -100%);
+    transition: opacity .08s ease;
+    z-index: 10;
+  }
+  .chart-host { position: relative; }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    font-family: var(--mono);
+  }
+  table.data-table th, table.data-table td {
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--grid);
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table th:first-child, table.data-table td:first-child { text-align: left; font-family: var(--sans); }
+  table.data-table th { color: var(--muted); font-weight: 600; font-size: 11px; }
+  details.table-toggle { margin-top: 14px; }
+  details.table-toggle summary {
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    user-select: none;
+  }
+  details.table-toggle > div { margin-top: 10px; overflow-x: auto; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  footer a { color: var(--blue); }
+  code { font-family: var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Little Star · 2026-07-08-t1-benchmark-talk · task-D01</div>
+    <h1>T1（Gemma-3-4B-T1-it）繁中推論效能矩陣</h1>
+    <p class="subtitle">llama.cpp（GGUF）與 MLX 兩個 backend，在 iPhone 17 Pro 上，對 4 種輸入長度 tier（128 / 512 / 1024 / 2048 tokens）實測的 TTFT、decode 速度、記憶體與熱節流資料。</p>
+    <div class="meta-row">
+      <span>矩陣資料 2026-07-19 · 發熱/電量曲線 2026-07-21</span>
+      <span>iPhone 17 Pro · 96 筆樣本</span>
+      <span>sampling temp 0.6 / topP 0.95</span>
+    </div>
+  </header>
+
+  <div class="callout">
+    <div class="dot"></div>
+    <div>
+      <b>下方「快照總覽／TTFT／decode／記憶體」四節用的是尚未乾淨的基準值，這是本頁最重要的閱讀說明。</b>
+      8 個組合背靠背連續執行、組間沒有降溫，thermalState 中途從 <code>fair</code> 升到 <code>serious</code> 後未再恢復。兩個 backend 之間的<b>相對關係</b>仍具參考價值；正式簡報前建議依
+      <a href="../../.dev/cycles/2026-07-08-t1-benchmark-talk/construction.md">construction.md</a> 的建議重跑一次。
+      <br><br>
+      <b>「發熱節流曲線」與「電量消耗」兩節（下方第 4、5 節）不受此限制</b>——2026-07-21 已改用單次連續、拔線的 task-C03 sustained-load 方式重新實測，兩個 backend 皆為乾淨資料，可放心引用。
+    </div>
+  </div>
+
+  <section id="matrix">
+    <h2>快照總覽</h2>
+    <p class="section-note">iPhone 17 Pro，llama.cpp（GGUF）vs MLX，L512 tier 代表值（暖啟動中位數）。完整 4 個 tier 見下方圖表。</p>
+    <div id="matrix-grid"></div>
+  </section>
+
+  <section id="ttft">
+    <h2>1 · TTFT（Time To First Token）</h2>
+    <p class="section-note">依 tier 分組；同一色系的淺／深兩階分別代表 session-cold（首次生成）與 session-warm（同 session 第 2 次以後）— 兩者差距即 2026-07-18 上機發現的 GPU/Metal kernel JIT 熱機效應。</p>
+    <div class="panels" id="ttft-panels"></div>
+  </section>
+
+  <section id="decode">
+    <h2>2 · Decode 速度（tokens/s）</h2>
+    <p class="section-note">同樣分 cold / warm 兩階。數字愈高愈快。</p>
+    <div class="panels" id="decode-panels"></div>
+  </section>
+
+  <section id="memory">
+    <h2>3 · 峰值記憶體</h2>
+    <p class="section-note">同一 tier 內 cold/warm 差異很小，這裡取每個 tier 全部樣本的中位數。iPhone GGUF 用固定 <code>nCtx=4096</code> 預先配置 KV cache，MLX 是動態成長 — 兩者隨 tier 拉長的走勢不同。</p>
+    <div class="panels" id="memory-panels"></div>
+  </section>
+
+  <section id="thermal">
+    <h2>4 · 發熱節流曲線（task-C03，單次連續 10 分鐘，拔線）</h2>
+    <p class="section-note">
+      x 軸是距離開始的實際經過時間（秒）。下圖兩條線各取自 6 次 sustained-load 重跑中「方法論最一致」的一組（都充到 100%、靜置到 thermalState 顯示 nominal 才開始）——但如下方 callout 所示，<b>這只是眾多重跑版本裡的其中一組，不代表哪個 backend 比較快推熱或比較省電</b>。兩者都清楚看到真實的 <code>nominal → fair → serious</code> 降頻曲線，這個現象本身是穩定可重現的；但進入 <code>fair</code>/<code>serious</code> 的確切秒數，run-to-run 變異幅度比 backend 之間的差異還大。
+    </p>
+    <div class="panel">
+      <div id="thermal-chart" class="chart-host"></div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--blue)"></span>llama.cpp (GGUF) · fair@160s · serious@547s</span>
+        <span class="item"><span class="swatch" style="background:var(--orange)"></span>MLX · fair@61s · serious@359s</span>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">
+      <div class="dot"></div>
+      <div>
+        <b>誠實揭露：不主張哪個 backend 推熱較快或較省電，兩者的量測雜訊都大於彼此的差異。</b>
+        總共重跑了 3 次 GGUF、3 次 MLX，涵蓋「背靠背無間隔」「當天第一輪但電量不一」「充滿+靜置到 nominal 才跑」三種條件。最早以為「MLX 明顯比較快推熱裝置」，後來發現是測試順序造成的假象（前一個測試殘留熱量，thermalState 標籤重置成 <code>nominal</code> 不代表裝置真的降溫）；改成方法論一致的「充滿+靜置」版本重跑後，<b>換成 GGUF 這次比 MLX 慢了 2 倍以上才進入降頻</b>，且電量消耗、穩態速度全部都跟前一輪 GGUF 的結果對不上——顯示<b>就算控制了順序和起始電量，單次量測本身的變異就已經比 backend 差異更大</b>，這也呼應 task-C04 pilot 當初就發現的「冷啟動數字需要多次獨立取樣」。完整 6 筆數據：
+        <table class="data-table" style="margin-top:10px;">
+          <thead><tr><th>Backend</th><th>條件</th><th>→ fair</th><th>→ serious</th><th>穩態 tok/s</th><th>電量</th></tr></thead>
+          <tbody>
+            <tr><td>GGUF</td><td>當天第一輪</td><td>50s</td><td>401s</td><td>~13.9</td><td>95%→95%</td></tr>
+            <tr><td>GGUF</td><td>排第二（隔 ~8-10 分鐘）</td><td>39s</td><td>306s</td><td>~13.6</td><td>70%→65%</td></tr>
+            <tr><td>GGUF</td><td>充滿+靜置到 nominal</td><td>160s</td><td>547s</td><td>~14.5</td><td>100%→90%</td></tr>
+            <tr><td>MLX</td><td>排第二（隔 ~8 分鐘）</td><td>33s</td><td>266s</td><td>~12.4</td><td>95%→85%</td></tr>
+            <tr><td>MLX</td><td>當天第一輪，電量偏低</td><td>71s</td><td>429s</td><td>~13.0</td><td>75%→70%</td></tr>
+            <tr><td>MLX</td><td>充滿+靜置到 nominal</td><td>61s</td><td>359s</td><td>~12.7</td><td>100%→95%</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px;margin-bottom:0;">
+          唯一一個 6 次量測都一致、且兩個 backend 數值範圍完全沒有重疊的訊號：<b>穩態降頻後的 decode 速度，GGUF（13.6-14.5 tok/s）一致高於 MLX（12.4-13.0 tok/s）</b>，約 10-15% 的差距。這是目前唯一有信心講的 backend 差異；「誰推熱較快」「誰比較省電」則需要更多次獨立取樣、交替配對才能下結論，目前資料不足以支撐。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="battery">
+    <h2>5 · 電量消耗（task-C03，與上方同一組配對）</h2>
+    <p class="section-note">拔線、單次連續 10 分鐘實測，跟第 4 節用同一組配對（GGUF 充滿靜置版 vs MLX 充滿靜置版）。兩者電量都有真實變化，但如上方表格所示，6 次重跑的電量消耗（0%～10%）本身變異就很大，同一 backend 內部的差異不小於兩個 backend 之間的差異——<b>不建議從這組數字推論哪個 backend 比較省電</b>。</p>
+    <div class="stat-row">
+      <div class="stat-tile">
+        <div class="label">GGUF（68 筆樣本，10 分 35 秒）</div>
+        <div class="value">100% → 90%</div>
+        <div class="sub">10 分鐘掉 10 個百分點；同一 backend 另外兩輪分別是 0% 和 5%</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">MLX（47 筆樣本，10 分 12 秒）</div>
+        <div class="value accent-orange">100% → 95%</div>
+        <div class="sub">10 分鐘掉 5 個百分點；同一 backend 另外兩輪分別是 10% 和 5%</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <div id="battery-chart" class="chart-host"></div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--blue)"></span>GGUF</span>
+        <span class="item"><span class="swatch" style="background:var(--orange)"></span>MLX</span>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">
+      <div class="dot"></div>
+      <div>單次量測、樣本數不足，<b>不建議拿這組數字當精確功耗對比或宣稱任何一個 backend 比較省電</b>——要有統計意義，需要在同一電量區間交替跑 GGUF/MLX 各 5 輪以上並做顯著性檢定，這超出這個循環的時間預算，留待未來需要時再做。</div>
+    </div>
+  </section>
+
+  <section id="table">
+    <h2>資料表（圖表備援）</h2>
+    <p class="section-note">上面每張圖表的中位數彙總值，供無法讀圖或需要精確數字時查閱。</p>
+    <details class="table-toggle">
+      <summary>展開完整資料表（4 tier × 2 backend）</summary>
+      <div id="data-table-host"></div>
+    </details>
+  </section>
+
+  <footer>
+    資料來源（task-C03 共 3 輪 GGUF + 3 輪 MLX sustained-load，見第 4 節完整表格）：
+    <a href="../../docs/benchmark/2026-07-19-c05-iphone-results.md">2026-07-19-c05-iphone-results.md</a> ·
+    <a href="../../docs/benchmark/2026-07-22-c03-gguf-sustained-round2-matched.csv">2026-07-22-c03-gguf-sustained-round2-matched.csv</a>（GGUF・充滿+靜置版，第 4/5 節主圖用）·
+    <a href="../../docs/benchmark/2026-07-21-c03-mlx-sustained-round3-matched.csv">2026-07-21-c03-mlx-sustained-round3-matched.csv</a>（MLX・充滿+靜置版，第 4/5 節主圖用）·
+    <a href="../../docs/benchmark/2026-07-21-c03-gguf-sustained.csv">2026-07-21-c03-gguf-sustained.csv</a>（GGUF・當天第一輪）·
+    <a href="../../docs/benchmark/2026-07-21-c03-gguf-sustained-round2-mlxfirst.csv">2026-07-21-c03-gguf-sustained-round2-mlxfirst.csv</a>（GGUF・排第二輪）·
+    <a href="../../docs/benchmark/2026-07-21-c03-mlx-sustained.csv">2026-07-21-c03-mlx-sustained.csv</a>（MLX・排第二輪）·
+    <a href="../../docs/benchmark/2026-07-21-c03-mlx-sustained-round2-mlxfirst.csv">2026-07-21-c03-mlx-sustained-round2-mlxfirst.csv</a>（MLX・當天第一輪但電量偏低）·
+    <a href="../../.dev/cycles/2026-07-08-t1-benchmark-talk/construction.md">construction.md</a>（task-D01）
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ───────────────────────── raw data ───────────────────────── */
+
+  // ── DATA INJECTION POINT ─────────────────────────────────────────────────
+  // iPhone data lives as a real CSV (same schema as BenchmarkRecorder's
+  // export, see lib/core/benchmark/benchmark_export.dart) and gets parsed
+  // into the chart's working shape below — swap RAW_IPHONE_CSV's contents
+  // for a fresh c05_overnight_matrix.csv export and the whole page
+  // regenerates, no other edits needed. Row order is preserved (the thermal
+  // chart depends on it) since the on-device checkpoint writer always
+  // rewrites the full accumulated sample list in the order it was recorded.
+  const RAW_IPHONE_CSV = `timestamp,format,modelId,label,modelLoadMs,ttftMs,decodeTokensPerSecond,prefillTokensPerSecond,promptTokenCount,tokenCount,stopReason,peakMemoryBytes,thermalStateBefore,thermalStateAfter,batteryLevelBefore,batteryLevelAfter,generatedText
+2026-07-19T16:00:05.750Z,gguf,model-t1,L128-session-cold,3000,750,21.56,200,64,512,completed,3654.5,fair,fair,90,90,
+2026-07-19T16:00:11.123Z,gguf,model-t1,L128-session-warm-1,0,373,19.7,2000,64,512,completed,3685.4,fair,fair,90,90,
+2026-07-19T16:00:16.595Z,gguf,model-t1,L128-session-warm-2,0,472,18.4,2000,64,512,completed,3685.6,fair,fair,90,90,
+2026-07-19T16:00:22.173Z,gguf,model-t1,L128-session-warm-3,0,578,16.71,2000,64,512,completed,3688.1,fair,fair,90,90,
+2026-07-19T16:00:27.695Z,gguf,model-t1,L128-session-cold,0,522,13.67,200,64,512,completed,3794.4,fair,fair,90,90,
+2026-07-19T16:00:33.373Z,gguf,model-t1,L128-session-warm-1,0,678,15.7,2000,64,512,completed,3796.1,fair,fair,90,90,
+2026-07-19T16:00:38.995Z,gguf,model-t1,L128-session-warm-2,0,622,15.25,2000,64,512,completed,3797.3,fair,fair,90,90,
+2026-07-19T16:00:44.680Z,gguf,model-t1,L128-session-warm-3,0,685,15.09,2000,64,512,completed,3797.5,serious,serious,90,90,
+2026-07-19T16:00:50.231Z,gguf,model-t1,L128-session-cold,0,551,14.74,200,64,512,completed,3799.9,serious,serious,90,90,
+2026-07-19T16:00:55.901Z,gguf,model-t1,L128-session-warm-1,0,670,14.47,2000,64,512,completed,3799.9,serious,serious,90,90,
+2026-07-19T16:01:01.586Z,gguf,model-t1,L128-session-warm-2,0,685,14.2,2000,64,512,completed,3800,serious,serious,90,90,
+2026-07-19T16:01:07.267Z,gguf,model-t1,L128-session-warm-3,0,681,14.22,2000,64,512,completed,3798.8,serious,serious,90,90,
+2026-07-19T16:01:13.548Z,gguf,model-t1,L512-session-cold,3000,1281,23.92,200,223,512,completed,3843.2,serious,serious,90,90,
+2026-07-19T16:01:19.486Z,gguf,model-t1,L512-session-warm-1,0,938,23.85,2000,223,512,completed,3843,serious,serious,90,90,
+2026-07-19T16:01:25.487Z,gguf,model-t1,L512-session-warm-2,0,1001,20.44,2000,223,512,completed,3844.8,serious,serious,90,90,
+2026-07-19T16:01:31.506Z,gguf,model-t1,L512-session-warm-3,0,1019,22.27,2000,223,512,completed,3849.4,serious,serious,90,90,
+2026-07-19T16:01:37.491Z,gguf,model-t1,L512-session-cold,0,985,20.66,200,223,512,completed,3863.3,serious,serious,90,90,
+2026-07-19T16:01:43.583Z,gguf,model-t1,L512-session-warm-1,0,1092,17.99,2000,223,512,completed,3847.7,serious,serious,90,90,
+2026-07-19T16:01:49.648Z,gguf,model-t1,L512-session-warm-2,0,1065,21.01,2000,223,512,completed,3849.8,serious,serious,90,90,
+2026-07-19T16:01:55.778Z,gguf,model-t1,L512-session-warm-3,0,1130,20.32,2000,223,512,completed,3851.5,serious,serious,90,90,
+2026-07-19T16:02:01.969Z,gguf,model-t1,L512-session-cold,0,1191,19.89,200,223,512,completed,3861.3,serious,serious,90,90,
+2026-07-19T16:02:08.254Z,gguf,model-t1,L512-session-warm-1,0,1285,20.75,2000,223,512,completed,3856.2,serious,serious,90,90,
+2026-07-19T16:02:14.554Z,gguf,model-t1,L512-session-warm-2,0,1300,19.25,2000,223,512,completed,3857.9,serious,serious,90,90,
+2026-07-19T16:02:20.907Z,gguf,model-t1,L512-session-warm-3,0,1353,19.19,2000,223,512,completed,3858.3,serious,serious,90,90,
+2026-07-19T16:02:27.571Z,gguf,model-t1,L1024-session-cold,3000,1664,22.39,200,343,512,completed,3852.7,serious,serious,90,90,
+2026-07-19T16:02:34.242Z,gguf,model-t1,L1024-session-warm-1,0,1671,21.75,2000,343,512,completed,3858.9,serious,serious,90,90,
+2026-07-19T16:02:40.919Z,gguf,model-t1,L1024-session-warm-2,0,1677,19.07,2000,343,512,completed,3863.3,serious,serious,90,90,
+2026-07-19T16:02:47.913Z,gguf,model-t1,L1024-session-warm-3,0,1994,19.06,2000,343,512,completed,3863.8,serious,serious,90,90,
+2026-07-19T16:02:54.820Z,gguf,model-t1,L1024-session-cold,0,1907,18.59,200,343,512,completed,3867.3,serious,serious,90,90,
+2026-07-19T16:03:01.908Z,gguf,model-t1,L1024-session-warm-1,0,2088,18.5,2000,343,512,completed,3862.9,serious,serious,90,90,
+2026-07-19T16:03:09.038Z,gguf,model-t1,L1024-session-warm-2,0,2130,18.13,2000,343,512,completed,3867.9,serious,serious,90,90,
+2026-07-19T16:03:16.214Z,gguf,model-t1,L1024-session-warm-3,0,2176,18.02,2000,343,512,completed,3867.9,serious,serious,90,90,
+2026-07-19T16:03:23.377Z,gguf,model-t1,L1024-session-cold,0,2163,17.61,200,343,512,completed,3873.4,serious,serious,90,90,
+2026-07-19T16:03:30.614Z,gguf,model-t1,L1024-session-warm-1,0,2237,17.48,2000,343,512,completed,3865,serious,serious,90,90,
+2026-07-19T16:03:37.887Z,gguf,model-t1,L1024-session-warm-2,0,2273,16.88,2000,343,512,completed,3863.9,serious,serious,90,90,
+2026-07-19T16:03:45.183Z,gguf,model-t1,L1024-session-warm-3,0,2296,16.58,2000,343,512,completed,3860,serious,serious,90,90,
+2026-07-19T16:03:52.284Z,gguf,model-t1,L2048-session-cold,3000,2101,23.59,200,464,512,completed,3847.7,serious,serious,90,90,
+2026-07-19T16:03:59.216Z,gguf,model-t1,L2048-session-warm-1,0,1932,22.51,2000,464,512,completed,3852.5,serious,serious,90,90,
+2026-07-19T16:04:06.252Z,gguf,model-t1,L2048-session-warm-2,0,2036,22.05,2000,464,512,completed,3853,serious,serious,90,90,
+2026-07-19T16:04:13.468Z,gguf,model-t1,L2048-session-warm-3,0,2216,20.47,2000,464,512,completed,3857.2,serious,serious,90,90,
+2026-07-19T16:04:21.325Z,gguf,model-t1,L2048-session-cold,0,2857,17.84,200,464,512,completed,3863.6,serious,serious,90,90,
+2026-07-19T16:04:29.384Z,gguf,model-t1,L2048-session-warm-1,0,3059,17.08,2000,464,512,completed,3863.9,serious,serious,90,90,
+2026-07-19T16:04:37.568Z,gguf,model-t1,L2048-session-warm-2,0,3184,16.25,2000,464,512,completed,3864.2,serious,serious,90,90,
+2026-07-19T16:04:45.884Z,gguf,model-t1,L2048-session-warm-3,0,3316,14.8,2000,464,512,completed,3864.7,serious,serious,90,90,
+2026-07-19T16:04:54.311Z,gguf,model-t1,L2048-session-cold,0,3427,14.62,200,464,512,completed,3863.2,serious,serious,90,90,
+2026-07-19T16:05:02.705Z,gguf,model-t1,L2048-session-warm-1,0,3394,14.85,2000,464,512,completed,3864.7,serious,serious,90,90,
+2026-07-19T16:05:11.097Z,gguf,model-t1,L2048-session-warm-2,0,3392,14.99,2000,464,512,completed,3861.3,serious,serious,90,90,
+2026-07-19T16:05:19.486Z,gguf,model-t1,L2048-session-warm-3,0,3389,14.47,2000,464,512,completed,3861.2,serious,serious,90,90,
+2026-07-19T16:05:30.177Z,mlx,model-t1,L128-session-cold,3000,5691,28.01,,,512,completed,3170.2,serious,serious,90,90,
+2026-07-19T16:05:35.544Z,mlx,model-t1,L128-session-warm-1,0,367,21.05,,,512,completed,3161.1,serious,serious,90,90,
+2026-07-19T16:05:41.046Z,mlx,model-t1,L128-session-warm-2,0,502,16.39,,,512,completed,3161.5,serious,serious,90,90,
+2026-07-19T16:05:46.595Z,mlx,model-t1,L128-session-warm-3,0,549,15.7,,,512,completed,3162.3,serious,serious,90,90,
+2026-07-19T16:05:56.033Z,mlx,model-t1,L128-session-cold,0,4438,15.62,,,512,completed,3205.6,serious,serious,90,90,
+2026-07-19T16:06:01.623Z,mlx,model-t1,L128-session-warm-1,0,590,15.29,,,512,completed,3189.2,serious,serious,90,90,
+2026-07-19T16:06:07.220Z,mlx,model-t1,L128-session-warm-2,0,597,15.12,,,512,completed,3191.2,serious,serious,90,90,
+2026-07-19T16:06:12.850Z,mlx,model-t1,L128-session-warm-3,0,630,14.93,,,512,completed,3191.4,serious,serious,90,90,
+2026-07-19T16:06:22.428Z,mlx,model-t1,L128-session-cold,0,4578,14.88,,,512,completed,3272.9,serious,serious,90,90,
+2026-07-19T16:06:28.044Z,mlx,model-t1,L128-session-warm-1,0,616,14.68,,,512,completed,3193.9,serious,serious,90,90,
+2026-07-19T16:06:33.658Z,mlx,model-t1,L128-session-warm-2,0,614,14.72,,,512,completed,3194.2,serious,serious,90,90,
+2026-07-19T16:06:39.275Z,mlx,model-t1,L128-session-warm-3,0,617,14.74,,,512,completed,3194.4,serious,serious,90,90,
+2026-07-19T16:06:50.276Z,mlx,model-t1,L512-session-cold,3000,6001,18.84,,,512,completed,3169.5,serious,serious,90,90,
+2026-07-19T16:06:56.357Z,mlx,model-t1,L512-session-warm-1,0,1081,19.15,,,512,completed,3158.8,serious,serious,90,90,
+2026-07-19T16:07:02.431Z,mlx,model-t1,L512-session-warm-2,0,1074,18.16,,,512,completed,3159.6,serious,serious,90,90,
+2026-07-19T16:07:08.538Z,mlx,model-t1,L512-session-warm-3,0,1107,17.63,,,512,completed,3159.8,serious,serious,90,90,
+2026-07-19T16:07:17.949Z,mlx,model-t1,L512-session-cold,0,4411,17.3,,,512,completed,3184.2,serious,serious,90,90,
+2026-07-19T16:07:24.135Z,mlx,model-t1,L512-session-warm-1,0,1186,15.98,,,512,completed,3183.8,serious,serious,90,90,
+2026-07-19T16:07:30.346Z,mlx,model-t1,L512-session-warm-2,0,1211,15.26,,,512,completed,3184.6,serious,serious,90,90,
+2026-07-19T16:07:36.608Z,mlx,model-t1,L512-session-warm-3,0,1262,16.35,,,512,completed,3183.6,serious,serious,90,90,
+2026-07-19T16:07:46.572Z,mlx,model-t1,L512-session-cold,0,4964,16.04,,,512,completed,3270.9,serious,serious,90,90,
+2026-07-19T16:07:52.850Z,mlx,model-t1,L512-session-warm-1,0,1278,15.39,,,512,completed,3173.8,serious,serious,90,90,
+2026-07-19T16:07:59.118Z,mlx,model-t1,L512-session-warm-2,0,1268,15.68,,,512,completed,3174.4,serious,serious,90,90,
+2026-07-19T16:08:05.402Z,mlx,model-t1,L512-session-warm-3,0,1284,15.56,,,512,completed,3174.1,serious,serious,90,90,
+2026-07-19T16:08:16.431Z,mlx,model-t1,L1024-session-cold,3000,6029,27.46,,,512,completed,3169.9,serious,serious,90,90,
+2026-07-19T16:08:22.473Z,mlx,model-t1,L1024-session-warm-1,0,1042,23.17,,,512,completed,3161.7,serious,serious,90,90,
+2026-07-19T16:08:28.791Z,mlx,model-t1,L1024-session-warm-2,0,1318,18.48,,,512,completed,3161.9,serious,serious,90,90,
+2026-07-19T16:08:35.278Z,mlx,model-t1,L1024-session-warm-3,0,1487,16.24,,,512,completed,3162.1,serious,serious,90,90,
+2026-07-19T16:08:45.355Z,mlx,model-t1,L1024-session-cold,0,5077,15.59,,,512,completed,3184.8,serious,serious,90,90,
+2026-07-19T16:08:51.958Z,mlx,model-t1,L1024-session-warm-1,0,1603,15.32,,,512,completed,3185.1,serious,serious,90,90,
+2026-07-19T16:08:58.591Z,mlx,model-t1,L1024-session-warm-2,0,1633,15.52,,,512,completed,3172.8,serious,serious,90,90,
+2026-07-19T16:09:05.219Z,mlx,model-t1,L1024-session-warm-3,0,1628,15.3,,,512,completed,3173.1,serious,serious,90,90,
+2026-07-19T16:09:15.399Z,mlx,model-t1,L1024-session-cold,0,5180,15.2,,,512,completed,3250.8,serious,serious,90,90,
+2026-07-19T16:09:22.046Z,mlx,model-t1,L1024-session-warm-1,0,1647,14.81,,,512,completed,3175.7,serious,serious,90,90,
+2026-07-19T16:09:28.734Z,mlx,model-t1,L1024-session-warm-2,0,1688,14.66,,,512,completed,3176,serious,serious,90,90,
+2026-07-19T16:09:35.433Z,mlx,model-t1,L1024-session-warm-3,0,1699,14.7,,,512,completed,3176.1,serious,serious,90,90,
+2026-07-19T16:09:47.142Z,mlx,model-t1,L2048-session-cold,3000,6709,18.69,,,512,completed,3177.3,serious,serious,90,90,
+2026-07-19T16:09:54.291Z,mlx,model-t1,L2048-session-warm-1,0,2149,19.14,,,512,completed,3170.4,serious,serious,90,90,
+2026-07-19T16:10:01.402Z,mlx,model-t1,L2048-session-warm-2,0,2111,18.34,,,512,completed,3171.2,serious,serious,90,90,
+2026-07-19T16:10:08.548Z,mlx,model-t1,L2048-session-warm-3,0,2146,17.65,,,512,completed,3170.4,serious,serious,90,90,
+2026-07-19T16:10:18.866Z,mlx,model-t1,L2048-session-cold,0,5318,17.85,,,512,completed,3190,serious,serious,90,90,
+2026-07-19T16:10:26.104Z,mlx,model-t1,L2048-session-warm-1,0,2238,16.71,,,512,completed,3189.7,serious,serious,90,90,
+2026-07-19T16:10:33.440Z,mlx,model-t1,L2048-session-warm-2,0,2336,16.73,,,512,completed,3190.4,serious,serious,90,90,
+2026-07-19T16:10:40.811Z,mlx,model-t1,L2048-session-warm-3,0,2371,15.81,,,512,completed,3190.4,serious,serious,90,90,
+2026-07-19T16:10:51.687Z,mlx,model-t1,L2048-session-cold,0,5876,15.8,,,512,completed,3212.2,serious,serious,90,90,
+2026-07-19T16:10:59.105Z,mlx,model-t1,L2048-session-warm-1,0,2418,15.61,,,512,completed,3186.1,serious,serious,90,90,
+2026-07-19T16:11:06.564Z,mlx,model-t1,L2048-session-warm-2,0,2459,15.44,,,512,completed,3185.7,serious,serious,90,90,
+2026-07-19T16:11:14.066Z,mlx,model-t1,L2048-session-warm-3,0,2502,15.07,,,512,completed,3186.4,serious,serious,90,90,`;
+
+  // ── C03 DATA INJECTION POINT ─────────────────────────────────────────────
+  // task-C03 sustained-load runs — one continuous 10-min session per
+  // backend, unplugged, no cross-combo contamination (unlike the C05 matrix
+  // above). This is the most-matched-methodology pair (both charged to 100%
+  // and rested until thermalState read nominal before starting) out of 3
+  // GGUF + 3 MLX runs collected 2026-07-21/22 — see section 4/5 text and the
+  // full run-to-run variance table for why this pair is illustrative only,
+  // not a backend ranking. Trimmed to the 4 columns the chart needs; full
+  // exports live at docs/benchmark/2026-07-2{1,2}-c03-*-sustained*.csv.
+  const RAW_C03_GGUF_CSV = `timestamp,decodeTokensPerSecond,thermalStateAfter,batteryLevelAfter
+2026-07-22T11:28:39.634796,24.06,nominal,100
+2026-07-22T11:29:18.482627,24.29,nominal,100
+2026-07-22T11:29:21.800860,24.18,nominal,100
+2026-07-22T11:29:24.507029,24.16,nominal,100
+2026-07-22T11:29:28.715295,23.84,nominal,95
+2026-07-22T11:29:32.247332,23.94,nominal,95
+2026-07-22T11:29:45.586147,23.29,nominal,95
+2026-07-22T11:29:50.430028,21.20,nominal,95
+2026-07-22T11:29:54.253858,22.95,nominal,95
+2026-07-22T11:29:59.117917,22.19,nominal,95
+2026-07-22T11:30:05.808517,21.89,nominal,95
+2026-07-22T11:30:09.908828,21.83,nominal,95
+2026-07-22T11:30:13.770492,21.64,nominal,95
+2026-07-22T11:30:20.332545,21.11,nominal,95
+2026-07-22T11:30:32.907416,20.71,nominal,95
+2026-07-22T11:30:53.623912,19.37,nominal,95
+2026-07-22T11:30:59.233797,18.82,nominal,95
+2026-07-22T11:31:03.262921,18.77,nominal,95
+2026-07-22T11:31:19.585693,18.37,fair,95
+2026-07-22T11:31:24.016843,18.31,fair,95
+2026-07-22T11:31:29.526262,18.32,fair,95
+2026-07-22T11:31:34.676947,18.24,fair,95
+2026-07-22T11:31:38.947638,18.25,fair,95
+2026-07-22T11:31:53.064441,17.92,fair,95
+2026-07-22T11:31:58.018416,17.99,fair,95
+2026-07-22T11:32:15.486771,17.64,fair,95
+2026-07-22T11:32:29.234361,17.39,fair,95
+2026-07-22T11:32:37.910194,17.19,fair,95
+2026-07-22T11:32:44.309743,17.21,fair,95
+2026-07-22T11:32:49.320245,17.18,fair,95
+2026-07-22T11:32:54.957674,17.06,fair,95
+2026-07-22T11:33:01.290382,16.91,fair,95
+2026-07-22T11:33:07.501457,16.77,fair,95
+2026-07-22T11:33:12.766192,16.74,fair,95
+2026-07-22T11:33:35.309358,16.10,fair,95
+2026-07-22T11:33:41.768960,16.26,fair,95
+2026-07-22T11:33:56.091308,15.92,fair,95
+2026-07-22T11:34:08.701505,15.70,fair,95
+2026-07-22T11:34:13.780846,15.97,fair,95
+2026-07-22T11:34:26.499824,15.41,fair,95
+2026-07-22T11:34:43.491419,15.18,fair,95
+2026-07-22T11:34:49.258908,15.48,fair,95
+2026-07-22T11:34:53.680395,15.64,fair,95
+2026-07-22T11:35:05.627650,15.16,fair,95
+2026-07-22T11:35:33.847587,14.77,fair,95
+2026-07-22T11:35:51.572898,14.78,fair,95
+2026-07-22T11:36:01.790190,14.88,fair,95
+2026-07-22T11:36:06.819817,15.14,fair,95
+2026-07-22T11:36:21.728173,14.82,fair,95
+2026-07-22T11:36:29.335768,15.00,fair,95
+2026-07-22T11:36:33.308718,15.41,fair,95
+2026-07-22T11:36:39.768063,15.03,fair,95
+2026-07-22T11:36:58.908432,14.79,fair,95
+2026-07-22T11:37:08.219463,14.94,fair,95
+2026-07-22T11:37:21.954132,14.78,fair,95
+2026-07-22T11:37:28.253670,14.94,fair,95
+2026-07-22T11:37:35.251235,14.87,fair,95
+2026-07-22T11:37:40.952321,14.94,fair,95
+2026-07-22T11:37:46.821277,14.83,serious,95
+2026-07-22T11:38:06.497353,14.43,serious,95
+2026-07-22T11:38:13.955903,14.63,serious,95
+2026-07-22T11:38:27.662604,14.37,serious,90
+2026-07-22T11:38:33.965354,14.12,serious,90
+2026-07-22T11:38:38.115823,14.76,serious,90
+2026-07-22T11:38:47.264661,14.22,serious,90
+2026-07-22T11:38:53.930720,14.27,serious,90
+2026-07-22T11:39:06.469486,14.04,serious,90
+2026-07-22T11:39:14.337205,15.02,serious,90`;
+
+  // MLX charged to 100%, rested unplugged until thermalState read nominal,
+  // THEN run — same matched methodology as the GGUF run above. This is one
+  // of 3 MLX attempts collected; see section 4/5 text and the full 6-run
+  // variance table for why no cross-backend timing ranking is claimed.
+  const RAW_C03_MLX_CSV = `timestamp,decodeTokensPerSecond,thermalStateAfter,batteryLevelAfter
+2026-07-21T23:56:29.480461,22.55,nominal,100
+2026-07-21T23:56:38.262672,24.20,nominal,100
+2026-07-21T23:56:42.277109,24.06,nominal,100
+2026-07-21T23:56:50.248899,23.79,nominal,100
+2026-07-21T23:56:57.570798,23.61,nominal,100
+2026-07-21T23:57:01.956799,23.23,nominal,100
+2026-07-21T23:57:12.652672,22.00,nominal,100
+2026-07-21T23:57:17.053969,20.36,nominal,100
+2026-07-21T23:57:30.625507,17.44,fair,100
+2026-07-21T23:58:00.894578,13.85,fair,100
+2026-07-21T23:58:12.058942,14.05,fair,100
+2026-07-21T23:58:31.865909,13.97,fair,100
+2026-07-21T23:58:50.230877,14.04,fair,100
+2026-07-21T23:58:56.501629,14.13,fair,100
+2026-07-21T23:59:07.554764,14.09,fair,100
+2026-07-21T23:59:11.748298,14.29,fair,100
+2026-07-21T23:59:31.150784,14.05,fair,100
+2026-07-21T23:59:51.016265,13.98,fair,100
+2026-07-21T23:59:56.909053,13.99,fair,100
+2026-07-22T00:00:20.549266,13.65,fair,100
+2026-07-22T00:00:26.288825,14.08,fair,100
+2026-07-22T00:00:52.623370,13.80,fair,100
+2026-07-22T00:01:18.114572,13.92,fair,100
+2026-07-22T00:01:37.564099,13.81,fair,100
+2026-07-22T00:01:47.187034,13.90,fair,100
+2026-07-22T00:01:52.307661,12.50,fair,100
+2026-07-22T00:01:59.030300,14.11,fair,100
+2026-07-22T00:02:12.493872,13.85,fair,100
+2026-07-22T00:02:28.842275,13.75,serious,100
+2026-07-22T00:02:39.476622,13.69,serious,100
+2026-07-22T00:02:55.885557,13.64,serious,100
+2026-07-22T00:03:04.798095,13.66,serious,100
+2026-07-22T00:03:19.137812,13.50,serious,100
+2026-07-22T00:03:39.667136,13.32,serious,100
+2026-07-22T00:04:04.782170,13.29,serious,100
+2026-07-22T00:04:16.802094,13.35,serious,100
+2026-07-22T00:04:43.578002,13.16,serious,100
+2026-07-22T00:05:09.786478,13.06,serious,100
+2026-07-22T00:05:17.061500,13.13,serious,100
+2026-07-22T00:05:29.175179,13.07,serious,100
+2026-07-22T00:05:40.577693,13.13,serious,100
+2026-07-22T00:05:53.922184,13.08,serious,95
+2026-07-22T00:06:01.008014,12.35,serious,95
+2026-07-22T00:06:10.892205,12.81,serious,95
+2026-07-22T00:06:16.654515,13.14,serious,95
+2026-07-22T00:06:27.812338,12.33,serious,95
+2026-07-22T00:06:41.139155,12.97,serious,95`;
+
+  function parseC03Csv(text) {
+    const rows = parseCsvRows(text.trim());
+    const header = rows[0];
+    const iTs = header.indexOf("timestamp"), iTps = header.indexOf("decodeTokensPerSecond");
+    const iTh = header.indexOf("thermalStateAfter"), iBatt = header.indexOf("batteryLevelAfter");
+    const t0 = new Date(rows[1][iTs]).getTime();
+    return rows.slice(1).map((row) => ({
+      t: (new Date(row[iTs]).getTime() - t0) / 1000,
+      tps: Number(row[iTps]),
+      thermal: row[iTh],
+      batt: Number(row[iBatt]),
+    }));
+  }
+
+  const C03_GGUF = parseC03Csv(RAW_C03_GGUF_CSV);
+  const C03_MLX = parseC03Csv(RAW_C03_MLX_CSV);
+
+  function parseCsvLine(line) {
+    const out = [];
+    let field = "", inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"') { if (line[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; } }
+        else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { out.push(field); field = ""; }
+        else field += c;
+      }
+    }
+    out.push(field);
+    return out;
+  }
+
+  function parseCsvRows(text) {
+    const rows = [];
+    let row = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') inQuotes = !inQuotes;
+      if (c === "\n" && !inQuotes) { rows.push(row); row = ""; } else row += c;
+    }
+    if (row.trim().length) rows.push(row);
+    return rows.filter((r) => r.trim().length).map(parseCsvLine);
+  }
+
+  // -> [{ backend, tier, samples: [{role, ttft, tps, mem, thermal}] }], in
+  // first-seen order (== chronological execution order, since the on-device
+  // checkpoint writer appends in the order combos actually ran).
+  function parseIphoneCsv(text) {
+    const rows = parseCsvRows(text.trim());
+    const header = rows[0];
+    const idx = (name) => header.indexOf(name);
+    const iLabel = idx("label"), iFormat = idx("format"), iTtft = idx("ttftMs"),
+          iTps = idx("decodeTokensPerSecond"), iMem = idx("peakMemoryBytes"),
+          iThermalAfter = idx("thermalStateAfter"), iPromptTokens = idx("promptTokenCount");
+
+    const order = [];
+    const groups = {};
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const label = row[iLabel] || "";
+      const m = label.match(/^(L\d+)-session-(cold|warm)/);
+      if (!m) continue;
+      const tier = m[1], role = m[2];
+      const backend = (row[iFormat] || "").toUpperCase() === "GGUF" ? "GGUF" : "MLX";
+      const key = backend + "-" + tier;
+      if (!groups[key]) { groups[key] = { backend, tier, samples: [] }; order.push(key); }
+      const sample = { role, ttft: Number(row[iTtft]), tps: Number(row[iTps]), thermal: row[iThermalAfter] || "unknown" };
+      const mem = row[iMem];
+      if (mem !== "" && mem !== undefined) sample.mem = Number(mem);
+      const pt = row[iPromptTokens];
+      if (pt !== "" && pt !== undefined) sample.promptTokens = Number(pt);
+      groups[key].samples.push(sample);
+    }
+    return order.map((k) => groups[k]);
+  }
+
+  const IPHONE_COMBOS = parseIphoneCsv(RAW_IPHONE_CSV);
+
+  // Real measured token counts per tier (GGUF; MLX shares the same prompt
+  // text and, per task-B03's template-consistency check, the same
+  // tokenizer vocab, so these apply to both backends' axis labels) —
+  // labelled honestly instead of the ~128/512/1024/2048 targets, since the
+  // draft prompt content in prompt_tiers.dart still measures short of those
+  // targets (see docs/benchmark/2026-07-19-c05-iphone-results.md finding 1).
+  const TIER_TOKENS = {};
+  IPHONE_COMBOS.forEach((c) => {
+    if (c.backend !== "GGUF") return;
+    const withTokens = c.samples.filter((s) => s.promptTokens != null);
+    if (withTokens.length) TIER_TOKENS[c.tier] = withTokens[0].promptTokens;
+  });
+  function tierLabel(tier) { return TIER_TOKENS[tier] != null ? tier + " (" + TIER_TOKENS[tier] + " tok)" : tier; }
+
+  const TIERS = ["L128", "L512", "L1024", "L2048"];
+  // SVG presentation attributes accept var(...) directly, so marks stay in sync
+  // with the theme toggle live — no re-render or reload needed on theme change.
+  function seriesHex(backend) { return backend === "GGUF" ? "var(--blue)" : "var(--orange)"; }
+
+  function median(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  function fmt0(n) { return Math.round(n).toLocaleString("en-US"); }
+  function fmt1(n) { return n.toFixed(1); }
+  function fmt2(n) { return n.toFixed(2); }
+  function fmtMs(n) { return n >= 1000 ? (n / 1000).toFixed(1) + "s" : Math.round(n) + "ms"; }
+
+  function aggregate(combos) {
+    // -> { tier: { backend: { cold: {ttft,tps}, warm: {ttft,tps} } } }
+    const out = {};
+    for (const c of combos) {
+      out[c.tier] = out[c.tier] || {};
+      const cold = c.samples.filter((s) => s.role === "cold");
+      const warm = c.samples.filter((s) => s.role === "warm");
+      out[c.tier][c.backend] = {
+        cold: { ttft: median(cold.map((s) => s.ttft)), tps: median(cold.map((s) => s.tps)) },
+        warm: { ttft: median(warm.map((s) => s.ttft)), tps: median(warm.map((s) => s.tps)) },
+        mem: c.samples[0].mem != null ? median(c.samples.map((s) => s.mem)) : null,
+      };
+    }
+    return out;
+  }
+
+  const IPHONE_AGG = aggregate(IPHONE_COMBOS);
+
+  /* ───────────────────────── tiny SVG chart toolkit ───────────────────────── */
+
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, children) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs || {}) n.setAttribute(k, attrs[k]);
+    for (const c of children || []) n.appendChild(c);
+    return n;
+  }
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    const norm = v / mag;
+    const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return step * mag;
+  }
+
+  // Two-line x-axis label: tier name, then its real measured token count
+  // (small/muted) underneath — see the tierLabel() doc comment for why.
+  function tierAxisLabel(cx, y, tier) {
+    const g = el("text", { x: cx, y, class: "tick-label", "text-anchor": "middle" });
+    const line1 = document.createElementNS(NS, "tspan");
+    line1.setAttribute("x", cx);
+    line1.textContent = tier;
+    const line2 = document.createElementNS(NS, "tspan");
+    line2.setAttribute("x", cx);
+    line2.setAttribute("dy", "11");
+    line2.setAttribute("fill", "var(--muted)");
+    line2.textContent = TIER_TOKENS[tier] != null ? TIER_TOKENS[tier] + " tok" : "";
+    g.appendChild(line1);
+    g.appendChild(line2);
+    return g;
+  }
+
+  function tooltip(host) {
+    const tip = document.createElement("div");
+    tip.className = "tooltip";
+    host.style.position = "relative";
+    host.appendChild(tip);
+    return {
+      show(x, y, html) {
+        tip.innerHTML = html;
+        tip.style.left = x + "px";
+        tip.style.top = (y - 10) + "px";
+        tip.style.opacity = "1";
+      },
+      hide() { tip.style.opacity = "0"; },
+    };
+  }
+
+  // Grouped bar chart: one group per tier, up to 2 backends, each backend split
+  // into cold (lighter) / warm (solid) bars.
+  function renderGroupedBars(host, { tiers, series, unitFmt, valueOf }) {
+    const W = 480, H = 228, padL = 40, padB = 32, padT = 10;
+    const innerW = W - padL - 8, innerH = H - padT - padB;
+    const groupW = innerW / tiers.length;
+    const backends = series; // e.g. ["GGUF"] or ["GGUF","MLX"]
+    const barsPerGroup = backends.length * 2; // cold+warm each
+    const barGap = 3, groupPad = 14;
+    const barW = Math.min(20, (groupW - groupPad * 2 - barGap * (barsPerGroup - 1)) / barsPerGroup);
+
+    let maxV = 0;
+    for (const t of tiers) for (const b of backends) {
+      for (const role of ["cold", "warm"]) {
+        const v = valueOf(t, b, role);
+        if (v != null) maxV = Math.max(maxV, v);
+      }
+    }
+    maxV = niceMax(maxV * 1.08);
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+    const yTicks = 4;
+    for (let i = 0; i <= yTicks; i++) {
+      const v = (maxV / yTicks) * i;
+      const y = padT + innerH - (v / maxV) * innerH;
+      svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: y, y2: y, class: "grid-line" }));
+      const t = el("text", { x: padL - 6, y: y + 3, class: "tick-label", "text-anchor": "end" });
+      t.textContent = unitFmt(v, true);
+      svg.appendChild(t);
+    }
+    svg.appendChild(el("line", { x1: padL, x2: padL, y1: padT, y2: padT + innerH, class: "axis-line" }));
+    svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: padT + innerH, y2: padT + innerH, class: "axis-line" }));
+
+    const tip = tooltip(host);
+    const hostRect = () => host.getBoundingClientRect();
+
+    tiers.forEach((tier, gi) => {
+      const gx = padL + gi * groupW;
+      let bx = gx + groupPad;
+      backends.forEach((b) => {
+        ["cold", "warm"].forEach((role) => {
+          const v = valueOf(tier, b, role);
+          if (v == null) { bx += barW + barGap; return; }
+          const h = (v / maxV) * innerH;
+          const y = padT + innerH - h;
+          const rect = el("rect", {
+            x: bx, y, width: barW, height: Math.max(h, 1), rx: 3,
+            fill: seriesHex(b), opacity: role === "cold" ? 0.5 : 1,
+          });
+          rect.addEventListener("mousemove", (ev) => {
+            const r = hostRect();
+            tip.show(ev.clientX - r.left, ev.clientY - r.top,
+              `${tier} · ${b} · ${role === "cold" ? "session-cold" : "session-warm"}<br>${unitFmt(v)}`);
+          });
+          rect.addEventListener("mouseleave", () => tip.hide());
+          svg.appendChild(rect);
+          bx += barW + barGap;
+        });
+      });
+      svg.appendChild(tierAxisLabel(gx + groupW / 2, padT + innerH + 16, tier));
+    });
+
+    host.appendChild(svg);
+  }
+
+  function renderLegendSteps(host, backends) {
+    const wrap = document.createElement("div");
+    wrap.className = "legend";
+    for (const b of backends) {
+      wrap.innerHTML += `
+        <span class="item"><span class="swatch" style="background:${b === 'GGUF' ? 'var(--blue)' : 'var(--orange)'}"></span>${b === 'GGUF' ? 'llama.cpp (GGUF)' : 'MLX'} · warm</span>
+        <span class="item"><span class="step" style="background:${b === 'GGUF' ? 'var(--blue)' : 'var(--orange)'}"></span>${b === 'GGUF' ? 'llama.cpp (GGUF)' : 'MLX'} · cold</span>`;
+    }
+    host.appendChild(wrap);
+  }
+
+  /* ───────────────────────── matrix grid ───────────────────────── */
+
+  function renderMatrix() {
+    const host = document.getElementById("matrix-grid");
+    const tile = (label, agg, accent) => `
+      <div class="stat-tile">
+        <div class="label">${label} · decode（暖啟動中位數）</div>
+        <div class="value accent-${accent}">${fmt1(agg.warm.tps)} <span style="font-size:15px;color:var(--muted);font-weight:400">tok/s</span></div>
+        <div class="sub">TTFT warm ${fmtMs(agg.warm.ttft)} · cold ${fmtMs(agg.cold.ttft)} · peak mem ${agg.mem ? fmt0(agg.mem) + "MB" : "—"}</div>
+      </div>`;
+    host.innerHTML = `
+      <div class="stat-row">
+        ${tile("llama.cpp (GGUF)", IPHONE_AGG.L512.GGUF, "blue")}
+        ${tile("MLX", IPHONE_AGG.L512.MLX, "orange")}
+      </div>
+    `;
+  }
+
+  /* ───────────────────────── build charts ───────────────────────── */
+
+  function buildBarSection(hostId, unitFmt, pick) {
+    const host = document.getElementById(hostId);
+    host.classList.add("single");
+
+    const iphonePanel = document.createElement("div");
+    iphonePanel.className = "panel";
+    iphonePanel.innerHTML = `<h3>iPhone 17 Pro</h3><div class="panel-sub">llama.cpp + MLX</div>`;
+    const iphoneChart = document.createElement("div");
+    iphoneChart.className = "chart-host";
+    iphonePanel.appendChild(iphoneChart);
+    renderGroupedBars(iphoneChart, {
+      tiers: TIERS, series: ["GGUF", "MLX"], unitFmt,
+      valueOf: (tier, b, role) => pick(IPHONE_AGG[tier][b], role),
+    });
+    renderLegendSteps(iphonePanel, ["GGUF", "MLX"]);
+
+    host.appendChild(iphonePanel);
+  }
+
+  buildBarSection("ttft-panels", (v, axis) => axis ? fmtMs(v) : fmtMs(v) + " TTFT", (agg, role) => agg[role].ttft);
+  buildBarSection("decode-panels", (v, axis) => axis ? fmt0(v) : fmt1(v) + " tok/s", (agg, role) => agg[role].tps);
+
+  // Memory: single bar per backend per tier (median across all samples in the combo).
+  (function buildMemorySection() {
+    const host = document.getElementById("memory-panels");
+    host.classList.add("single");
+
+    function memPanel(title, sub, agg, backends) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `<h3>${title}</h3><div class="panel-sub">${sub}</div>`;
+      const chart = document.createElement("div");
+      chart.className = "chart-host";
+      panel.appendChild(chart);
+
+      const W = 480, H = 208, padL = 46, padB = 32, padT = 10;
+      const innerW = W - padL - 8, innerH = H - padT - padB;
+      const groupW = innerW / TIERS.length;
+      const barW = Math.min(28, (groupW - 20) / backends.length);
+      let maxV = 0;
+      TIERS.forEach((t) => backends.forEach((b) => { const m = agg[t][b] && agg[t][b].mem; if (m) maxV = Math.max(maxV, m); }));
+      maxV = niceMax(maxV * 1.1);
+
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+      for (let i = 0; i <= 4; i++) {
+        const v = (maxV / 4) * i;
+        const y = padT + innerH - (v / maxV) * innerH;
+        svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: y, y2: y, class: "grid-line" }));
+        const t = el("text", { x: padL - 6, y: y + 3, class: "tick-label", "text-anchor": "end" });
+        t.textContent = fmt0(v) + (i === 4 ? " MB" : "");
+        svg.appendChild(t);
+      }
+      svg.appendChild(el("line", { x1: padL, x2: padL, y1: padT, y2: padT + innerH, class: "axis-line" }));
+      svg.appendChild(el("line", { x1: padL, x2: W - 8, y1: padT + innerH, y2: padT + innerH, class: "axis-line" }));
+
+      const tip = tooltip(chart);
+      const hostRect = () => chart.getBoundingClientRect();
+
+      TIERS.forEach((tier, gi) => {
+        const gx = padL + gi * groupW;
+        let bx = gx + (groupW - backends.length * barW) / 2;
+        backends.forEach((b) => {
+          const m = agg[tier][b] && agg[tier][b].mem;
+          if (m == null) { bx += barW + 4; return; }
+          const h = (m / maxV) * innerH;
+          const y = padT + innerH - h;
+          const rect = el("rect", { x: bx, y, width: barW - 4, height: Math.max(h, 1), rx: 3, fill: seriesHex(b) });
+          rect.addEventListener("mousemove", (ev) => {
+            const r = hostRect();
+            tip.show(ev.clientX - r.left, ev.clientY - r.top, `${tier} · ${b}<br>${fmt0(m)} MB`);
+          });
+          rect.addEventListener("mouseleave", () => tip.hide());
+          svg.appendChild(rect);
+          bx += barW + 4;
+        });
+        svg.appendChild(tierAxisLabel(gx + groupW / 2, padT + innerH + 16, tier));
+      });
+
+      chart.appendChild(svg);
+      renderLegendSteps(panel, backends);
+      // memory legend shouldn't show cold/warm steps (single bar) — replace with simple legend
+      const lg = panel.querySelector(".legend");
+      lg.innerHTML = backends.map((b) => `<span class="item"><span class="swatch" style="background:${b === 'GGUF' ? 'var(--blue)' : 'var(--orange)'}"></span>${b === 'GGUF' ? 'llama.cpp (GGUF)' : 'MLX'}</span>`).join("");
+      return panel;
+    }
+
+    host.appendChild(memPanel("iPhone 17 Pro", "llama.cpp + MLX", IPHONE_AGG, ["GGUF", "MLX"]));
+  })();
+
+  // Shared renderer for the two task-C03 sustained-load charts: real
+  // elapsed-seconds x-axis (not sample index — GGUF and MLX have different
+  // sample counts since generation speed differs), one path per backend,
+  // hover dots carrying whatever extra fields the caller wants shown.
+  function renderSustainedChart(host, { series, yMax, yTicks, valueOf, tooltipOf, thermalTicks }) {
+    const W = 900, H = 268, padL = 44, padR = 12, padB = 30, padT = 14;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const maxT = Math.max(...series.map((s) => s.data[s.data.length - 1].t));
+    const x = (t) => padL + (innerW * t) / maxT;
+    const y = (v) => padT + innerH - (v / yMax) * innerH;
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+
+    for (let i = 0; i <= yTicks; i++) {
+      const v = (yMax / yTicks) * i;
+      const yy = y(v);
+      svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: yy, y2: yy, class: "grid-line" }));
+      const t = el("text", { x: padL - 6, y: yy + 3, class: "tick-label", "text-anchor": "end" });
+      t.textContent = fmt0(v);
+      svg.appendChild(t);
+    }
+    svg.appendChild(el("line", { x1: padL, x2: padL, y1: padT, y2: padT + innerH, class: "axis-line" }));
+    svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: padT + innerH, y2: padT + innerH, class: "axis-line" }));
+
+    // x-axis time ticks (every 2 min)
+    for (let m = 0; m * 120 <= maxT; m++) {
+      const tx = x(m * 120);
+      const lbl = el("text", { x: tx, y: padT + innerH + 16, class: "tick-label", "text-anchor": "middle" });
+      lbl.textContent = m === 0 ? "0" : m * 2 + "min";
+      svg.appendChild(lbl);
+    }
+
+    // one path per backend
+    series.forEach((s) => {
+      const pts = s.data.map((d) => `${x(d.t)},${y(valueOf(d))}`).join(" L ");
+      svg.appendChild(el("path", { d: `M ${pts}`, fill: "none", stroke: seriesHex(s.backend), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    });
+
+    // thermal-transition ticks per series, drawn as short marks on the axis
+    if (thermalTicks) {
+      series.forEach((s) => {
+        let lastThermal = s.data[0].thermal;
+        s.data.forEach((d) => {
+          if (d.thermal !== lastThermal) {
+            const tx = x(d.t);
+            svg.appendChild(el("line", { x1: tx, x2: tx, y1: padT + innerH, y2: padT + innerH + 6, stroke: seriesHex(s.backend), "stroke-width": 2 }));
+            lastThermal = d.thermal;
+          }
+        });
+      });
+    }
+
+    // hover dots
+    const tip = tooltip(host);
+    const hostRect = () => host.getBoundingClientRect();
+    series.forEach((s) => {
+      s.data.forEach((d) => {
+        const cx = x(d.t), cy = y(valueOf(d));
+        const dot = el("circle", { cx, cy, r: 6, fill: "transparent", stroke: "none" });
+        dot.addEventListener("mousemove", (ev) => {
+          const r = hostRect();
+          tip.show(ev.clientX - r.left, ev.clientY - r.top, tooltipOf(s, d));
+        });
+        dot.addEventListener("mouseleave", () => tip.hide());
+        svg.appendChild(dot);
+      });
+    });
+
+    host.appendChild(svg);
+  }
+
+  (function buildThermalChart() {
+    const host = document.getElementById("thermal-chart");
+    const series = [{ backend: "GGUF", data: C03_GGUF }, { backend: "MLX", data: C03_MLX }];
+    const yMax = niceMax(Math.max(...C03_GGUF.map((d) => d.tps), ...C03_MLX.map((d) => d.tps)) * 1.1);
+    renderSustainedChart(host, {
+      series, yMax, yTicks: 4, thermalTicks: true,
+      valueOf: (d) => d.tps,
+      tooltipOf: (s, d) => `${s.backend} · ${fmt0(d.t)}s<br>${fmt1(d.tps)} tok/s · thermal ${d.thermal}`,
+    });
+  })();
+
+  (function buildBatteryChart() {
+    const host = document.getElementById("battery-chart");
+    const series = [{ backend: "GGUF", data: C03_GGUF }, { backend: "MLX", data: C03_MLX }];
+    renderSustainedChart(host, {
+      series, yMax: 100, yTicks: 5, thermalTicks: false,
+      valueOf: (d) => d.batt,
+      tooltipOf: (s, d) => `${s.backend} · ${fmt0(d.t)}s<br>${d.batt}% battery · thermal ${d.thermal}`,
+    });
+  })();
+
+  function buildDataTable() {
+    const host = document.getElementById("data-table-host");
+    const rows = [];
+    TIERS.forEach((tier) => {
+      ["GGUF", "MLX"].forEach((b) => {
+        const a = IPHONE_AGG[tier][b];
+        rows.push({
+          backend: b === "GGUF" ? "llama.cpp" : "MLX", tier,
+          coldTtft: fmtMs(a.cold.ttft), warmTtft: fmtMs(a.warm.ttft),
+          coldTps: fmt2(a.cold.tps), warmTps: fmt2(a.warm.tps),
+          mem: a.mem != null ? fmt0(a.mem) + " MB" : "—",
+        });
+      });
+    });
+    const table = document.createElement("table");
+    table.className = "data-table";
+    table.innerHTML = `
+      <thead><tr>
+        <th>Backend</th><th>Tier</th>
+        <th>Cold TTFT</th><th>Warm TTFT</th>
+        <th>Cold tok/s</th><th>Warm tok/s</th><th>Peak mem</th>
+      </tr></thead>
+      <tbody>${rows.map((r) => `
+        <tr>
+          <td>${r.backend}</td><td>${r.tier}</td>
+          <td>${r.coldTtft}</td><td>${r.warmTtft}</td>
+          <td>${r.coldTps}</td><td>${r.warmTps}</td><td>${r.mem}</td>
+        </tr>`).join("")}</tbody>`;
+    host.appendChild(table);
+  }
+
+  renderMatrix();
+  buildDataTable();
+})();
+</script>

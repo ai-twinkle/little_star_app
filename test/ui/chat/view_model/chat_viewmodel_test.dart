@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_star_app/core/inference/backend_selector.dart';
+import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
@@ -29,6 +31,7 @@ class _FakeSession implements InferenceSession {
 
 class _ControllableSession implements InferenceSession {
   final _ctrl = StreamController<String>();
+  bool cancelCalled = false;
   bool disposed = false;
 
   void emit(String t) => _ctrl.add(t);
@@ -39,6 +42,7 @@ class _ControllableSession implements InferenceSession {
 
   @override
   void cancel() {
+    cancelCalled = true;
     if (!_ctrl.isClosed) _ctrl.close();
   }
 
@@ -65,9 +69,9 @@ class _ErrorSession implements InferenceSession {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 ChatViewModel _vm(InferenceSession session) => ChatViewModel(
-      modelPath: '/fake/model.gguf',
-      sessionFactory: (_, __) => session,
-    );
+  modelPath: '/fake/model.gguf',
+  sessionFactory: (_, __) => session,
+);
 
 Future<void> _waitIdle(ChatViewModel vm) {
   final c = Completer<void>();
@@ -86,6 +90,22 @@ Future<void> _waitIdle(ChatViewModel vm) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 void main() {
+  test(
+    'dispose cancels active generation before releasing the session',
+    () async {
+      final session = _ControllableSession();
+      final vm = _vm(session);
+      final generation = vm.sendMessage('Hello');
+      await Future<void>.delayed(Duration.zero);
+
+      vm.dispose();
+      await generation;
+
+      expect(session.cancelCalled, isTrue);
+      expect(session.disposed, isTrue);
+    },
+  );
+
   group('ChatViewModel — sendMessage', () {
     test('sendMessage adds user message immediately', () async {
       final vm = _vm(_FakeSession());
@@ -174,21 +194,24 @@ void main() {
   });
 
   group('ChatViewModel — stopGeneration', () {
-    test('stopGeneration appends partial reply with [Generation stopped]', () async {
-      final session = _ControllableSession();
-      final vm = _vm(session);
-      addTearDown(vm.dispose);
+    test(
+      'stopGeneration appends partial reply with [Generation stopped]',
+      () async {
+        final session = _ControllableSession();
+        final vm = _vm(session);
+        addTearDown(vm.dispose);
 
-      await vm.sendMessage('hi');
-      session.emit('partial');
-      await Future.delayed(Duration.zero);
+        await vm.sendMessage('hi');
+        session.emit('partial');
+        await Future.delayed(Duration.zero);
 
-      await vm.stopGeneration();
+        await vm.stopGeneration();
 
-      final last = vm.messages.last;
-      expect(last.isUser, isFalse);
-      expect(last.content, contains('[Generation stopped]'));
-    });
+        final last = vm.messages.last;
+        expect(last.isUser, isFalse);
+        expect(last.content, contains('[Generation stopped]'));
+      },
+    );
 
     test('isGenerating is false after stopGeneration', () async {
       final session = _ControllableSession();
@@ -210,17 +233,20 @@ void main() {
   });
 
   group('ChatViewModel — error', () {
-    test('immediate error with no partial content does not add assistant message', () async {
-      final vm = _vm(_ErrorSession());
-      addTearDown(vm.dispose);
+    test(
+      'immediate error with no partial content does not add assistant message',
+      () async {
+        final vm = _vm(_ErrorSession());
+        addTearDown(vm.dispose);
 
-      await vm.sendMessage('hi');
-      await _waitIdle(vm);
+        await vm.sendMessage('hi');
+        await _waitIdle(vm);
 
-      // Only the user message; no error reply when there was no partial output
-      expect(vm.messages.length, 1);
-      expect(vm.messages.last.isUser, isTrue);
-    });
+        // Only the user message; no error reply when there was no partial output
+        expect(vm.messages.length, 1);
+        expect(vm.messages.last.isUser, isTrue);
+      },
+    );
 
     test('isGenerating false after error', () async {
       final vm = _vm(_ErrorSession());
@@ -311,4 +337,82 @@ void main() {
       expect(first.disposed, isTrue);
     });
   });
+
+  group('ChatViewModel — backend/format wiring', () {
+    test('.gguf path builds a gguf ModelProfile', () {
+      ModelProfile? captured;
+      final vm = ChatViewModel(
+        modelPath: '/fake/model.gguf',
+        sessionFactory: (profile, __) {
+          captured = profile;
+          return _FakeSession();
+        },
+      );
+      addTearDown(vm.dispose);
+
+      expect(captured?.format, ModelFormat.gguf);
+    });
+
+    test(
+      'extensionless (MLX snapshot directory) path builds an mlx ModelProfile',
+      () {
+        ModelProfile? captured;
+        final vm = ChatViewModel(
+          modelPath: '/fake/Models/mlx/some-repo',
+          sessionFactory: (profile, __) {
+            captured = profile;
+            return _FakeSession();
+          },
+        );
+        addTearDown(vm.dispose);
+
+        expect(captured?.format, ModelFormat.mlx);
+      },
+    );
+
+    test('mlx profile is routed through the injected BackendSelector', () {
+      final fakeBackend = _FakeMlxBackend();
+      final vm = ChatViewModel(
+        modelPath: '/fake/Models/mlx/some-repo',
+        backendSelector: BackendSelector(mlxBackendFactory: () => fakeBackend),
+      );
+      addTearDown(vm.dispose);
+
+      expect(fakeBackend.createSessionCallCount, 1);
+    });
+
+    test('empty modelPath does not eagerly open a session (regression)', () {
+      // Constructing with no model selected must not throw even though a
+      // real BackendSelector (with no fake session/backend injected) is used
+      // — this is exactly the path chat_screen.dart takes when opened
+      // without an initialModelPath.
+      expect(() => ChatViewModel(modelPath: ''), returnsNormally);
+    });
+
+    test('sendMessage does not crash and never starts generating when no '
+        'model was ever selected', () async {
+      final vm = ChatViewModel(modelPath: '');
+      addTearDown(vm.dispose);
+
+      await vm.sendMessage('hello');
+
+      expect(vm.isGenerating, isFalse);
+    });
+  });
+}
+
+class _FakeMlxBackend implements InferenceBackend {
+  int createSessionCallCount = 0;
+
+  @override
+  bool canHandle(ModelProfile profile) => profile.format == ModelFormat.mlx;
+
+  @override
+  InferenceSession createSession(
+    ModelProfile profile,
+    InferenceSettings settings,
+  ) {
+    createSessionCallCount++;
+    return _FakeSession();
+  }
 }

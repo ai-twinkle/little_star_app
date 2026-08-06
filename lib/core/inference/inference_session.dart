@@ -30,3 +30,18 @@ abstract class InferenceSession {
   /// After disposal, calling any other method is undefined behaviour.
   void dispose();
 }
+
+/// Optional capability for [InferenceSession]s that can report
+/// prompt-processing (prefill) stats — not every backend can (e.g. MLX's
+/// bridge doesn't currently surface a prefill/decode split), so
+/// [GenerationController] checks for this via `is` rather than requiring it
+/// on [InferenceSession] itself.
+abstract class PromptMetricsSource {
+  /// Prompt token count from the most recently completed [InferenceSession.generate]
+  /// call. Null until a generation has run.
+  int? get lastPromptTokenCount;
+
+  /// Time spent decoding the prompt (prefill) in the most recently completed
+  /// [InferenceSession.generate] call. Null until a generation has run.
+  Duration? get lastPrefillDuration;
+}
