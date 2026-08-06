@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — 完成辯護與離線備援結果.
 
-**Status:** completed
+**Status:** wontfix
 
 - [x] 產出北部粽、南部粽、香菜加爆、香菜退散四張 1024 × 1024 透明背景 PNG；完整角色入鏡且圖片內不含文字。
 - [x] 四張圖共用相同 Q 版畫風、線條、光影、視角、比例與透明留白，只依 Spec 改變食物、表情、配色與姿勢個性。
@@ -19,3 +19,4 @@
 - Added four reusable 1024×1024 RGBA character assets with consistent centered alpha bounds, plus native final/result celebration UI and 800 ms winner feedback.
 - Verification: feature analysis reported no issues; all 24 food-game tests and the full 302-test Flutter suite passed. Repository-wide analysis still reports 257 pre-existing informational lints outside this ticket's feature scope.
 - Code review against `a1facee`: Standards and Spec both passed with no remaining findings.
+- Superseded on 2026-08-06 because its advancement and result celebration criteria use the retired tournament semantics. The four completed mascot assets remain reusable; 09 and 10 replace the presentation and complete the twelve-stance visual set.

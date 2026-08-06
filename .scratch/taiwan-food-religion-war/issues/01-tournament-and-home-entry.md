@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** completed
+**Status:** wontfix
 
 - [x] Home 顯示遊戲卡片，點擊後直接呈現北部粽派對南部粽派，不出現教學或模型狀態頁。
 - [x] 固定順序為粽子準決賽、香菜準決賽、兩名勝方決賽；每場結果正確傳入下一場。
@@ -20,3 +20,4 @@
 - Implemented with a single in-memory Session and player-observable Widget flow tests.
 - Verification: targeted analyze reported no issues; the full Flutter suite passed 277 tests.
 - Code review against `df001d8`: Standards had no hard violations; Spec had no remaining findings.
+- Superseded on 2026-08-06 by the v2 independent-choice and defense-draw specification. Historical implementation and verification are retained here; the actionable replacement is 06 — 以四次飲食抉擇完成備援流程.

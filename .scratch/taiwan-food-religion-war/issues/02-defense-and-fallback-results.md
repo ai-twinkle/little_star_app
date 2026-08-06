@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 建立固定淘汰賽與 Home 入口.
 
-**Status:** completed
+**Status:** wontfix
 
 - [x] 辯護頁同時顯示冠軍、正確固定質疑、自由輸入欄、50 字限制與目前或剩餘字數。
 - [x] 去除首尾空白後，1 個與 50 個使用者可見字元可送出；空白及超過 50 個使用者可見字元不可送出並顯示就地訊息。
@@ -20,3 +20,4 @@
 - Implemented a validated defense value, visibly locked judging state, and champion-specific offline fallback judgments.
 - Verification: feature analyze reported no issues; 17 feature tests and the full 287-test Flutter suite passed.
 - Code review against `d2cf9ee`: Standards and Spec both passed with no remaining actionable findings.
+- Superseded on 2026-08-06 because its defense and result criteria are bound to the retired tournament outcome. Historical implementation is retained; replacement behavior is covered by 06 and 07.

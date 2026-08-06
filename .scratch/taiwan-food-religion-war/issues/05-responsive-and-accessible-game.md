@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — 完成辯護與離線備援結果; 04 — 加入四個角色資產與遊戲回饋.
 
-**Status:** ready-for-human
+**Status:** wontfix
 
 - [x] 在專案支援的最小與最大手機 viewport，對戰卡片、角色、名稱、進度、等待狀態與結果操作均無 overflow 或不可達內容。
 - [x] 辯護頁開啟鍵盤後仍能看見固定質疑、字數與送出按鈕，或能自然捲動抵達；50 字內容不破壞排版。
@@ -21,3 +21,4 @@
 - Added screen-reader semantics for progress, whole-card selection and lock state, fixed questions, live character counts, validation errors, waiting, verdicts, fallback disclosure, and result actions. Replay verification confirms prior result semantics are removed.
 - Existing text feedback continues to identify winners, errors, locked actions, verdicts, and fallback state without relying on color. Character assets retain their square source ratio and use `BoxFit.contain` at every game size.
 - Automated system-Back coverage verifies exit confirmation and cancellation at match, defense, judging, and result stages. Manual-device acceptance still required before release: complete one game on the smallest supported iOS and Android phones with their native keyboards; repeat on the largest supported phones; complete one VoiceOver and one TalkBack pass; verify Back/gesture behavior and clean focus after replay and returning from Home. The ticket remains `ready-for-human` until this native-device acceptance is complete.
+- Superseded on 2026-08-06 before its manual acceptance because the validated screens and semantics belong to the retired flow. Automated replacement acceptance is 11; native-device replacement acceptance is 12.
