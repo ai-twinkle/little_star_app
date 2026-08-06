@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:little_star_app/core/benchmark/benchmark_recorder.dart';
-import 'package:little_star_app/core/benchmark/sustained_load_runner.dart';
+import 'package:little_star_app/ui/benchmark/controller/benchmark_recorder.dart';
 import 'package:little_star_app/core/inference/backend_selector.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
@@ -9,6 +8,7 @@ import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/core/platform/battery_probe.dart';
 import 'package:little_star_app/core/platform/thermal_probe.dart';
 import 'package:little_star_app/core/platform/memory_probe.dart';
+import 'package:little_star_app/core/platform/platform_adapter.dart';
 import 'package:little_star_app/models/chat_message.dart';
 import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart';
 
@@ -16,10 +16,12 @@ import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart
 
 class _FakeSession implements InferenceSession {
   final Duration perTokenDelay;
+  List<ChatMessage>? lastMessages;
   _FakeSession({this.perTokenDelay = Duration.zero});
 
   @override
   Stream<String> generate(List<ChatMessage> messages) async* {
+    lastMessages = messages;
     if (perTokenDelay > Duration.zero) await Future.delayed(perTokenDelay);
     yield 'ok';
   }
@@ -39,12 +41,10 @@ class _FakeBackend implements InferenceBackend {
   bool canHandle(ModelProfile profile) => true;
 
   @override
-  InferenceSession createSession(ModelProfile profile, InferenceSettings settings) => session;
-}
-
-class _AlwaysSupportsMlx implements BackendPlatform {
-  @override
-  bool get supportsMLX => true;
+  InferenceSession createSession(
+    ModelProfile profile,
+    InferenceSettings settings,
+  ) => session;
 }
 
 class _NoopMemoryProbe implements MemoryProbe {
@@ -67,14 +67,15 @@ class _NoopBatteryProbe implements BatteryProbe {
 const modelPath = '/tmp/fake-mlx-model'; // no .gguf suffix -> detected as MLX
 final messages = [ChatMessage(content: 'keep going', isUser: true)];
 
-BenchmarkViewModel _viewModelWith(InferenceSession session) => BenchmarkViewModel(
+BenchmarkViewModel _viewModelWith(InferenceSession session) =>
+    BenchmarkViewModel(
       recorder: BenchmarkRecorder(
         memoryProbe: _NoopMemoryProbe(),
         thermalProbe: _NoopThermalProbe(),
         batteryProbe: _NoopBatteryProbe(),
       ),
       backendSelector: BackendSelector(
-        platform: _AlwaysSupportsMlx(),
+        platform: IOSPlatformAdapter(),
         mlxBackendFactory: () => _FakeBackend(session),
       ),
     );
@@ -82,49 +83,63 @@ BenchmarkViewModel _viewModelWith(InferenceSession session) => BenchmarkViewMode
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 void main() {
+  test('runSustainedPrompt turns Widget text into a user message', () async {
+    final session = _FakeSession();
+    final viewModel = _viewModelWith(session);
+    await viewModel.openSessionAndRunPrompt(modelPath, 'warm up');
+
+    await viewModel.runSustainedPrompt('keep going', maxIterations: 1);
+
+    expect(session.lastMessages?.single.content, 'keep going');
+    expect(session.lastMessages?.single.isUser, isTrue);
+  });
+
   test('throws StateError when no session is open', () async {
     final viewModel = _viewModelWith(_FakeSession());
-    final runner = SustainedLoadRunner(viewModel);
 
     expect(
-      () => runner.run(messages: messages, maxIterations: 1),
+      () => viewModel.runSustained(messages: messages, maxIterations: 1),
       throwsA(isA<StateError>()),
     );
   });
 
-  test('stops after maxIterations even though duration has not elapsed', () async {
-    final viewModel = _viewModelWith(_FakeSession());
-    await viewModel.openSessionAndRunPrompt(modelPath, 'warm up');
-    final runner = SustainedLoadRunner(viewModel);
+  test(
+    'stops after maxIterations even though duration has not elapsed',
+    () async {
+      final viewModel = _viewModelWith(_FakeSession());
+      await viewModel.openSessionAndRunPrompt(modelPath, 'warm up');
 
-    await runner.run(
-      messages: messages,
-      duration: const Duration(minutes: 10),
-      maxIterations: 3,
-    );
+      await viewModel.runSustained(
+        messages: messages,
+        duration: const Duration(minutes: 10),
+        maxIterations: 3,
+      );
 
-    // 1 from openSessionAndRunPrompt + 3 from the sustained loop.
-    expect(viewModel.samples, hasLength(4));
-    final sustainedLabels = viewModel.samples.skip(1).map((s) => s.label).toList();
-    expect(sustainedLabels, everyElement(startsWith('sustained-')));
-    expect(sustainedLabels[0], endsWith('-1'));
-    expect(sustainedLabels[1], endsWith('-2'));
-    expect(sustainedLabels[2], endsWith('-3'));
-  });
+      // 1 from openSessionAndRunPrompt + 3 from the sustained loop.
+      expect(viewModel.samples, hasLength(4));
+      final sustainedLabels =
+          viewModel.samples.skip(1).map((s) => s.label).toList();
+      expect(sustainedLabels, everyElement(startsWith('sustained-')));
+      expect(sustainedLabels[0], endsWith('-1'));
+      expect(sustainedLabels[1], endsWith('-2'));
+      expect(sustainedLabels[2], endsWith('-3'));
+    },
+  );
 
   test('cancel() stops the loop before maxIterations is reached', () async {
-    final session = _FakeSession(perTokenDelay: const Duration(milliseconds: 20));
+    final session = _FakeSession(
+      perTokenDelay: const Duration(milliseconds: 20),
+    );
     final viewModel = _viewModelWith(session);
     await viewModel.openSessionAndRunPrompt(modelPath, 'warm up');
-    final runner = SustainedLoadRunner(viewModel);
 
-    final future = runner.run(
+    final future = viewModel.runSustained(
       messages: messages,
       duration: const Duration(minutes: 10),
       maxIterations: 100,
     );
     await Future.delayed(const Duration(milliseconds: 30));
-    runner.cancel();
+    viewModel.cancelSustained();
     await future;
 
     // 1 cold sample + far fewer than 100 sustained iterations.

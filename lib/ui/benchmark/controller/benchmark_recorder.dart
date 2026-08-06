@@ -1,4 +1,5 @@
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
+import 'package:little_star_app/core/inference/generation_metrics.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
 import 'package:little_star_app/core/inference/inference_settings.dart';
@@ -25,7 +26,10 @@ class NewSessionBenchmarkResult {
 class PreflightStatus {
   final ThermalStatus thermalState;
   final int? batteryLevel;
-  const PreflightStatus({required this.thermalState, required this.batteryLevel});
+  const PreflightStatus({
+    required this.thermalState,
+    required this.batteryLevel,
+  });
 
   /// Whether it's safe to start a new benchmark run — the protocol calls
   /// for cooling down between groups until thermalState returns to nominal.
@@ -49,10 +53,10 @@ class BenchmarkRecorder {
     ThermalProbe? thermalProbe,
     BatteryProbe? batteryProbe,
     GenerationController Function()? controllerFactory,
-  })  : _memoryProbe = memoryProbe ?? DartIoMemoryProbe(),
-        _thermalProbe = thermalProbe ?? PigeonThermalProbe(),
-        _batteryProbe = batteryProbe ?? PluginBatteryProbe(),
-        _controllerFactory = controllerFactory ?? GenerationController.new;
+  }) : _memoryProbe = memoryProbe ?? DartIoMemoryProbe(),
+       _thermalProbe = thermalProbe ?? PigeonThermalProbe(),
+       _batteryProbe = batteryProbe ?? PluginBatteryProbe(),
+       _controllerFactory = controllerFactory ?? GenerationController.new;
 
   /// Creates a new session via [backend].createSession, timing that call,
   /// then records one generation on it — the "session cold-start" sample.
@@ -63,7 +67,6 @@ class BenchmarkRecorder {
   /// differ substantially from the first.
   Future<NewSessionBenchmarkResult> runNewSession({
     required InferenceBackend backend,
-    required ModelFormat format,
     required ModelProfile profile,
     required InferenceSettings settings,
     required List<ChatMessage> messages,
@@ -75,7 +78,7 @@ class BenchmarkRecorder {
 
     final sample = await runOnExistingSession(
       session: session,
-      format: format,
+      format: profile.format,
       modelId: profile.id,
       messages: messages,
       label: label,

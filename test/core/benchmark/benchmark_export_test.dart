@@ -5,9 +5,10 @@ import 'package:little_star_app/core/benchmark/benchmark_export.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/core/platform/device_telemetry.g.dart';
-import 'package:little_star_app/ui/shared/inference/generation_controller.dart';
+import 'package:little_star_app/core/inference/generation_metrics.dart';
 
-BenchmarkSample _sample({String? label, String generatedText = 'hello'}) => BenchmarkSample(
+BenchmarkSample _sample({String? label, String generatedText = 'hello'}) =>
+    BenchmarkSample(
       timestamp: DateTime.utc(2026, 7, 19, 12, 0, 0),
       format: ModelFormat.gguf,
       modelId: 'model-1',
@@ -49,7 +50,9 @@ void main() {
     });
 
     test('escapes embedded quotes by doubling them', () {
-      final csv = benchmarkSamplesToCsv([_sample(generatedText: 'he said "hi"')]);
+      final csv = benchmarkSamplesToCsv([
+        _sample(generatedText: 'he said "hi"'),
+      ]);
       expect(csv, contains('"he said ""hi"""'));
     });
 
@@ -79,7 +82,8 @@ void main() {
 
     test('null label survives as JSON null, not the string "null"', () {
       final json = benchmarkSamplesToJson([_sample()]);
-      final row = (jsonDecode(json) as List<dynamic>).first as Map<String, dynamic>;
+      final row =
+          (jsonDecode(json) as List<dynamic>).first as Map<String, dynamic>;
       expect(row['label'], isNull);
     });
   });

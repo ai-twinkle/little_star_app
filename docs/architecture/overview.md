@@ -92,8 +92,10 @@ upper layers may import from lower layers, never the reverse.
 
 ### 3.1 UI Layer — `lib/ui/<feature>/widgets/`
 
-Pure Flutter widgets. They render state from a ViewModel and forward user
-input back to it. No business logic, no direct calls to the engine layer.
+Presentation-only Flutter widgets. They render state from a ViewModel and
+forward user input back to it. They may own navigation and presentation
+plugins such as a system share sheet, but contain no domain or filesystem
+policy and make no direct calls to the engine layer.
 
 | Feature | Entry widget |
 |---------|--------------|
@@ -111,17 +113,25 @@ ViewModels own an `InferenceSession` across the lifetime of one model
 selection — sessions are reused across turns and recreated only when the
 model or settings change.
 
+`ChatViewModel` and `CompletionViewModel` intentionally retain their own
+session-opening implementation because dirty-state and reuse timing belong to
+each owner. Their shared local-path metadata policy lives in
+`ModelProfile.fromLocalPath`; extracting session ownership would only add a
+pass-through Module over `BackendSelector`.
+
 | ViewModel | File | Lines |
 |-----------|------|-------|
 | `ChatViewModel` | `lib/ui/chat/view_model/chat_viewmodel.dart` | 277 |
 | `CompletionViewModel` | `lib/ui/completion/view_model/completion_viewmodel.dart` | 244 |
 | `HomeViewModel` | `lib/ui/home/view_model/home_viewmodel.dart` | — |
 | `ModelManagerViewModel` | `lib/ui/models/view_model/model_manager_viewmodel.dart` | — |
+| `MlxModelViewModel` | `lib/ui/models/view_model/mlx_model_viewmodel.dart` | — |
+| `BenchmarkViewModel` | `lib/ui/benchmark/view_model/benchmark_viewmodel.dart` | — |
 
 ViewModels do **not** drive the generation loop themselves — that
 responsibility moved to `GenerationController` in v0.1. See ADR-0005.
 
-### 3.3 Controller Layer — `lib/ui/shared/inference/`
+### 3.3 Controller Layer — `lib/ui/shared/inference/` + `lib/ui/<feature>/controller/`
 
 A single class, `GenerationController`, owns generation orchestration:
 
@@ -133,6 +143,13 @@ A single class, `GenerationController`, owns generation orchestration:
 
 `GenerationController` has no Flutter or Riverpod dependency and is
 unit-tested in isolation. See ADR-0005 for the boundary rationale.
+
+`BenchmarkRecorder` lives in `lib/ui/benchmark/controller/`. It composes the
+generation controller with telemetry probes and returns core-owned
+`BenchmarkSample` values. Protocol and sustained-run ordering belong to
+`BenchmarkViewModel`; preflight state and the consume-once app-cold selection
+also live there. Widgets only render its state, forward input, and present
+exported files through the system share sheet.
 
 ### 3.4 Engine Layer — `lib/core/inference/` + `lib/core/prompt/`
 
@@ -153,10 +170,12 @@ InferenceSession ─── generate(messages) → Stream<String>
 |------|------|
 | `inference_backend.dart` | `InferenceBackend` abstract class |
 | `inference_session.dart` | `InferenceSession` abstract class |
+| `generation_metrics.dart` | `GenerationMetrics` + `StopReason` value types shared by controllers and benchmark records |
 | `inference_settings.dart` | `InferenceSettings` value object (sampler, system prompt, max tokens, stop sequences) |
 | `sampling_params.dart` | `SamplingParams` (top-k, top-p, temperature) |
 | `backend_selector.dart` | `BackendSelector` — picks the right backend at runtime |
 | `llama_cpp_backend.dart` | `LlamaCppBackend` + `LlamaCppSession` + testable `LlamaFfiDriver` |
+| `turn_marker_filter.dart` | Shared marker-matching policy; each backend intentionally retains its stream lifecycle because native event and completion semantics differ |
 
 The prompt sub-package handles model-family-specific chat templating
 (see ADR-0004):
@@ -170,7 +189,7 @@ Model metadata lives in `lib/core/model/`:
 
 | File | Role |
 |------|------|
-| `model/model_profile.dart` | `ModelProfile` + `ModelFormat` + `ChatTemplateHint` + `BackendHint` |
+| `model/model_profile.dart` | `ModelProfile` + `ModelFormat` + shared local-path profile/format inference policy |
 
 ### 3.5 Native Bridge Layer — `lib/core/engine/`
 
@@ -191,7 +210,7 @@ Encapsulates everything the engine cannot assume across platforms:
 
 | File | Role |
 |------|------|
-| `core/platform/platform_adapter.dart` | `PlatformAdapter` — `platformId`, `supportsInference`, `directoryService` |
+| `core/platform/platform_adapter.dart` | `PlatformAdapter` — `platformId`, `supportsInference`, `supportsMlx`, `directoryService` |
 | `core/platform/native_library_loader.dart` | Locates and `dlopen`s the right llama.cpp dynamic library per platform |
 | `data/services/directory_service.dart` | Per-platform model-storage directories, file enumeration, permission checks |
 
@@ -200,7 +219,7 @@ Platform support matrix (see `PlatformAdapter` implementations):
 | Platform | `supportsInference` | llama.cpp | MLX |
 |----------|---------------------|-----------|-----|
 | iOS | true | ✅ static lib | ✅ SPM (mlx-swift-lm) |
-| macOS | true | ✅ via NativeLibraryLoader | — |
+| macOS | true | ✅ via NativeLibraryLoader | ✅ Apple Silicon only |
 | Android | true | ✅ static lib | — |
 | Windows | false* | ✅ DLL (b9334) | — |
 | Linux | false | — | — |

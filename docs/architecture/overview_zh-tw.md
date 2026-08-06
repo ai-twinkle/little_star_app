@@ -86,7 +86,7 @@ flowchart TB
 
 ### 3.1 UI 層 — `lib/ui/<feature>/widgets/`
 
-純 Flutter widget。它們渲染 ViewModel 的狀態、轉送使用者輸入。不寫商業邏輯，也不直接呼叫 engine 層。
+僅處理 presentation 的 Flutter widget。它們渲染 ViewModel 狀態並轉送使用者輸入；可以負責 navigation 與系統 share sheet 等 presentation plugin，但不包含 domain／filesystem policy，也不直接呼叫 engine 層。
 
 | 功能 | 入口 widget |
 |------|-------------|
@@ -100,16 +100,20 @@ flowchart TB
 
 `ChangeNotifier` 的子類，持有 UI 狀態（訊息列表、生成中 flag、錯誤文字、已下載模型清單）並編排 session 生命週期。ViewModel 在使用者選擇單一模型期間持有 `InferenceSession`——session 在多輪對話間重用，只有當模型或設定改變時才重建。
 
+`ChatViewModel` 與 `CompletionViewModel` 刻意各自保留 session 開啟實作，因為 dirty-state 與重用時機屬於各自 owner。共用的本機路徑 metadata 規則集中在 `ModelProfile.fromLocalPath`；若再抽 session ownership，只會在 `BackendSelector` 上增加 pass-through Module。
+
 | ViewModel | 檔案 | 行數 |
 |-----------|------|------|
 | `ChatViewModel` | `lib/ui/chat/view_model/chat_viewmodel.dart` | 277 |
 | `CompletionViewModel` | `lib/ui/completion/view_model/completion_viewmodel.dart` | 244 |
 | `HomeViewModel` | `lib/ui/home/view_model/home_viewmodel.dart` | — |
 | `ModelManagerViewModel` | `lib/ui/models/view_model/model_manager_viewmodel.dart` | — |
+| `MlxModelViewModel` | `lib/ui/models/view_model/mlx_model_viewmodel.dart` | — |
+| `BenchmarkViewModel` | `lib/ui/benchmark/view_model/benchmark_viewmodel.dart` | — |
 
 ViewModel **不再**自己驅動生成迴圈——這個職責在 v0.1 移到 `GenerationController`。見 ADR-0005。
 
-### 3.3 Controller 層 — `lib/ui/shared/inference/`
+### 3.3 Controller 層 — `lib/ui/shared/inference/` + `lib/ui/<feature>/controller/`
 
 唯一的類別 `GenerationController` 負責生成編排：
 
@@ -119,6 +123,11 @@ ViewModel **不再**自己驅動生成迴圈——這個職責在 v0.1 移到 `G
 - 透過 `cancel()` 支援協同式取消。
 
 `GenerationController` 沒有 Flutter 也沒有 Riverpod 依賴，可獨立單元測試。邊界劃分的理由見 ADR-0005。
+
+`BenchmarkRecorder` 位於 `lib/ui/benchmark/controller/`，把 generation controller
+與 telemetry probes 組合起來，回傳 core 擁有的 `BenchmarkSample`。Protocol 與
+sustained-run 的順序、preflight 狀態與 consume-once app-cold 選項都由
+`BenchmarkViewModel` 負責；widget 只渲染狀態、轉送輸入，並透過系統 share sheet 呈現已匯出的檔案。
 
 ### 3.4 Engine 層 — `lib/core/inference/` + `lib/core/prompt/`
 
@@ -137,10 +146,12 @@ InferenceSession ─── generate(messages) → Stream<String>
 |------|------|
 | `inference_backend.dart` | `InferenceBackend` 抽象類別 |
 | `inference_session.dart` | `InferenceSession` 抽象類別 |
+| `generation_metrics.dart` | controller 與 benchmark record 共用的 `GenerationMetrics` + `StopReason` value types |
 | `inference_settings.dart` | `InferenceSettings` value object（sampler、system prompt、max tokens、stop sequences） |
 | `sampling_params.dart` | `SamplingParams`（top-k、top-p、temperature） |
 | `backend_selector.dart` | `BackendSelector` — 執行期選取對應後端 |
 | `llama_cpp_backend.dart` | `LlamaCppBackend` + `LlamaCppSession` + 可測試的 `LlamaFfiDriver` |
+| `turn_marker_filter.dart` | 共用 marker matching 規則；各 backend 刻意保留自己的 stream lifecycle，因為 native event 與 completion 語意不同 |
 
 `prompt/` 子套件處理模型家族專屬的 chat template（見 ADR-0004）：
 
@@ -153,7 +164,7 @@ InferenceSession ─── generate(messages) → Stream<String>
 
 | 檔案 | 職責 |
 |------|------|
-| `model/model_profile.dart` | `ModelProfile` + `ModelFormat` + `ChatTemplateHint` + `BackendHint` |
+| `model/model_profile.dart` | `ModelProfile` + `ModelFormat` + 共用的本機路徑 profile／format 判斷規則 |
 
 ### 3.5 Native Bridge 層 — `lib/core/engine/`
 
@@ -172,7 +183,7 @@ FFI bridge 直接呼叫 C 函式；Pigeon bridge 透過產生的型別安全 cha
 
 | 檔案 | 職責 |
 |------|------|
-| `core/platform/platform_adapter.dart` | `PlatformAdapter` — `platformId`、`supportsInference`、`directoryService` |
+| `core/platform/platform_adapter.dart` | `PlatformAdapter` — `platformId`、`supportsInference`、`supportsMlx`、`directoryService` |
 | `core/platform/native_library_loader.dart` | 每平台找出正確的 llama.cpp 動態函式庫並 `dlopen` |
 | `data/services/directory_service.dart` | 每平台的模型儲存目錄、檔案列舉、權限請求 |
 
@@ -181,7 +192,7 @@ FFI bridge 直接呼叫 C 函式；Pigeon bridge 透過產生的型別安全 cha
 | 平台 | `supportsInference` | llama.cpp | MLX |
 |------|---------------------|-----------|-----|
 | iOS | true | ✅ static lib | ✅ SPM（mlx-swift-lm） |
-| macOS | true | ✅ 經 NativeLibraryLoader | — |
+| macOS | true | ✅ 經 NativeLibraryLoader | ✅ 僅 Apple Silicon |
 | Android | true | ✅ static lib | — |
 | Windows | false* | ✅ DLL（b9334） | — |
 | Linux | false | — | — |

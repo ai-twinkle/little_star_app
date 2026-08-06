@@ -46,7 +46,8 @@ class _ErrorSession implements InferenceSession {
 /// Mirrors LlamaCppSession's PromptMetricsSource implementation, so tests
 /// can verify CompletionViewModel threads prefill/prompt stats through to
 /// MetricsData.
-class _PromptMetricsFakeSession implements InferenceSession, PromptMetricsSource {
+class _PromptMetricsFakeSession
+    implements InferenceSession, PromptMetricsSource {
   final List<String> tokens;
   @override
   final int? lastPromptTokenCount;
@@ -75,6 +76,7 @@ class _PromptMetricsFakeSession implements InferenceSession, PromptMetricsSource
 
 class _ControllableSession implements InferenceSession {
   final _ctrl = StreamController<String>();
+  bool cancelCalled = false;
   bool disposed = false;
 
   void emit(String t) => _ctrl.add(t);
@@ -85,6 +87,7 @@ class _ControllableSession implements InferenceSession {
 
   @override
   void cancel() {
+    cancelCalled = true;
     if (!_ctrl.isClosed) _ctrl.close();
   }
 
@@ -98,9 +101,9 @@ class _ControllableSession implements InferenceSession {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 CompletionViewModel _vm(InferenceSession session) => CompletionViewModel(
-      modelPath: '/fake/model.gguf',
-      sessionFactory: (_, __) => session,
-    );
+  modelPath: '/fake/model.gguf',
+  sessionFactory: (_, __) => session,
+);
 
 /// Returns a Future that completes once [vm.isRunning] is false.
 Future<void> _waitIdle(CompletionViewModel vm) {
@@ -120,6 +123,22 @@ Future<void> _waitIdle(CompletionViewModel vm) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 void main() {
+  test(
+    'dispose cancels active generation before releasing the session',
+    () async {
+      final session = _ControllableSession();
+      final vm = _vm(session);
+      final generation = vm.startCompletion('Hello');
+      await Future<void>.delayed(Duration.zero);
+
+      vm.dispose();
+      await generation;
+
+      expect(session.cancelCalled, isTrue);
+      expect(session.disposed, isTrue);
+    },
+  );
+
   group('CompletionViewModel — normal completion', () {
     test('startCompletion appends tokens to outputTextNotifier', () async {
       final vm = _vm(_FakeSession(['Hello', ' world']));
@@ -181,19 +200,25 @@ void main() {
       await _waitIdle(vm);
 
       expect(vm.metricsNotifier.value.promptTokenCount, 40);
-      expect(vm.metricsNotifier.value.prefillTokensPerSecond, closeTo(200, 0.001));
+      expect(
+        vm.metricsNotifier.value.prefillTokensPerSecond,
+        closeTo(200, 0.001),
+      );
     });
 
-    test('promptTokenCount defaults to 0 for a plain InferenceSession', () async {
-      final vm = _vm(_FakeSession(['a']));
-      addTearDown(vm.dispose);
+    test(
+      'promptTokenCount defaults to 0 for a plain InferenceSession',
+      () async {
+        final vm = _vm(_FakeSession(['a']));
+        addTearDown(vm.dispose);
 
-      await vm.startCompletion('hi');
-      await _waitIdle(vm);
+        await vm.startCompletion('hi');
+        await _waitIdle(vm);
 
-      expect(vm.metricsNotifier.value.promptTokenCount, 0);
-      expect(vm.metricsNotifier.value.prefillTokensPerSecond, isNull);
-    });
+        expect(vm.metricsNotifier.value.promptTokenCount, 0);
+        expect(vm.metricsNotifier.value.prefillTokensPerSecond, isNull);
+      },
+    );
   });
 
   group('CompletionViewModel — cancel', () {
@@ -237,7 +262,11 @@ void main() {
       final vm = _vm(_FakeSession());
       addTearDown(vm.dispose);
 
-      vm.updateSettings(maxTokens: 512, temperature: 0.5, systemPrompt: 'Be concise');
+      vm.updateSettings(
+        maxTokens: 512,
+        temperature: 0.5,
+        systemPrompt: 'Be concise',
+      );
 
       expect(vm.maxTokens, 512);
       expect(vm.temperature, 0.5);
@@ -307,20 +336,20 @@ void main() {
       // real BackendSelector (no fake session injected) is used — this is
       // the path completion_screen.dart takes when opened without an
       // initialModelPath.
-      expect(
-        () => CompletionViewModel(modelPath: ''),
-        returnsNormally,
-      );
+      expect(() => CompletionViewModel(modelPath: ''), returnsNormally);
     });
 
-    test('startCompletion is a no-op when no model was ever selected', () async {
-      final vm = CompletionViewModel(modelPath: '');
-      addTearDown(vm.dispose);
+    test(
+      'startCompletion is a no-op when no model was ever selected',
+      () async {
+        final vm = CompletionViewModel(modelPath: '');
+        addTearDown(vm.dispose);
 
-      await vm.startCompletion('hello');
+        await vm.startCompletion('hello');
 
-      expect(vm.isRunning, isFalse);
-    });
+        expect(vm.isRunning, isFalse);
+      },
+    );
   });
 
   group('CompletionViewModel — backend/format wiring', () {
@@ -373,15 +402,17 @@ class _FakeMlxBackend implements InferenceBackend {
   bool canHandle(ModelProfile profile) => profile.format == ModelFormat.mlx;
 
   @override
-  InferenceSession createSession(ModelProfile profile, InferenceSettings settings) {
+  InferenceSession createSession(
+    ModelProfile profile,
+    InferenceSettings settings,
+  ) {
     createSessionCallCount++;
     return _FakeSession();
   }
 }
 
 // Custom matcher for approximate double equality.
-Matcher isCloseTo(double expected, double delta) =>
-    _CloseTo(expected, delta);
+Matcher isCloseTo(double expected, double delta) => _CloseTo(expected, delta);
 
 class _CloseTo extends Matcher {
   final double _expected;

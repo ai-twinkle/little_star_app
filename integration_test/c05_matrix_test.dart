@@ -46,7 +46,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:little_star_app/core/benchmark/benchmark_export.dart';
 import 'package:little_star_app/core/benchmark/benchmark_sample.dart';
 import 'package:little_star_app/core/benchmark/prompt_tiers.dart';
-import 'package:little_star_app/core/benchmark/protocol_runner.dart';
 import 'package:little_star_app/ui/benchmark/view_model/benchmark_viewmodel.dart';
 
 const int kColdSessionsPerCombo = 3;
@@ -76,16 +75,18 @@ void main() {
   void logSample(String tag, BenchmarkSample s) {
     final g = s.generation;
     // ignore: avoid_print
-    print('[$tag] label=${s.label} '
-        'loadMs=${s.modelLoadDuration.inMilliseconds} '
-        'ttftMs=${g.ttft?.inMilliseconds} '
-        'decodeTps=${g.tokensPerSecond?.toStringAsFixed(2)} '
-        'prefillTps=${g.prefillTokensPerSecond?.toStringAsFixed(2)} '
-        'promptTokens=${g.promptTokenCount} '
-        'genTokens=${g.tokenCount} '
-        'peakMemMB=${s.peakMemoryBytes != null ? (s.peakMemoryBytes! / 1e6).toStringAsFixed(1) : null} '
-        'thermal=${s.thermalStateBefore.name}->${s.thermalStateAfter.name} '
-        'battery=${s.batteryLevelBefore}->${s.batteryLevelAfter}');
+    print(
+      '[$tag] label=${s.label} '
+      'loadMs=${s.modelLoadDuration.inMilliseconds} '
+      'ttftMs=${g.ttft?.inMilliseconds} '
+      'decodeTps=${g.tokensPerSecond?.toStringAsFixed(2)} '
+      'prefillTps=${g.prefillTokensPerSecond?.toStringAsFixed(2)} '
+      'promptTokens=${g.promptTokenCount} '
+      'genTokens=${g.tokenCount} '
+      'peakMemMB=${s.peakMemoryBytes != null ? (s.peakMemoryBytes! / 1e6).toStringAsFixed(1) : null} '
+      'thermal=${s.thermalStateBefore.name}->${s.thermalStateAfter.name} '
+      'battery=${s.batteryLevelBefore}->${s.batteryLevelAfter}',
+    );
   }
 
   Future<void> runCombo(
@@ -96,19 +97,19 @@ void main() {
     int warmRepeats = kWarmRepeatsPerSession,
   }) async {
     expect(
-      modelPath.endsWith('.gguf') ? File(modelPath).existsSync() : Directory(modelPath).existsSync(),
+      modelPath.endsWith('.gguf')
+          ? File(modelPath).existsSync()
+          : Directory(modelPath).existsSync(),
       isTrue,
       reason: 'Expected model already downloaded via the app at $modelPath',
     );
 
     final viewModel = BenchmarkViewModel();
-    final runner = BenchmarkProtocolRunner(viewModel);
     for (var i = 1; i <= coldSessions; i++) {
-      await runner.runTier(
+      await viewModel.runProtocol(
         modelPath,
-        tier,
+        tiers: [tier],
         warmRepeats: warmRepeats,
-        isFirstSessionThisLaunch: false,
       );
       expect(viewModel.lastError, isNull, reason: viewModel.lastError ?? '');
     }
@@ -118,7 +119,9 @@ void main() {
     }
     final csv = await viewModel.exportCsv();
     // ignore: avoid_print
-    print('[$tag] n=${viewModel.samples.length} csv=${csv.path} (${await csv.length()} bytes)');
+    print(
+      '[$tag] n=${viewModel.samples.length} csv=${csv.path} (${await csv.length()} bytes)',
+    );
     expect(viewModel.samples, hasLength(coldSessions * (1 + warmRepeats)));
   }
 
@@ -160,13 +163,17 @@ void main() {
       }
       if (elapsed >= timeout) {
         // ignore: avoid_print
-        print('[cooldown] timed out after ${elapsed.inSeconds}s, still '
-            'thermalState=${status.thermalState.name} — continuing anyway');
+        print(
+          '[cooldown] timed out after ${elapsed.inSeconds}s, still '
+          'thermalState=${status.thermalState.name} — continuing anyway',
+        );
         return;
       }
       // ignore: avoid_print
-      print('[cooldown] thermalState=${status.thermalState.name}, waiting '
-          '(${elapsed.inSeconds}s elapsed, battery=${status.batteryLevel}%)');
+      print(
+        '[cooldown] thermalState=${status.thermalState.name}, waiting '
+        '(${elapsed.inSeconds}s elapsed, battery=${status.batteryLevel}%)',
+      );
       await Future.delayed(pollInterval);
     }
   }
@@ -188,7 +195,9 @@ void main() {
     final file = File(path);
     await file.writeAsString(content);
     // ignore: avoid_print
-    print('[checkpoint] ${vm.samples.length} samples -> $path (${content.length} bytes)');
+    print(
+      '[checkpoint] ${vm.samples.length} samples -> $path (${content.length} bytes)',
+    );
     // ignore: avoid_print
     print('=== CSV_DUMP_BEGIN ===');
     // ignore: avoid_print
@@ -209,7 +218,6 @@ void main() {
   //     --plain-name "C05 overnight matrix" -d <device>
   testWidgets('C05 overnight matrix', (tester) async {
     final viewModel = BenchmarkViewModel();
-    final runner = BenchmarkProtocolRunner(viewModel);
     final gguf = await ggufPath();
     final mlx = await mlxPath();
     final docs = await getApplicationDocumentsDirectory();
@@ -236,19 +244,22 @@ void main() {
       final beforeCount = viewModel.samples.length;
       for (var i = 1; i <= kColdSessionsPerCombo; i++) {
         try {
-          await runner.runTier(
+          await viewModel.runProtocol(
             path,
-            tier,
+            tiers: [tier],
             warmRepeats: kWarmRepeatsPerSession,
-            isFirstSessionThisLaunch: false,
           );
           if (viewModel.lastError != null) {
             // ignore: avoid_print
-            print('[warn] $backend ${tier.label} session $i: ${viewModel.lastError}');
+            print(
+              '[warn] $backend ${tier.label} session $i: ${viewModel.lastError}',
+            );
           }
         } catch (e) {
           // ignore: avoid_print
-          print('[error] $backend ${tier.label} session $i threw: $e — continuing');
+          print(
+            '[error] $backend ${tier.label} session $i threw: $e — continuing',
+          );
         }
       }
 
@@ -259,7 +270,9 @@ void main() {
     }
 
     // ignore: avoid_print
-    print('=== overnight matrix complete: ${viewModel.samples.length} samples, csv=$csvPath ===');
+    print(
+      '=== overnight matrix complete: ${viewModel.samples.length} samples, csv=$csvPath ===',
+    );
   }, timeout: const Timeout(Duration(hours: 10)));
 
   // Bounded alternative to "C05 overnight matrix" — same per-combo protocol
@@ -275,7 +288,6 @@ void main() {
   //     --plain-name "C05 timeboxed matrix" -d <device>
   testWidgets('C05 timeboxed matrix', (tester) async {
     final viewModel = BenchmarkViewModel();
-    final runner = BenchmarkProtocolRunner(viewModel);
     final gguf = await ggufPath();
     final mlx = await mlxPath();
     final docs = await getApplicationDocumentsDirectory();
@@ -297,16 +309,20 @@ void main() {
       final elapsedSoFar = DateTime.now().difference(budgetStart);
       if (elapsedSoFar >= kTimeboxBudget) {
         // ignore: avoid_print
-        print('[timebox] budget (${kTimeboxBudget.inMinutes}min) exhausted '
-            'after ${elapsedSoFar.inMinutes}min, stopping before combo '
-            '${ci + 1}/${combos.length}');
+        print(
+          '[timebox] budget (${kTimeboxBudget.inMinutes}min) exhausted '
+          'after ${elapsedSoFar.inMinutes}min, stopping before combo '
+          '${ci + 1}/${combos.length}',
+        );
         break;
       }
 
       final (backend, path, tier) = combos[ci];
       // ignore: avoid_print
-      print('=== combo ${ci + 1}/${combos.length}: $backend ${tier.label} '
-          '(${elapsedSoFar.inMinutes}/${kTimeboxBudget.inMinutes}min used) ===');
+      print(
+        '=== combo ${ci + 1}/${combos.length}: $backend ${tier.label} '
+        '(${elapsedSoFar.inMinutes}/${kTimeboxBudget.inMinutes}min used) ===',
+      );
 
       if (ci > 0) {
         await waitForNominal(viewModel, timeout: kTimeboxNominalWaitTimeout);
@@ -315,19 +331,22 @@ void main() {
       final beforeCount = viewModel.samples.length;
       for (var i = 1; i <= kColdSessionsPerCombo; i++) {
         try {
-          await runner.runTier(
+          await viewModel.runProtocol(
             path,
-            tier,
+            tiers: [tier],
             warmRepeats: kWarmRepeatsPerSession,
-            isFirstSessionThisLaunch: false,
           );
           if (viewModel.lastError != null) {
             // ignore: avoid_print
-            print('[warn] $backend ${tier.label} session $i: ${viewModel.lastError}');
+            print(
+              '[warn] $backend ${tier.label} session $i: ${viewModel.lastError}',
+            );
           }
         } catch (e) {
           // ignore: avoid_print
-          print('[error] $backend ${tier.label} session $i threw: $e — continuing');
+          print(
+            '[error] $backend ${tier.label} session $i threw: $e — continuing',
+          );
         }
       }
 
@@ -339,8 +358,10 @@ void main() {
 
     final totalElapsed = DateTime.now().difference(budgetStart);
     // ignore: avoid_print
-    print('=== timeboxed matrix complete: ${viewModel.samples.length} samples, '
-        '${totalElapsed.inMinutes}min elapsed, csv=$csvPath ===');
+    print(
+      '=== timeboxed matrix complete: ${viewModel.samples.length} samples, '
+      '${totalElapsed.inMinutes}min elapsed, csv=$csvPath ===',
+    );
   }, timeout: const Timeout(Duration(hours: 3)));
 
   testWidgets('C05 GGUF L128', (tester) async {
@@ -378,22 +399,42 @@ void main() {
   // Android (Pixel 8a): reduced sample count, see kAndroidColdSessionsPerCombo doc
   // comment. No MLX — Apple Silicon only.
   testWidgets('C05 Android GGUF L128', (tester) async {
-    await runCombo('Android-GGUF-L128', await ggufPath(), PromptTier.l128,
-        coldSessions: kAndroidColdSessionsPerCombo, warmRepeats: kAndroidWarmRepeatsPerSession);
+    await runCombo(
+      'Android-GGUF-L128',
+      await ggufPath(),
+      PromptTier.l128,
+      coldSessions: kAndroidColdSessionsPerCombo,
+      warmRepeats: kAndroidWarmRepeatsPerSession,
+    );
   }, timeout: const Timeout(Duration(minutes: 25)));
 
   testWidgets('C05 Android GGUF L512', (tester) async {
-    await runCombo('Android-GGUF-L512', await ggufPath(), PromptTier.l512,
-        coldSessions: kAndroidColdSessionsPerCombo, warmRepeats: kAndroidWarmRepeatsPerSession);
+    await runCombo(
+      'Android-GGUF-L512',
+      await ggufPath(),
+      PromptTier.l512,
+      coldSessions: kAndroidColdSessionsPerCombo,
+      warmRepeats: kAndroidWarmRepeatsPerSession,
+    );
   }, timeout: const Timeout(Duration(minutes: 25)));
 
   testWidgets('C05 Android GGUF L1024', (tester) async {
-    await runCombo('Android-GGUF-L1024', await ggufPath(), PromptTier.l1024,
-        coldSessions: kAndroidColdSessionsPerCombo, warmRepeats: kAndroidWarmRepeatsPerSession);
+    await runCombo(
+      'Android-GGUF-L1024',
+      await ggufPath(),
+      PromptTier.l1024,
+      coldSessions: kAndroidColdSessionsPerCombo,
+      warmRepeats: kAndroidWarmRepeatsPerSession,
+    );
   }, timeout: const Timeout(Duration(minutes: 25)));
 
   testWidgets('C05 Android GGUF L2048', (tester) async {
-    await runCombo('Android-GGUF-L2048', await ggufPath(), PromptTier.l2048,
-        coldSessions: kAndroidColdSessionsPerCombo, warmRepeats: kAndroidWarmRepeatsPerSession);
+    await runCombo(
+      'Android-GGUF-L2048',
+      await ggufPath(),
+      PromptTier.l2048,
+      coldSessions: kAndroidColdSessionsPerCombo,
+      warmRepeats: kAndroidWarmRepeatsPerSession,
+    );
   }, timeout: const Timeout(Duration(minutes: 25)));
 }

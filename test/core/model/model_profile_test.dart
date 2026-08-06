@@ -4,6 +4,29 @@ import 'package:little_star_app/core/inference/sampling_params.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
 
 void main() {
+  group('ModelFormat.fromLocalPath', () {
+    test(
+      'recognizes GGUF files case-insensitively and otherwise preserves MLX fallback',
+      () {
+        expect(ModelFormat.fromLocalPath('/models/t1.gguf'), ModelFormat.gguf);
+        expect(
+          ModelFormat.fromLocalPath(r'C:\models\T1.GGUF'),
+          ModelFormat.gguf,
+        );
+        expect(ModelFormat.fromLocalPath('/models/t1-mlx'), ModelFormat.mlx);
+      },
+    );
+  });
+
+  test('ModelProfile.fromLocalPath builds local inference metadata', () {
+    final profile = ModelProfile.fromLocalPath('/models/t1.gguf');
+
+    expect(profile.id, '/models/t1.gguf');
+    expect(profile.displayName, 't1.gguf');
+    expect(profile.format, ModelFormat.gguf);
+    expect(profile.localPath, '/models/t1.gguf');
+  });
+
   // ── ModelProfile defaults ─────────────────────────────────────────────────
   group('ModelProfile defaults', () {
     const p = ModelProfile(
@@ -12,10 +35,19 @@ void main() {
       format: ModelFormat.gguf,
     );
 
-    test('hfRepoId defaults to id', () => expect(p.hfRepoId, 'test/model-gguf'));
-    test('chatTemplateHint defaults to unknown', () => expect(p.chatTemplateHint, ChatTemplateHint.unknown));
+    test(
+      'hfRepoId defaults to id',
+      () => expect(p.hfRepoId, 'test/model-gguf'),
+    );
+    test(
+      'chatTemplateHint defaults to unknown',
+      () => expect(p.chatTemplateHint, ChatTemplateHint.unknown),
+    );
     test('ctxLen defaults to 2048', () => expect(p.ctxLen, 2048));
-    test('backendHint defaults to auto', () => expect(p.backendHint, BackendHint.auto));
+    test(
+      'backendHint defaults to auto',
+      () => expect(p.backendHint, BackendHint.auto),
+    );
     test('defaultSamplingParams defaults match SamplingParams()', () {
       expect(p.defaultSamplingParams, const SamplingParams());
     });
@@ -60,7 +92,11 @@ void main() {
       recommendedQuantization: 'Q4_K_M',
       chatTemplateHint: ChatTemplateHint.qwen2,
       ctxLen: 4096,
-      defaultSamplingParams: SamplingParams(topK: 20, topP: 0.9, temperature: 0.7),
+      defaultSamplingParams: SamplingParams(
+        topK: 20,
+        topP: 0.9,
+        temperature: 0.7,
+      ),
       backendHint: BackendHint.llamaCpp,
       quickDescription: 'Multilingual',
       useCases: ['Chat', 'Multilingual'],
@@ -125,7 +161,12 @@ void main() {
   // ── SamplingParams JSON ───────────────────────────────────────────────────
   group('SamplingParams JSON round-trip', () {
     test('toJson / fromJson', () {
-      const sp = SamplingParams(topK: 20, topP: 0.8, temperature: 0.5, seed: 42);
+      const sp = SamplingParams(
+        topK: 20,
+        topP: 0.8,
+        temperature: 0.5,
+        seed: 42,
+      );
       final restored = SamplingParams.fromJson(sp.toJson());
       expect(restored, sp);
     });
@@ -138,24 +179,27 @@ void main() {
     });
 
     test('first 6 are GGUF', () {
-      final gguf = RecommendedModels.profiles
-          .where((p) => p.format == ModelFormat.gguf)
-          .toList();
+      final gguf =
+          RecommendedModels.profiles
+              .where((p) => p.format == ModelFormat.gguf)
+              .toList();
       expect(gguf, hasLength(6));
     });
 
     test('contains one MLX profile', () {
-      final mlx = RecommendedModels.profiles
-          .where((p) => p.format == ModelFormat.mlx)
-          .toList();
+      final mlx =
+          RecommendedModels.profiles
+              .where((p) => p.format == ModelFormat.mlx)
+              .toList();
       expect(mlx, hasLength(1));
       expect(mlx.first.id, 'mlx-community/Llama-3.2-1B-Instruct-4bit');
     });
 
     test('MLX profile has correct fields', () {
-      final mlx = RecommendedModels.profileById(
-        'mlx-community/Llama-3.2-1B-Instruct-4bit',
-      )!;
+      final mlx =
+          RecommendedModels.profileById(
+            'mlx-community/Llama-3.2-1B-Instruct-4bit',
+          )!;
       expect(mlx.format, ModelFormat.mlx);
       expect(mlx.backendHint, BackendHint.mlx);
       expect(mlx.chatTemplateHint, ChatTemplateHint.llama3);
@@ -164,10 +208,14 @@ void main() {
     });
 
     test('all GGUF profiles have recommendedQuantization set', () {
-      for (final p in RecommendedModels.profiles
-          .where((p) => p.format == ModelFormat.gguf)) {
-        expect(p.recommendedQuantization, isNotNull,
-            reason: '${p.id} missing recommendedQuantization');
+      for (final p in RecommendedModels.profiles.where(
+        (p) => p.format == ModelFormat.gguf,
+      )) {
+        expect(
+          p.recommendedQuantization,
+          isNotNull,
+          reason: '${p.id} missing recommendedQuantization',
+        );
       }
     });
 
@@ -188,9 +236,10 @@ void main() {
     });
 
     test('Llama 3.2 3B has llama3 chat template hint', () {
-      final p = RecommendedModels.profileById(
-        'twinkle-ai/Llama-3.2-3B-F1-Reasoning-Instruct-GGUF',
-      )!;
+      final p =
+          RecommendedModels.profileById(
+            'twinkle-ai/Llama-3.2-3B-F1-Reasoning-Instruct-GGUF',
+          )!;
       expect(p.chatTemplateHint, ChatTemplateHint.llama3);
     });
 

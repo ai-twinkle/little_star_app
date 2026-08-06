@@ -33,6 +33,7 @@ v0.1 以前，`ChatViewModel` 與 `CompletionViewModel` 各自在處理 UI 狀�
 |------|------|
 | 驅動 `InferenceSession.generate` | `GenerationController` |
 | 計算 TTFT 與 TPS | `GenerationController` |
+| 定義 generation metric value types | `lib/core/inference/generation_metrics.dart` |
 | 協同式取消（`cancel()`） | `GenerationController` |
 | 發出 `Stream<GenerationEvent>` | `GenerationController` |
 | UI 狀態（訊息列表、`isGenerating`、錯誤文字） | ViewModel |
@@ -97,7 +98,8 @@ ViewModel 持有一個 `GenerationController` 實例和一個 `StreamSubscriptio
 
 ## References（參考資料）
 
-- `lib/ui/shared/inference/generation_controller.dart` — `GenerationController`、`GenerationEvent` 階層、`GenerationMetrics`、`StopReason`。
+- `lib/ui/shared/inference/generation_controller.dart` — `GenerationController` 與 `GenerationEvent` 階層。
+- `lib/core/inference/generation_metrics.dart` — 共用的 `GenerationMetrics` 與 `StopReason` value types。
 - `lib/ui/completion/view_model/completion_viewmodel.dart` — 抽取後的 ViewModel（244 行）；`MetricsData` 映射。
 - `lib/ui/chat/view_model/chat_viewmodel.dart` — 抽取後的 ViewModel（277 行）；`MessageMetrics` 映射。
 - `lib/core/inference/inference_session.dart` — `GenerationController` 消費的 `InferenceSession` 合約。
