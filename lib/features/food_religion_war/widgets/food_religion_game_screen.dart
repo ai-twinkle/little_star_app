@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 
 class FoodReligionGameScreen extends StatefulWidget {
   const FoodReligionGameScreen({super.key});
@@ -10,12 +11,21 @@ class FoodReligionGameScreen extends StatefulWidget {
 }
 
 class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
-  final _session = FoodReligionGameSession();
+  late FoodReligionGameSession _session;
+  final _defenseController = TextEditingController();
   bool _canLeave = false;
   bool _isExitDialogVisible = false;
+  String? _defenseError;
+
+  @override
+  void initState() {
+    super.initState();
+    _session = FoodReligionGameSession();
+  }
 
   @override
   void dispose() {
+    _defenseController.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -35,15 +45,71 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
             builder:
                 (context, _) => Padding(
                   padding: const EdgeInsets.all(16),
-                  child:
-                      _session.stage == FoodReligionGameStage.defense
-                          ? _DefensePreview(champion: _session.champion!)
-                          : _MatchView(session: _session),
+                  child: switch (_session.stage) {
+                    FoodReligionGameStage.semifinalZongzi ||
+                    FoodReligionGameStage.semifinalCilantro ||
+                    FoodReligionGameStage
+                        .finalMatch => _MatchView(session: _session),
+                    FoodReligionGameStage.defense => _DefenseView(
+                      champion: _session.champion!,
+                      controller: _defenseController,
+                      characterCount: _defenseController.text.characters.length,
+                      errorText: _defenseError,
+                      onChanged: (_) {
+                        setState(() => _defenseError = null);
+                      },
+                      onSubmit: _submitDefense,
+                    ),
+                    FoodReligionGameStage.judging => const _JudgingView(),
+                    FoodReligionGameStage.result => _ResultView(
+                      champion: _session.champion!,
+                      judgment: _session.judgment!,
+                      onReplay: _restartGame,
+                      onHome: _leaveToHome,
+                    ),
+                  },
                 ),
           ),
         ),
       ),
     );
+  }
+
+  bool _validateDefense() {
+    final defenseLength = _defenseController.text.trim().characters.length;
+    final error = switch (defenseLength) {
+      0 => '請輸入 1～50 字的辯護',
+      > 50 => '最多只能輸入 50 字',
+      _ => null,
+    };
+    setState(() {
+      _defenseError = error;
+    });
+    return error == null;
+  }
+
+  void _submitDefense() {
+    if (!_validateDefense()) return;
+    _session.submitDefense(_defenseController.text);
+  }
+
+  void _restartGame() {
+    final completedSession = _session;
+    setState(() {
+      _session = FoodReligionGameSession();
+      _defenseController.clear();
+      _defenseError = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      completedSession.dispose();
+    });
+  }
+
+  void _leaveToHome() {
+    setState(() => _canLeave = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
   }
 
   Future<void> _confirmExit() async {
@@ -107,10 +173,22 @@ class _MatchView extends StatelessWidget {
   }
 }
 
-class _DefensePreview extends StatelessWidget {
-  const _DefensePreview({required this.champion});
+class _DefenseView extends StatelessWidget {
+  const _DefenseView({
+    required this.champion,
+    required this.controller,
+    required this.characterCount,
+    required this.errorText,
+    required this.onChanged,
+    required this.onSubmit,
+  });
 
   final FoodFaith champion;
+  final TextEditingController controller;
+  final int characterCount;
+  final String? errorText;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +208,83 @@ class _DefensePreview extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Text(champion.finalChallenge, textAlign: TextAlign.center),
+        const SizedBox(height: 24),
+        TextField(
+          controller: controller,
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            labelText: '你的辯護',
+            hintText: '用一句話捍衛你的信仰',
+            errorText: errorText,
+            border: const OutlineInputBorder(),
+          ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => onSubmit(),
+        ),
+        const SizedBox(height: 8),
+        Text('$characterCount / 50', textAlign: TextAlign.end),
+        const SizedBox(height: 16),
+        FilledButton(onPressed: onSubmit, child: const Text('送出辯護')),
+      ],
+    );
+  }
+}
+
+class _JudgingView extends StatelessWidget {
+  const _JudgingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 24),
+          Text('AI 鄉民評審正在審判…'),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultView extends StatelessWidget {
+  const _ResultView({
+    required this.champion,
+    required this.judgment,
+    required this.onReplay,
+    required this.onHome,
+  });
+
+  final FoodFaith champion;
+  final FoodReligionJudgment judgment;
+  final VoidCallback onReplay;
+  final VoidCallback onHome;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          champion.label,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 24),
+        Text(
+          judgment.verdict.label,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16),
+        Text(judgment.roast, textAlign: TextAlign.center),
+        const SizedBox(height: 24),
+        const Text('AI 主持人暫時離線，改由備援鄉民評審裁決！', textAlign: TextAlign.center),
+        const Spacer(),
+        FilledButton(onPressed: onReplay, child: const Text('再玩一次')),
+        const SizedBox(height: 12),
+        OutlinedButton(onPressed: onHome, child: const Text('回首頁')),
       ],
     );
   }
