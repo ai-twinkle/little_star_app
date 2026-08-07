@@ -28,24 +28,27 @@ class ModelSearchList extends StatelessWidget {
             Text(
               '找不到模型',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: models.length,
-      itemBuilder: (context, index) {
-        final model = models[index];
-        return _ModelSearchCard(
-          model: model,
-          onTap: () => onSelect(model),
-        );
-      },
+      child: Column(
+        children:
+            models
+                .map(
+                  (model) => _ModelSearchCard(
+                    model: model,
+                    onTap: () => onSelect(model),
+                  ),
+                )
+                .toList(),
+      ),
     );
   }
 }
@@ -54,10 +57,7 @@ class _ModelSearchCard extends StatelessWidget {
   final HFModelInfo model;
   final VoidCallback onTap;
 
-  const _ModelSearchCard({
-    required this.model,
-    required this.onTap,
-  });
+  const _ModelSearchCard({required this.model, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -110,10 +110,7 @@ class _ModelSearchCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: theme.colorScheme.outline,
-                  ),
+                  Icon(Icons.chevron_right, color: theme.colorScheme.outline),
                 ],
               ),
               const SizedBox(height: 12),
@@ -135,19 +132,22 @@ class _ModelSearchCard extends StatelessWidget {
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
-                  children: model.tags
-                      .take(5)
-                      .map((tag) => Chip(
-                            label: Text(
-                              tag,
-                              style: theme.textTheme.labelSmall,
+                  children:
+                      model.tags
+                          .take(5)
+                          .map(
+                            (tag) => Chip(
+                              label: Text(
+                                tag,
+                                style: theme.textTheme.labelSmall,
+                              ),
+                              padding: EdgeInsets.zero,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
                             ),
-                            padding: EdgeInsets.zero,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ))
-                      .toList(),
+                          )
+                          .toList(),
                 ),
               ],
             ],
@@ -162,10 +162,7 @@ class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  const _StatChip({
-    required this.icon,
-    required this.label,
-  });
+  const _StatChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -174,11 +171,7 @@ class _StatChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: theme.colorScheme.outline,
-        ),
+        Icon(icon, size: 16, color: theme.colorScheme.outline),
         const SizedBox(width: 4),
         Text(
           label,

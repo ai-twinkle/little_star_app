@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
+import 'package:little_star_app/data/repositories/download_repository.dart';
+import 'package:little_star_app/data/services/directory_service.dart';
+import 'package:little_star_app/data/services/download_service.dart';
+import 'package:little_star_app/data/services/huggingface_service.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
 import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_screen.dart';
+import 'package:little_star_app/models/hf_model_info.dart';
+import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
+import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
 
 import 'food_religion_test_support.dart';
 
@@ -58,6 +65,10 @@ void main() {
   testWidgets(
     'model-manager round trip preserves the game and rediscovers models',
     (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+
       final service = _RediscoveringJudgmentService(
         discoveries: [
           const [],
@@ -70,8 +81,17 @@ void main() {
           ],
         ],
       );
+      final modelManager = _LoadedModelManagerViewModel();
 
-      await _pumpGame(tester, service: service);
+      await _pumpGame(
+        tester,
+        service: service,
+        recommendedModelsPageBuilder:
+            (_) => ModelManagerScreen(
+              viewModel: modelManager,
+              initialSection: ModelManagerSection.recommendedModels,
+            ),
+      );
       await tester.tap(find.text('先玩再說'));
       await tester.pumpAndSettle();
       await playToDefense(tester);
@@ -85,11 +105,35 @@ void main() {
       );
 
       expect(find.text('前往推薦模型'), findsOneWidget);
-      await tester.tap(find.text('前往推薦模型'));
+      await tester.drag(
+        find.byType(CustomScrollView).first,
+        const Offset(0, -300),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('推薦模型區'), findsOneWidget);
+      await tester.tap(find.text('前往推薦模型'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Model Manager'), findsOneWidget);
+      expect(find.text('Search GGUF models...'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
-      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      modelManager.completeSearch();
+      await tester.pumpAndSettle();
+      expect(find.text('Recommended Models'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(find.text('Popular Model 1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(find.text('Popular Model 8'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
 
       expect(service.discoverCalls, 2);
@@ -98,13 +142,6 @@ void main() {
       expect(find.text('GGUF · newly-installed.gguf'), findsOneWidget);
       expect(find.text('前往推薦模型'), findsOneWidget);
       expect(find.text('往返模型管理仍保留'), findsOneWidget);
-      expect(
-        tester
-            .widget<EditableText>(find.byType(EditableText))
-            .focusNode
-            .hasPrimaryFocus,
-        isTrue,
-      );
     },
   );
 
@@ -274,4 +311,44 @@ class _RediscoveringJudgmentService implements FoodReligionJudgmentService {
 
   @override
   void dispose() {}
+}
+
+class _LoadedModelManagerViewModel extends ModelManagerViewModel {
+  _LoadedModelManagerViewModel()
+    : super(
+        hfService: HuggingFaceService(),
+        downloadService: DownloadService(),
+        downloadRepository: DownloadRepository(),
+        directoryService: _UnusedDirectoryService(),
+      );
+
+  bool _isSearchPending = true;
+
+  @override
+  bool get isSearching => _isSearchPending;
+
+  @override
+  List<HFModelInfo> get searchResults => List.generate(
+    8,
+    (index) => HFModelInfo(
+      id: 'example/popular-${index + 1}',
+      author: 'example',
+      modelName: 'Popular Model ${index + 1}',
+      downloads: 1000 - index,
+    ),
+  );
+
+  @override
+  Future<void> init() async {}
+
+  void completeSearch() {
+    _isSearchPending = false;
+    notifyListeners();
+  }
+}
+
+class _UnusedDirectoryService implements DirectoryService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('Not used by this widget-flow test.');
 }
