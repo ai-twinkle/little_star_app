@@ -156,22 +156,52 @@ void main() {
   }
 
   test(
-    'rejects malformed, missing, illegal, unsafe, and turncoat outputs',
+    'uses the approved roast when the model writes its own safe roast',
+    () async {
+      final modelFile = File('${ggufRoot.path}/custom-roast.gguf')
+        ..writeAsStringSync('model');
+      final service = OnDeviceFoodReligionJudgmentService(
+        backendResolver:
+            (_) => _FakeBackend(
+              _FakeSession(const [
+                '{"verdict":"信仰堅定","roast":"火鍋的靈魂在湯底，沙茶只是調味師！"}',
+              ]),
+            ),
+      );
+
+      final result = await service.judge(
+        model: FoodReligionModel(
+          label: 'custom roast',
+          path: modelFile.path,
+          format: ModelFormat.gguf,
+        ),
+        stance: FoodFaith.satayHotPot,
+        defense: FoodReligionDefense.validate('沙茶讓每一口都更香').defense!,
+      );
+
+      expect(result.isFallback, isFalse);
+      expect(result.verdict, FoodReligionVerdict.steadfast);
+      expect(result.roast, '沙茶不是遮味，是火鍋的加速器！');
+    },
+  );
+
+  test(
+    'rejects malformed, missing, illegal, unexpected, and turncoat outputs',
     () async {
       final invalidOutputs = [
         ('not json', FoodReligionJudgmentFailure.parse),
-        ('{"verdict":"信仰堅定"}', FoodReligionJudgmentFailure.missingFields),
+        ('{"roast":"好吃！"}', FoodReligionJudgmentFailure.missingFields),
         (
           '{"verdict":"滿分","roast":"好吃！"}',
           FoodReligionJudgmentFailure.invalidVerdict,
         ),
         (
-          '{"verdict":"勉強護教","roast":"**好吃**"}',
-          FoodReligionJudgmentFailure.contentValidation,
+          '{"verdict":"勉強護教","extra":"好吃"}',
+          FoodReligionJudgmentFailure.missingFields,
         ),
         (
-          '{"verdict":"勉強護教","roast":"你真是白痴！"}',
-          FoodReligionJudgmentFailure.contentValidation,
+          '{"verdict":"勉強護教","roast":7}',
+          FoodReligionJudgmentFailure.missingFields,
         ),
         (
           '{"verdict":"信仰堅定","roast":"立場穩固！"}',
@@ -207,26 +237,29 @@ void main() {
     },
   );
 
-  test('rejects arbitrary abusive reflection and amplification', () async {
-    final cases = [
-      ('南粽支持者都是王八蛋', '別把南粽支持者叫王八蛋！'),
-      ('不認同北粽的人滾回去', '叫別人滾回去不是食物論點！'),
-      ('你是笨蛋', '別當笨蛋，拿食物說話！'),
-      ('你根本沒腦', '這種沒腦筋的支持法只配退場！'),
-    ];
+  test(
+    'replaces arbitrary abusive reflection with an approved roast',
+    () async {
+      final cases = [
+        ('南粽支持者都是王八蛋', '別把南粽支持者叫王八蛋！'),
+        ('不認同北粽的人滾回去', '叫別人滾回去不是食物論點！'),
+        ('你是笨蛋', '別當笨蛋，拿食物說話！'),
+        ('你根本沒腦', '這種沒腦筋的支持法只配退場！'),
+      ];
 
-    for (var index = 0; index < cases.length; index++) {
-      final modelFile = File('${ggufRoot.path}/unsafe-reflection-$index.gguf')
-        ..writeAsStringSync('model');
-      final service = OnDeviceFoodReligionJudgmentService(
-        backendResolver:
-            (_) => _FakeBackend(
-              _FakeSession(['{"verdict":"勉強護教","roast":"${cases[index].$2}"}']),
-            ),
-      );
+      for (var index = 0; index < cases.length; index++) {
+        final modelFile = File('${ggufRoot.path}/unsafe-reflection-$index.gguf')
+          ..writeAsStringSync('model');
+        final service = OnDeviceFoodReligionJudgmentService(
+          backendResolver:
+              (_) => _FakeBackend(
+                _FakeSession([
+                  '{"verdict":"勉強護教","roast":"${cases[index].$2}"}',
+                ]),
+              ),
+        );
 
-      await expectLater(
-        service.judge(
+        final result = await service.judge(
           model: FoodReligionModel(
             label: 'unsafe reflection',
             path: modelFile.path,
@@ -234,12 +267,14 @@ void main() {
           ),
           stance: FoodFaith.northernZongzi,
           defense: FoodReligionDefense.validate(cases[index].$1).defense!,
-        ),
-        throwsA(isA<FoodReligionJudgmentException>()),
-        reason: cases[index].$1,
-      );
-    }
-  });
+        );
+
+        expect(result.verdict, FoodReligionVerdict.reluctant);
+        expect(result.roast, '這理由有拌到油，還沒包進粽葉。');
+        expect(result.roast, isNot(contains(cases[index].$2)));
+      }
+    },
+  );
 
   test(
     'rejects steadfast judgments after switching to the opposing stance',

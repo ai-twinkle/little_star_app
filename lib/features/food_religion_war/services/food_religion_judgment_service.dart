@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:characters/characters.dart';
 import 'package:little_star_app/core/inference/backend_selector.dart';
 import 'package:little_star_app/core/inference/inference_backend.dart';
 import 'package:little_star_app/core/inference/inference_session.dart';
@@ -266,17 +265,12 @@ class OnDeviceFoodReligionJudgmentService
 3. 明顯動搖、倒戈、否定該立場或無法支持：「叛教邊緣」。
 明確承認對立立場更好或否定該立場時，不得判為「信仰堅定」。
 
-安全 roast 必須逐字使用 verdict 對應文案：
-- 信仰堅定：${FallbackJudgmentService.approvedRoastFor(stance, FoodReligionVerdict.steadfast)}
-- 勉強護教：${FallbackJudgmentService.approvedRoastFor(stance, FoodReligionVerdict.reluctant)}
-- 叛教邊緣：${FallbackJudgmentService.approvedRoastFor(stance, FoodReligionVerdict.wavering)}
-
 安全護欄：
 只吐槽食物、飲食立場或論點漏洞；不人身攻擊，不推測人格或智力，不攻擊地區、族群、文化或信仰。
 不得重述或擴大玩家輸入中的攻擊性內容；不用髒話、歧視、仇恨、性暗示或暴力威脅。
 
-只輸出一個 JSON object，且只能有兩個必填字串欄位：
-{"verdict":"信仰堅定|勉強護教|叛教邊緣","roast":"一句 50 字內的正體中文食物梗"}
+只輸出一個 JSON object，且只能有一個必填字串欄位：
+{"verdict":"信仰堅定|勉強護教|叛教邊緣"}
 不得輸出 Markdown、前後說明、額外判決或技術資訊。
 ''';
 
@@ -294,17 +288,15 @@ class OnDeviceFoodReligionJudgmentService
       );
     }
     if (decoded is! Map<String, dynamic> ||
-        decoded.length != 2 ||
         !decoded.containsKey('verdict') ||
-        !decoded.containsKey('roast') ||
         decoded['verdict'] is! String ||
-        decoded['roast'] is! String) {
+        decoded.keys.any((key) => key != 'verdict' && key != 'roast') ||
+        (decoded.containsKey('roast') && decoded['roast'] is! String)) {
       throw const FoodReligionJudgmentException(
         FoodReligionJudgmentFailure.missingFields,
       );
     }
     final verdictLabel = decoded['verdict'] as String;
-    final roast = decoded['roast'] as String;
     final verdict =
         FoodReligionVerdict.values
             .where((candidate) => candidate.label == verdictLabel)
@@ -314,53 +306,15 @@ class OnDeviceFoodReligionJudgmentService
         FoodReligionJudgmentFailure.invalidVerdict,
       );
     }
-    if (!_isSafeSingleSentence(roast) ||
-        roast != FallbackJudgmentService.approvedRoastFor(stance, verdict)) {
-      throw const FoodReligionJudgmentException(
-        FoodReligionJudgmentFailure.contentValidation,
-      );
-    }
     if (verdict == FoodReligionVerdict.steadfast &&
         _isExplicitTurncoat(defense.text, stance)) {
       throw const FoodReligionJudgmentException(
         FoodReligionJudgmentFailure.contentValidation,
       );
     }
-    return FoodReligionJudgment(verdict: verdict, roast: roast);
-  }
-
-  bool _isSafeSingleSentence(String roast) {
-    final trimmed = roast.trim();
-    if (trimmed != roast ||
-        trimmed.isEmpty ||
-        trimmed.characters.length > 50 ||
-        trimmed.contains(RegExp(r'[\r\n`*_#<>]'))) {
-      return false;
-    }
-    final endings = RegExp(r'[。！？!?]').allMatches(trimmed).toList();
-    if (endings.length > 1 ||
-        (endings.length == 1 && endings.single.end != trimmed.length)) {
-      return false;
-    }
-    const blockedTerms = [
-      '白痴',
-      '智障',
-      '廢物',
-      '垃圾',
-      '低能',
-      '腦殘',
-      '幹你',
-      '去死',
-      '殺了',
-      '歧視',
-      '性交',
-      '模型',
-      'JSON',
-      'error',
-      'exception',
-    ];
-    return !blockedTerms.any(
-      (term) => trimmed.toLowerCase().contains(term.toLowerCase()),
+    return FoodReligionJudgment(
+      verdict: verdict,
+      roast: FallbackJudgmentService.approvedRoastFor(stance, verdict),
     );
   }
 
