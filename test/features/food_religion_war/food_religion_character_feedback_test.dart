@@ -35,7 +35,9 @@ void main() {
     expect(FoodFaith.values.map((faith) => faith.label).toSet(), hasLength(12));
     for (final faith in FoodFaith.values) {
       expect(faith.finalChallenge, isNotEmpty);
-      expect(faith.fallbackRoasts, hasLength(3));
+      expect(faith.fallbackCopy.steadfast, isNotEmpty);
+      expect(faith.fallbackCopy.reluctant, isNotEmpty);
+      expect(faith.fallbackCopy.wavering, isNotEmpty);
     }
 
     await pumpFixedGame(tester);

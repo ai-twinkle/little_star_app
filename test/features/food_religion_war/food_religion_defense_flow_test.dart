@@ -39,6 +39,7 @@ void main() {
 
       expect(find.text('AI 主持人暫時離線，改由備援鄉民評審裁決！'), findsOneWidget);
       expect(find.text('本次抽中；四個選擇都會保留。'), findsOneWidget);
+      expect(find.text('北部粽不就是包在粽葉裡的油飯嗎？'), findsOneWidget);
       expect(find.text('本局信仰清單'), findsOneWidget);
       expect(find.text('北部粽派（抽中）'), findsOneWidget);
     });

@@ -55,8 +55,44 @@ void main() {
     await tester.pump();
     expect(randomizer.drawCalls, 1);
     expect(find.text('豆花配糖水'), findsOneWidget);
+    expect(find.text('豆花配糖水（抽中）'), findsOneWidget);
     expect(find.text('只有糖水撐場，豆花不會太單調嗎？'), findsOneWidget);
     expect(find.text('抽出辯護立場'), findsNothing);
+  });
+
+  testWidgets('draw history survives separate games in the same app run', (
+    tester,
+  ) async {
+    final runState = FoodReligionGameRunState();
+    final randomizer = FixedFoodReligionRandomizer(drawIndexes: const [0, 0]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodReligionGameScreen(
+          randomizer: randomizer,
+          runState: runState,
+        ),
+      ),
+    );
+    await playFourChoices(tester);
+    await tester.tap(find.text('抽出辯護立場'));
+    await tester.pump();
+    expect(find.text('北部粽派（抽中）'), findsOneWidget);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodReligionGameScreen(
+          randomizer: randomizer,
+          runState: runState,
+        ),
+      ),
+    );
+    await playFourChoices(tester);
+    await tester.tap(find.text('抽出辯護立場'));
+    await tester.pump();
+
+    expect(randomizer.avoidedFaith, FoodFaith.northernZongzi);
+    expect(find.text('香菜退散派（抽中）'), findsOneWidget);
   });
 
   testWidgets('canceling exit keeps the current choices', (tester) async {
@@ -81,9 +117,12 @@ void main() {
 
   test('the approved pool contains six distinct comparable pairs', () {
     expect(FoodReligionGameSession.choiceRoundCount, 4);
-    expect(FoodFaithPair.pool, hasLength(6));
-    expect(FoodFaithPair.pool.map((pair) => pair.topic).toSet(), hasLength(6));
-    for (final pair in FoodFaithPair.pool) {
+    expect(FoodStancePair.stancePool, hasLength(6));
+    expect(
+      FoodStancePair.stancePool.map((pair) => pair.topic).toSet(),
+      hasLength(6),
+    );
+    for (final pair in FoodStancePair.stancePool) {
       expect(pair.left, isNot(pair.right));
     }
   });

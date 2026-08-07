@@ -10,10 +10,12 @@ class FoodReligionGameScreen extends StatefulWidget {
     super.key,
     this.judgmentServiceFactory,
     this.randomizer,
+    this.runState,
   });
 
   final FoodReligionJudgmentService Function()? judgmentServiceFactory;
   final FoodReligionGameRandomizer? randomizer;
+  final FoodReligionGameRunState? runState;
 
   @override
   State<FoodReligionGameScreen> createState() => _FoodReligionGameScreenState();
@@ -21,6 +23,7 @@ class FoodReligionGameScreen extends StatefulWidget {
 
 class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   late final FoodReligionGameRandomizer _randomizer;
+  late final FoodReligionGameRunState _runState;
   late FoodReligionGameSession _session;
   final _defenseController = TextEditingController();
   bool _canLeave = false;
@@ -31,6 +34,11 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   void initState() {
     super.initState();
     _randomizer = widget.randomizer ?? DefaultFoodReligionGameRandomizer();
+    _runState =
+        widget.runState ??
+        (widget.randomizer == null
+            ? FoodReligionGameRunState.shared
+            : FoodReligionGameRunState());
     _session = _createSession();
   }
 
@@ -73,36 +81,13 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
                           ),
                           FoodReligionGameStage.draw => _DrawView(
                             beliefSlate: _session.beliefSlate,
-                            onDraw: _session.drawDefense,
+                            onDraw: _drawDefense,
                           ),
-                          FoodReligionGameStage.defense => _DefenseView(
-                            drawnFaith: _session.drawnFaith!,
-                            controller: _defenseController,
-                            characterCount: FoodReligionDefense.countCharacters(
-                              _defenseController.text,
-                            ),
-                            errorText: _defenseError,
+                          FoodReligionGameStage.defense => _buildDefenseView(
                             isJudging: false,
-                            models: _session.models,
-                            selectedModel: _session.selectedModel,
-                            isDiscoveringModels: _session.isDiscoveringModels,
-                            onModelChanged: _session.selectModel,
-                            onChanged:
-                                (_) => setState(() => _defenseError = null),
-                            onSubmit: _submitDefense,
                           ),
-                          FoodReligionGameStage.judging => _DefenseView(
-                            drawnFaith: _session.drawnFaith!,
-                            controller: _defenseController,
-                            characterCount: _session.defense!.characterCount,
-                            errorText: null,
+                          FoodReligionGameStage.judging => _buildDefenseView(
                             isJudging: true,
-                            models: _session.models,
-                            selectedModel: _session.selectedModel,
-                            isDiscoveringModels: _session.isDiscoveringModels,
-                            onModelChanged: _session.selectModel,
-                            onChanged: (_) {},
-                            onSubmit: _submitDefense,
                           ),
                           FoodReligionGameStage.result => _ResultView(
                             drawnFaith: _session.drawnFaith!,
@@ -129,6 +114,30 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
     if (defense != null) _session.submitDefense(defense);
   }
 
+  Widget _buildDefenseView({required bool isJudging}) => _DefenseView(
+    drawnFaith: _session.drawnFaith!,
+    beliefSlate: _session.beliefSlate,
+    controller: _defenseController,
+    characterCount:
+        isJudging
+            ? _session.defense!.characterCount
+            : FoodReligionDefense.countCharacters(_defenseController.text),
+    errorText: isJudging ? null : _defenseError,
+    isJudging: isJudging,
+    models: _session.models,
+    selectedModel: _session.selectedModel,
+    isDiscoveringModels: _session.isDiscoveringModels,
+    onModelChanged: _session.selectModel,
+    onChanged: isJudging ? (_) {} : (_) => setState(() => _defenseError = null),
+    onSubmit: _submitDefense,
+  );
+
+  void _drawDefense() {
+    _session.drawDefense();
+    final drawnFaith = _session.drawnFaith;
+    if (drawnFaith != null) _runState.recordDraw(drawnFaith);
+  }
+
   void _restartGame() {
     final completedSession = _session;
     setState(() {
@@ -147,7 +156,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
       FoodReligionGameSession(
         judgmentService: widget.judgmentServiceFactory?.call(),
         randomizer: _randomizer,
-        previousDrawnFaith: previousDrawnFaith,
+        previousDrawnFaith: previousDrawnFaith ?? _runState.lastDrawnFaith,
       );
 
   void _leaveToHome() {
@@ -266,6 +275,7 @@ class _DrawView extends StatelessWidget {
 class _DefenseView extends StatelessWidget {
   const _DefenseView({
     required this.drawnFaith,
+    required this.beliefSlate,
     required this.controller,
     required this.characterCount,
     required this.errorText,
@@ -279,6 +289,7 @@ class _DefenseView extends StatelessWidget {
   });
 
   final FoodFaith drawnFaith;
+  final List<FoodFaith> beliefSlate;
   final TextEditingController controller;
   final int characterCount;
   final String? errorText;
@@ -302,6 +313,8 @@ class _DefenseView extends StatelessWidget {
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.headlineMedium,
       ),
+      const SizedBox(height: 8),
+      _BeliefSlate(faiths: beliefSlate, drawnFaith: drawnFaith),
       const SizedBox(height: 12),
       Semantics(
         container: true,
@@ -406,6 +419,8 @@ class _ResultView extends StatelessWidget {
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.headlineMedium,
       ),
+      const SizedBox(height: 6),
+      Text(drawnFaith.finalChallenge, textAlign: TextAlign.center),
       const SizedBox(height: 8),
       const Text('本次抽中；四個選擇都會保留。', textAlign: TextAlign.center),
       const SizedBox(height: 12),

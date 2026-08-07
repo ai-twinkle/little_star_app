@@ -43,11 +43,20 @@ class FallbackJudgmentService {
       ).singleWhere((judgment) => judgment.verdict == verdict).roast;
 
   static List<FoodReligionJudgment> _judgmentsFor(FoodFaith stance) => [
-    for (final (index, verdict) in FoodReligionVerdict.values.indexed)
-      FoodReligionJudgment(
-        verdict: verdict,
-        roast: stance.fallbackRoasts[index],
-        isFallback: true,
-      ),
+    FoodReligionJudgment(
+      verdict: FoodReligionVerdict.steadfast,
+      roast: stance.fallbackCopy.steadfast,
+      isFallback: true,
+    ),
+    FoodReligionJudgment(
+      verdict: FoodReligionVerdict.reluctant,
+      roast: stance.fallbackCopy.reluctant,
+      isFallback: true,
+    ),
+    FoodReligionJudgment(
+      verdict: FoodReligionVerdict.wavering,
+      roast: stance.fallbackCopy.wavering,
+      isFallback: true,
+    ),
   ];
 }

@@ -10,7 +10,7 @@ import 'package:little_star_app/features/food_religion_war/services/food_religio
 enum FoodReligionGameStage { choice, draw, defense, judging, result }
 
 abstract class FoodReligionGameRandomizer {
-  List<FoodFaithPair> selectRounds(List<FoodFaithPair> pool, int count);
+  List<FoodStancePair> selectRounds(List<FoodStancePair> pool, int count);
 
   FoodFaith draw(List<FoodFaith> candidates, {FoodFaith? avoid});
 }
@@ -22,7 +22,7 @@ class DefaultFoodReligionGameRandomizer implements FoodReligionGameRandomizer {
   final Random _random;
 
   @override
-  List<FoodFaithPair> selectRounds(List<FoodFaithPair> pool, int count) {
+  List<FoodStancePair> selectRounds(List<FoodStancePair> pool, int count) {
     final shuffled = [...pool]..shuffle(_random);
     return List.unmodifiable(shuffled.take(count));
   }
@@ -34,6 +34,16 @@ class DefaultFoodReligionGameRandomizer implements FoodReligionGameRandomizer {
             ? candidates.where((faith) => faith != avoid).toList()
             : candidates;
     return eligible[_random.nextInt(eligible.length)];
+  }
+}
+
+class FoodReligionGameRunState {
+  FoodFaith? lastDrawnFaith;
+
+  static final shared = FoodReligionGameRunState();
+
+  void recordDraw(FoodFaith faith) {
+    lastDrawnFaith = faith;
   }
 }
 
@@ -49,7 +59,10 @@ class FoodReligionGameSession extends ChangeNotifier {
   }) : _judgmentService =
            judgmentService ?? OnDeviceFoodReligionJudgmentService(),
        _randomizer = randomizer ?? DefaultFoodReligionGameRandomizer() {
-    _rounds = _randomizer.selectRounds(FoodFaithPair.pool, choiceRoundCount);
+    _rounds = _randomizer.selectRounds(
+      FoodStancePair.stancePool,
+      choiceRoundCount,
+    );
     if (_rounds.length != choiceRoundCount ||
         _rounds.toSet().length != choiceRoundCount) {
       throw ArgumentError('A game requires four distinct choice rounds.');
@@ -63,7 +76,7 @@ class FoodReligionGameSession extends ChangeNotifier {
   final FoodReligionGameRandomizer _randomizer;
   final FoodFaith? previousDrawnFaith;
 
-  late final List<FoodFaithPair> _rounds;
+  late final List<FoodStancePair> _rounds;
   final List<FoodFaith> _beliefSlate = [];
   FoodReligionGameStage _stage = FoodReligionGameStage.choice;
   int _choiceIndex = 0;
@@ -81,7 +94,7 @@ class FoodReligionGameSession extends ChangeNotifier {
 
   FoodReligionGameStage get stage => _stage;
   int get choiceIndex => _choiceIndex;
-  FoodFaithPair get currentRound => _rounds[_choiceIndex];
+  FoodStancePair get currentRound => _rounds[_choiceIndex];
   List<FoodFaith> get contenders =>
       _stage == FoodReligionGameStage.choice ? currentRound.stances : const [];
   List<FoodFaith> get beliefSlate => List.unmodifiable(_beliefSlate);

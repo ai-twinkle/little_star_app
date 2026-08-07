@@ -38,8 +38,8 @@ void main() {
 
 class _FixedRandomizer implements FoodReligionGameRandomizer {
   @override
-  List<FoodFaithPair> selectRounds(List<FoodFaithPair> pool, int count) =>
-      FoodFaithPair.pool.take(count).toList();
+  List<FoodStancePair> selectRounds(List<FoodStancePair> pool, int count) =>
+      FoodStancePair.stancePool.take(count).toList();
 
   @override
   FoodFaith draw(List<FoodFaith> candidates, {FoodFaith? avoid}) =>
