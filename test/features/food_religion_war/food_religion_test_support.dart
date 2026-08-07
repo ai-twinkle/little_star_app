@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_star_app/core/model/model_profile.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
@@ -61,6 +62,38 @@ class NoModelJudgmentService implements FoodReligionJudgmentService {
     const FoodReligionJudgmentException(
       FoodReligionJudgmentFailure.modelUnavailable,
     ),
+  );
+
+  @override
+  void cancel() {}
+
+  @override
+  void dispose() {}
+}
+
+class InstalledModelJudgmentService implements FoodReligionJudgmentService {
+  @override
+  Future<List<FoodReligionModel>> discoverModels() async => const [
+    FoodReligionModel(
+      label: 'GGUF · judge.gguf',
+      path: '/models/judge.gguf',
+      format: ModelFormat.gguf,
+    ),
+    FoodReligionModel(
+      label: 'MLX · judge-mlx',
+      path: '/models/judge-mlx',
+      format: ModelFormat.mlx,
+    ),
+  ];
+
+  @override
+  Future<FoodReligionJudgment> judge({
+    required FoodReligionModel model,
+    required FoodFaith stance,
+    required FoodReligionDefense defense,
+  }) async => const FoodReligionJudgment(
+    verdict: FoodReligionVerdict.steadfast,
+    roast: '食物論點安全過關！',
   );
 
   @override

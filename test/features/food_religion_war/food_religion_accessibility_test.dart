@@ -73,7 +73,10 @@ void main() {
     tester,
   ) async {
     await _setViewport(tester, const Size(320, 568));
-    await pumpFixedGame(tester);
+    await pumpFixedGame(
+      tester,
+      judgmentServiceFactory: () => InstalledModelJudgmentService(),
+    );
     await tester.pump();
     await dismissMissingModelReminder(tester);
     await _playReachableChoices(tester);
@@ -82,24 +85,28 @@ void main() {
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     addTearDown(tester.view.resetViewInsets);
     await tester.pump();
-    final visibleBottom = 568 - 280;
+    const visibleBottom = 568.0 - 280;
 
     for (final label in const [
       '北部粽不就是包在粽葉裡的油飯嗎？',
       '50 / 50',
-      '目前沒有已安裝模型，送出後將使用備援裁決。',
+      'GGUF · judge.gguf',
       '前往推薦模型',
       '送出辯護',
     ]) {
       final target = find.text(label);
       expect(target, findsOneWidget);
-      await tester.ensureVisible(target);
-      await tester.pump();
+      await _ensureAboveInset(tester, target, visibleBottom);
       final targetRect = tester.getRect(target);
       expect(targetRect.top, greaterThanOrEqualTo(0));
       expect(targetRect.bottom, lessThanOrEqualTo(visibleBottom));
       expect(tester.takeException(), isNull);
     }
+    final modelSelector = find.text('GGUF · judge.gguf');
+    await _ensureAboveInset(tester, modelSelector, visibleBottom);
+    await tester.tap(modelSelector);
+    await tester.pumpAndSettle();
+    expect(find.text('MLX · judge-mlx'), findsOneWidget);
   });
 
   testWidgets('large text keeps the semantic task order reachable', (
@@ -212,13 +219,17 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^備援提示：')), findsOneWidget);
     expect(find.bySemanticsLabel('再玩一次'), findsOneWidget);
     expect(find.bySemanticsLabel('回首頁'), findsOneWidget);
+    final resultTraversal = _traversalLabels(tester);
+    final verdictLabel = resultTraversal.singleWhere(
+      (label) => label.startsWith('判決：'),
+    );
     expect(
-      _traversalLabels(tester),
+      resultTraversal,
       containsAllInOrder([
         '遊戲進度：裁決結果',
         '本次抽中',
         '固定質疑：北部粽不就是包在粽葉裡的油飯嗎？',
-        '判決：信仰堅定',
+        verdictLabel,
         '備援提示：AI 主持人暫時離線，改由備援鄉民評審裁決！',
         '再玩一次',
         '回首頁',
@@ -255,3 +266,19 @@ List<String> _traversalLabels(WidgetTester tester) =>
         .map((node) => node.getSemanticsData().label)
         .where((label) => label.isNotEmpty)
         .toList();
+
+Future<void> _ensureAboveInset(
+  WidgetTester tester,
+  Finder target,
+  double visibleBottom,
+) async {
+  await tester.ensureVisible(target);
+  await tester.pump();
+  final overflow = tester.getRect(target).bottom - visibleBottom;
+  if (overflow <= 0) return;
+  await tester.dragFrom(
+    Offset(tester.view.physicalSize.width / 2, visibleBottom * 0.75),
+    Offset(0, -overflow - 24),
+  );
+  await tester.pump();
+}

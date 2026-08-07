@@ -75,6 +75,14 @@ void main() {
       await tester.tap(find.text('先玩再說'));
       await tester.pumpAndSettle();
       await playToDefense(tester);
+      await tester.enterText(find.byType(TextField), '往返模型管理仍保留');
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasPrimaryFocus,
+        isTrue,
+      );
 
       expect(find.text('前往推薦模型'), findsOneWidget);
       await tester.tap(find.text('前往推薦模型'));
@@ -89,6 +97,14 @@ void main() {
       expect(find.text('北部粽派（抽中）'), findsOneWidget);
       expect(find.text('GGUF · newly-installed.gguf'), findsOneWidget);
       expect(find.text('前往推薦模型'), findsOneWidget);
+      expect(find.text('往返模型管理仍保留'), findsOneWidget);
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasPrimaryFocus,
+        isTrue,
+      );
     },
   );
 

@@ -44,6 +44,10 @@ void main() {
     expect(find.text('粽葉香氣就是無法取代'), findsNothing);
     expect(find.text('信仰堅定'), findsNothing);
     expect(services, hasLength(2));
+    expect(
+      tester.binding.focusManager.primaryFocus?.context?.widget,
+      isNot(isA<EditableText>()),
+    );
   });
 
   testWidgets('Home flow completes fallback judgment and returns Home', (
@@ -99,10 +103,25 @@ void main() {
 
     await tester.tap(find.text('抽出辯護立場'));
     await tester.pump();
+    await tester.enterText(find.byType(TextField), '取消離開後仍保留');
+    expect(
+      tester
+          .widget<EditableText>(find.byType(EditableText))
+          .focusNode
+          .hasPrimaryFocus,
+      isTrue,
+    );
     await _cancelSystemBack(tester);
     expect(find.text('送出辯護'), findsOneWidget);
+    expect(find.text('取消離開後仍保留'), findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(find.byType(EditableText))
+          .focusNode
+          .hasPrimaryFocus,
+      isTrue,
+    );
 
-    await tester.enterText(find.byType(TextField), '北粽就是香');
     await tester.tap(find.text('送出辯護'));
     await tester.pump();
     await _cancelSystemBack(tester);
@@ -118,6 +137,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('台灣食物宗教戰爭'), findsOneWidget);
     expect(find.text('裁決結果'), findsNothing);
+  });
+
+  testWidgets('confirmed exit from focused defense clears data and focus', (
+    tester,
+  ) async {
+    await _pumpHome(
+      tester,
+      randomizer: FixedFoodReligionRandomizer(),
+      judgmentServiceFactory: () => NoModelJudgmentService(),
+    );
+    await tester.tap(find.text('台灣食物宗教戰爭'));
+    await tester.pumpAndSettle();
+    await dismissMissingModelReminder(tester);
+    await playToDefense(tester);
+    await tester.enterText(find.byType(TextField), '離開就要清除');
+
+    await tester.binding.handlePopRoute();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('確定離開'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('台灣食物宗教戰爭'), findsOneWidget);
+    expect(find.text('離開就要清除'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(
+      tester.binding.focusManager.primaryFocus?.context?.widget,
+      isNot(isA<EditableText>()),
+    );
   });
 
   testWidgets(
