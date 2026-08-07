@@ -28,10 +28,10 @@ void main() {
     await dismissMissingModelReminder(tester);
 
     await _playReachableChoices(tester);
-    await _tapReachable(tester, '抽出辯護立場');
+    await tapReachable(tester, '抽出辯護立場');
     await tester.ensureVisible(find.byType(TextField));
     await tester.enterText(find.byType(TextField), '粽葉香氣就是無法取代');
-    await _tapReachable(tester, '送出辯護');
+    await tapReachable(tester, '送出辯護');
     await tester.pump(const Duration(milliseconds: 500));
 
     await tester.ensureVisible(find.text('回首頁'));
@@ -41,7 +41,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final viewport in const [Size(430, 932), Size(1280, 900)]) {
+  for (final viewport in const [
+    Size(430, 932),
+    Size(480, 960),
+    Size(1280, 900),
+  ]) {
     testWidgets('${viewport.width.toInt()} px viewport completes every stage', (
       tester,
     ) async {
@@ -51,10 +55,10 @@ void main() {
       await dismissMissingModelReminder(tester);
 
       await _playReachableChoices(tester);
-      await _tapReachable(tester, '抽出辯護立場');
+      await tapReachable(tester, '抽出辯護立場');
       await tester.ensureVisible(find.byType(TextField));
       await tester.enterText(find.byType(TextField), '粽葉香氣就是無法取代');
-      await _tapReachable(tester, '送出辯護');
+      await tapReachable(tester, '送出辯護');
       await tester.pump(const Duration(milliseconds: 500));
 
       await tester.ensureVisible(find.text('回首頁'));
@@ -73,11 +77,12 @@ void main() {
     await tester.pump();
     await dismissMissingModelReminder(tester);
     await _playReachableChoices(tester);
-    await _tapReachable(tester, '抽出辯護立場');
+    await tapReachable(tester, '抽出辯護立場');
     await tester.enterText(find.byType(TextField), List.filled(50, '粽').join());
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     addTearDown(tester.view.resetViewInsets);
     await tester.pump();
+    final visibleBottom = 568 - 280;
 
     for (final label in const [
       '北部粽不就是包在粽葉裡的油飯嗎？',
@@ -90,6 +95,9 @@ void main() {
       expect(target, findsOneWidget);
       await tester.ensureVisible(target);
       await tester.pump();
+      final targetRect = tester.getRect(target);
+      expect(targetRect.top, greaterThanOrEqualTo(0));
+      expect(targetRect.bottom, lessThanOrEqualTo(visibleBottom));
       expect(tester.takeException(), isNull);
     }
   });
@@ -105,14 +113,26 @@ void main() {
     await tester.pump();
     await dismissMissingModelReminder(tester);
 
+    expect(find.bySemanticsLabel('台灣食物宗教戰爭'), findsOneWidget);
     expect(find.bySemanticsLabel('遊戲進度：飲食抉擇 1/4'), findsOneWidget);
+    expect(find.bySemanticsLabel('北部粽派，未選擇'), findsOneWidget);
     await _playReachableChoices(tester);
     expect(find.bySemanticsLabel('遊戲進度：辯護抽籤'), findsOneWidget);
-    await _tapReachable(tester, '抽出辯護立場');
+    expect(find.bySemanticsLabel('本局信仰清單'), findsOneWidget);
+    await tapReachable(tester, '抽出辯護立場');
     expect(find.bySemanticsLabel(RegExp('^固定質疑：')), findsOneWidget);
     expect(find.bySemanticsLabel('字數：0 / 50'), findsOneWidget);
     await tester.ensureVisible(find.text('前往推薦模型'));
-    await tester.ensureVisible(find.text('送出辯護'));
+    await tester.enterText(find.byType(TextField), '北粽就是香');
+    await tapReachable(tester, '送出辯護');
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.bySemanticsLabel('遊戲進度：裁決結果'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('^判決：')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('^備援提示：')), findsOneWidget);
+    await tester.ensureVisible(find.text('再玩一次'));
+    await tester.ensureVisible(find.text('回首頁'));
+    expect(find.text('本次抽中；四個選擇都會保留。'), findsOneWidget);
     expect(tester.takeException(), isNull);
     semantics.dispose();
   });
@@ -125,6 +145,10 @@ void main() {
     await tester.pump();
     await dismissMissingModelReminder(tester);
 
+    expect(
+      _traversalLabels(tester),
+      containsAllInOrder(['台灣食物宗教戰爭', '遊戲進度：飲食抉擇 1/4', '北部粽派，未選擇', '南部粽派，未選擇']),
+    );
     expect(find.bySemanticsLabel('遊戲進度：飲食抉擇 1/4'), findsOneWidget);
     final northern = find.bySemanticsLabel('北部粽派，未選擇');
     expect(northern, findsOneWidget);
@@ -141,10 +165,38 @@ void main() {
     }
     expect(find.bySemanticsLabel('遊戲進度：辯護抽籤'), findsOneWidget);
     expect(tester.getSemantics(find.text('北部粽派')).label, '北部粽派');
+    expect(
+      _traversalLabels(tester),
+      containsAllInOrder([
+        '遊戲進度：辯護抽籤',
+        '本局信仰清單',
+        '北部粽派',
+        '香菜退散派',
+        '豆花配糖水',
+        '火鍋原湯派',
+        '抽出辯護立場',
+      ]),
+    );
     await tester.tap(find.text('抽出辯護立場'));
     await tester.pump();
+    expect(find.bySemanticsLabel('本次抽中'), findsOneWidget);
     expect(find.bySemanticsLabel('固定質疑：北部粽不就是包在粽葉裡的油飯嗎？'), findsOneWidget);
     expect(find.bySemanticsLabel('字數：0 / 50'), findsOneWidget);
+    expect(find.bySemanticsLabel('目前沒有已安裝模型，送出後將使用備援裁決。'), findsOneWidget);
+    expect(
+      _traversalLabels(tester),
+      containsAllInOrder([
+        '遊戲進度：立場辯護',
+        '本次抽中',
+        '固定質疑：北部粽不就是包在粽葉裡的油飯嗎？',
+        '你的辯護',
+        '字數：0 / 50',
+        '送出辯護',
+        '本局信仰清單',
+        '目前沒有已安裝模型，送出後將使用備援裁決。',
+        '前往推薦模型',
+      ]),
+    );
 
     await tester.enterText(find.byType(TextField), '   ');
     await tester.tap(find.text('送出辯護'));
@@ -160,8 +212,22 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^備援提示：')), findsOneWidget);
     expect(find.bySemanticsLabel('再玩一次'), findsOneWidget);
     expect(find.bySemanticsLabel('回首頁'), findsOneWidget);
+    expect(
+      _traversalLabels(tester),
+      containsAllInOrder([
+        '遊戲進度：裁決結果',
+        '本次抽中',
+        '固定質疑：北部粽不就是包在粽葉裡的油飯嗎？',
+        '判決：信仰堅定',
+        '備援提示：AI 主持人暫時離線，改由備援鄉民評審裁決！',
+        '再玩一次',
+        '回首頁',
+        '本次抽中；四個選擇都會保留。',
+        '本局信仰清單',
+      ]),
+    );
 
-    await _tapReachable(tester, '再玩一次');
+    await tapReachable(tester, '再玩一次');
     expect(find.bySemanticsLabel('遊戲進度：飲食抉擇 1/4'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('^判決：')), findsNothing);
     expect(find.bySemanticsLabel(RegExp('^備援提示：')), findsNothing);
@@ -176,22 +242,16 @@ Future<void> _setViewport(WidgetTester tester, Size size) async {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
-Future<void> _tapReachable(WidgetTester tester, String label) async {
-  final target = find.text(label);
-  final viewportHeight =
-      tester.view.physicalSize.height / tester.view.devicePixelRatio;
-  final overflow = tester.getRect(target).bottom - viewportHeight;
-  if (overflow > 0) {
-    await tester.drag(find.byType(CustomScrollView), Offset(0, -overflow - 24));
-    await tester.pump();
-  }
-  await tester.tap(target);
-  await tester.pump();
-}
-
 Future<void> _playReachableChoices(WidgetTester tester) async {
   for (final choice in const ['北部粽派', '香菜退散派', '豆花配糖水', '火鍋原湯派']) {
-    await _tapReachable(tester, choice);
+    await tapReachable(tester, choice);
     await tester.pump(const Duration(milliseconds: 800));
   }
 }
+
+List<String> _traversalLabels(WidgetTester tester) =>
+    tester.semantics
+        .simulatedAccessibilityTraversal()
+        .map((node) => node.getSemanticsData().label)
+        .where((label) => label.isNotEmpty)
+        .toList();

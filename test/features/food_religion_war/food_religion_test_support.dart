@@ -91,6 +91,33 @@ Future<void> dismissMissingModelReminder(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> tapReachable(WidgetTester tester, String label) async {
+  final target = find.text(label);
+  await tester.ensureVisible(target);
+  await tester.pump();
+
+  final viewportSize = tester.view.physicalSize / tester.view.devicePixelRatio;
+  var targetRect = tester.getRect(target);
+  final overflow = targetRect.bottom - viewportSize.height;
+  if (overflow > 0) {
+    await tester.dragFrom(
+      Offset(viewportSize.width / 2, viewportSize.height * 0.75),
+      Offset(0, -overflow - 24),
+    );
+    await tester.pump();
+  }
+  targetRect = tester.getRect(target);
+  if (targetRect.top < 24) {
+    await tester.dragFrom(
+      Offset(viewportSize.width / 2, viewportSize.height * 0.25),
+      Offset(0, 48 - targetRect.top),
+    );
+    await tester.pump();
+  }
+  await tester.tap(target);
+  await tester.pump();
+}
+
 Future<void> playToDefense(WidgetTester tester) async {
   await playFourChoices(tester);
   await tester.tap(find.text('抽出辯護立場'));

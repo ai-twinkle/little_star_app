@@ -109,6 +109,31 @@ void main() {
     expect(find.text('AI 鄉民評審正在審判…'), findsOneWidget);
   });
 
+  testWidgets('reduced motion preserves draw and result state', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _setViewport(tester, const Size(430, 932));
+    await pumpFixedGame(tester);
+    await playFourChoices(tester);
+
+    await tester.tap(find.text('抽出辯護立場'));
+    await tester.pump();
+    expect(find.text('本次抽中'), findsOneWidget);
+    expect(find.text('北部粽派（抽中）'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '粽葉香氣就是無法取代');
+    await tester.tap(find.text('送出辯護'));
+    await tester.pump();
+    expect(find.byIcon(Icons.hourglass_top), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.bySemanticsLabel(RegExp('^判決：')), findsOneWidget);
+    expect(find.text('本次抽中；四個選擇都會保留。'), findsOneWidget);
+    expect(find.text('再玩一次'), findsOneWidget);
+    expect(find.text('回首頁'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('arena styling persists through draw, defense, and result', (
     tester,
   ) async {

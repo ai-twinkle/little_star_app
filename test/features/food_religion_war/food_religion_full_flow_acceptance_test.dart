@@ -39,7 +39,7 @@ void main() {
     expect(find.textContaining('備援鄉民評審'), findsNothing);
     expect(services.single.judgeCalls, 1);
 
-    await _tapReachable(tester, '再玩一次');
+    await tapReachable(tester, '再玩一次');
     expect(find.text('飲食抉擇 1/4'), findsOneWidget);
     expect(find.text('粽葉香氣就是無法取代'), findsNothing);
     expect(find.text('信仰堅定'), findsNothing);
@@ -65,7 +65,7 @@ void main() {
 
     expect(find.text('本次抽中；四個選擇都會保留。'), findsOneWidget);
     expect(find.textContaining('備援鄉民評審'), findsOneWidget);
-    await _tapReachable(tester, '回首頁');
+    await tapReachable(tester, '回首頁');
     await tester.pumpAndSettle();
 
     expect(find.text('台灣食物宗教戰爭'), findsOneWidget);
@@ -161,19 +161,6 @@ Future<void> _pumpHome(
     ),
   ),
 );
-
-Future<void> _tapReachable(WidgetTester tester, String label) async {
-  final target = find.text(label);
-  final viewportHeight =
-      tester.view.physicalSize.height / tester.view.devicePixelRatio;
-  final overflow = tester.getRect(target).bottom - viewportHeight;
-  if (overflow > 0) {
-    await tester.drag(find.byType(CustomScrollView), Offset(0, -overflow - 24));
-    await tester.pump();
-  }
-  await tester.tap(target);
-  await tester.pump();
-}
 
 Future<void> _cancelSystemBack(WidgetTester tester) async {
   await tester.binding.handlePopRoute();

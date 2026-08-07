@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
@@ -999,19 +1000,35 @@ class _ResponsiveArenaLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final orderedPrimary = Semantics(
+        container: true,
+        explicitChildNodes: true,
+        sortKey: const OrdinalSortKey(0),
+        child: primary,
+      );
+      final orderedSecondary = Semantics(
+        container: true,
+        explicitChildNodes: true,
+        sortKey: const OrdinalSortKey(1),
+        child: secondary,
+      );
       if (constraints.maxWidth >= 760) {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 6, child: primary),
+            Expanded(flex: 6, child: orderedPrimary),
             const SizedBox(width: 16),
-            Expanded(flex: 5, child: secondary),
+            Expanded(flex: 5, child: orderedSecondary),
           ],
         );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [primary, const SizedBox(height: 14), secondary],
+        children: [
+          orderedPrimary,
+          const SizedBox(height: 14),
+          orderedSecondary,
+        ],
       );
     },
   );
