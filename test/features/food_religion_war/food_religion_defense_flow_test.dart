@@ -75,6 +75,11 @@ void main() {
     await tester.tap(find.text('送出辯護'));
     await tester.pump(const Duration(milliseconds: 500));
 
+    await tester.dragUntilVisible(
+      find.text('再玩一次'),
+      find.byType(CustomScrollView),
+      const Offset(0, -120),
+    );
     await tester.tap(find.text('再玩一次'));
     await tester.pump();
     expect(find.text('飲食抉擇 1/4'), findsOneWidget);

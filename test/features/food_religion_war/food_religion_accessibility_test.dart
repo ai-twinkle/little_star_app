@@ -89,7 +89,13 @@ Future<void> _setViewport(WidgetTester tester, Size size) async {
 
 Future<void> _tapReachable(WidgetTester tester, String label) async {
   final target = find.text(label);
-  await tester.ensureVisible(target);
+  final viewportHeight =
+      tester.view.physicalSize.height / tester.view.devicePixelRatio;
+  final overflow = tester.getRect(target).bottom - viewportHeight;
+  if (overflow > 0) {
+    await tester.drag(find.byType(CustomScrollView), Offset(0, -overflow - 24));
+    await tester.pump();
+  }
   await tester.tap(target);
   await tester.pump();
 }
