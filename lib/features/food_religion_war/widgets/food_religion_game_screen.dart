@@ -962,9 +962,24 @@ class _BeliefSlate extends StatelessWidget {
     children: [
       for (final faith in faiths)
         Chip(
-          avatar: Icon(
-            faith == drawnFaith ? Icons.casino : Icons.check,
-            size: 18,
+          avatar: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Image.asset(
+                faith.characterAssetPath,
+                key: ValueKey('belief-slate-art-${faith.name}'),
+                width: 28,
+                height: 28,
+                fit: BoxFit.contain,
+                semanticLabel: faith.label,
+              ),
+              if (faith == drawnFaith)
+                const Positioned(
+                  right: -4,
+                  bottom: -3,
+                  child: Icon(Icons.casino, size: 13),
+                ),
+            ],
           ),
           label: Text('${faith.label}${faith == drawnFaith ? '（抽中）' : ''}'),
         ),
@@ -1130,23 +1145,12 @@ class _FaithArtwork extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) {
-    final path = faith.characterAssetPath;
-    if (path == null) {
-      return SizedBox(
-        key: ValueKey('food-faith-art-${faith.name}'),
-        width: height,
-        height: height,
-        child: const Icon(Icons.restaurant, size: 48),
-      );
-    }
-    return Image.asset(
-      path,
-      key: ValueKey('food-faith-art-${faith.name}'),
-      height: height,
-      width: height,
-      fit: BoxFit.contain,
-      semanticLabel: faith.label,
-    );
-  }
+  Widget build(BuildContext context) => Image.asset(
+    faith.characterAssetPath,
+    key: ValueKey('food-faith-art-${faith.name}'),
+    height: height,
+    width: height,
+    fit: BoxFit.contain,
+    semanticLabel: faith.label,
+  );
 }

@@ -42,7 +42,7 @@ enum FoodFaith {
   sweetTofuPudding(
     '豆花配糖水',
     '只有糖水撐場，豆花不會太單調嗎？',
-    null,
+    'assets/food_religion_war/characters/sweet_tofu_pudding.png',
     FoodFaithFallbackCopy(
       steadfast: '糖水接住豆花，甜得很有道理！',
       reluctant: '甜度到位，理由還能再加一匙。',
@@ -52,7 +52,7 @@ enum FoodFaith {
   soyMilkTofuPudding(
     '豆花配豆漿',
     '豆漿配豆花，不會像同一件事做兩次嗎？',
-    null,
+    'assets/food_religion_war/characters/soy_milk_tofu_pudding.png',
     FoodFaithFallbackCopy(
       steadfast: '豆香疊豆香，這套組合有自己的節奏！',
       reluctant: '豆味很完整，論點還差一點濃度。',
@@ -62,7 +62,7 @@ enum FoodFaith {
   satayHotPot(
     '火鍋沾沙茶',
     '每一口都沾沙茶，還吃得到湯底嗎？',
-    null,
+    'assets/food_religion_war/characters/satay_hot_pot.png',
     FoodFaithFallbackCopy(
       steadfast: '沙茶不是遮味，是火鍋的加速器！',
       reluctant: '醬有拌勻，理由只拌到一半。',
@@ -72,7 +72,7 @@ enum FoodFaith {
   brothHotPot(
     '火鍋原湯派',
     '湯都不沾醬，味道真的夠嗎？',
-    null,
+    'assets/food_religion_war/characters/broth_hot_pot.png',
     FoodFaithFallbackCopy(
       steadfast: '原湯敢單挑，這鍋底氣很足！',
       reluctant: '湯頭有層次，理由還要再熬一下。',
@@ -82,7 +82,7 @@ enum FoodFaith {
   fullSugarBubbleTea(
     '珍奶全糖',
     '全糖喝到最後，不會只剩甜味嗎？',
-    null,
+    'assets/food_religion_war/characters/full_sugar_bubble_tea.png',
     FoodFaithFallbackCopy(
       steadfast: '全糖就是完整火力，珍珠都點頭了！',
       reluctant: '甜度滿格，理由還差一格。',
@@ -92,7 +92,7 @@ enum FoodFaith {
   lessSugarBubbleTea(
     '珍奶微糖',
     '微糖的珍奶，還有喝甜品的快樂嗎？',
-    null,
+    'assets/food_religion_war/characters/less_sugar_bubble_tea.png',
     FoodFaithFallbackCopy(
       steadfast: '微糖留住茶香，也留住了立場！',
       reluctant: '甜度克制，理由也稍微克制了。',
@@ -102,7 +102,7 @@ enum FoodFaith {
   saltedFries(
     '薯條加鹽',
     '薯條本來就有味道，還需要再加鹽嗎？',
-    null,
+    'assets/food_religion_war/characters/salted_fries.png',
     FoodFaithFallbackCopy(
       steadfast: '這撮鹽把薯條的靈魂叫醒了！',
       reluctant: '鹽有撒到，理由只撒了一點。',
@@ -112,7 +112,7 @@ enum FoodFaith {
   plainFries(
     '原味不加鹽',
     '不加鹽的薯條，不會像少做最後一步嗎？',
-    null,
+    'assets/food_religion_war/characters/plain_fries.png',
     FoodFaithFallbackCopy(
       steadfast: '原味敢直接上桌，馬鈴薯本人很有底氣！',
       reluctant: '原味站得住，理由還能更酥一點。',
@@ -129,7 +129,7 @@ enum FoodFaith {
 
   final String label;
   final String finalChallenge;
-  final String? characterAssetPath;
+  final String characterAssetPath;
   final FoodFaithFallbackCopy fallbackCopy;
 }
 
