@@ -3,9 +3,12 @@ import 'package:little_star_app/features/food_religion_war/domain/food_faith.dar
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
+import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
 
 class FoodReligionGameScreen extends StatefulWidget {
-  const FoodReligionGameScreen({super.key});
+  const FoodReligionGameScreen({super.key, this.judgmentServiceFactory});
+
+  final FoodReligionJudgmentService Function()? judgmentServiceFactory;
 
   @override
   State<FoodReligionGameScreen> createState() => _FoodReligionGameScreenState();
@@ -21,7 +24,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   @override
   void initState() {
     super.initState();
-    _session = FoodReligionGameSession();
+    _session = _createSession();
   }
 
   @override
@@ -70,6 +73,10 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
                             ),
                             errorText: _defenseError,
                             isJudging: false,
+                            models: _session.models,
+                            selectedModel: _session.selectedModel,
+                            isDiscoveringModels: _session.isDiscoveringModels,
+                            onModelChanged: _session.selectModel,
                             onChanged: (_) {
                               setState(() => _defenseError = null);
                             },
@@ -81,6 +88,10 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
                             characterCount: _session.defense!.characterCount,
                             errorText: null,
                             isJudging: true,
+                            models: _session.models,
+                            selectedModel: _session.selectedModel,
+                            isDiscoveringModels: _session.isDiscoveringModels,
+                            onModelChanged: _session.selectModel,
                             onChanged: (_) {},
                             onSubmit: _submitDefense,
                           ),
@@ -118,7 +129,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   void _restartGame() {
     final completedSession = _session;
     setState(() {
-      _session = FoodReligionGameSession();
+      _session = _createSession();
       _defenseController.clear();
       _defenseError = null;
     });
@@ -126,6 +137,10 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
       completedSession.dispose();
     });
   }
+
+  FoodReligionGameSession _createSession() => FoodReligionGameSession(
+    judgmentService: widget.judgmentServiceFactory?.call(),
+  );
 
   void _leaveToHome() {
     setState(() => _canLeave = true);
@@ -233,6 +248,10 @@ class _DefenseView extends StatelessWidget {
     required this.characterCount,
     required this.errorText,
     required this.isJudging,
+    required this.models,
+    required this.selectedModel,
+    required this.isDiscoveringModels,
+    required this.onModelChanged,
     required this.onChanged,
     required this.onSubmit,
   });
@@ -242,6 +261,10 @@ class _DefenseView extends StatelessWidget {
   final int characterCount;
   final String? errorText;
   final bool isJudging;
+  final List<FoodReligionModel> models;
+  final FoodReligionModel? selectedModel;
+  final bool isDiscoveringModels;
+  final ValueChanged<FoodReligionModel?> onModelChanged;
   final ValueChanged<String> onChanged;
   final VoidCallback onSubmit;
 
@@ -270,6 +293,24 @@ class _DefenseView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
+        if (isDiscoveringModels)
+          const Text('正在發現已安裝模型…', textAlign: TextAlign.center)
+        else if (models.isEmpty)
+          const Text('目前沒有已安裝模型，送出後將使用備援裁決。', textAlign: TextAlign.center)
+        else
+          DropdownButtonFormField<FoodReligionModel>(
+            initialValue: selectedModel,
+            decoration: const InputDecoration(
+              labelText: '裁決模型',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final model in models)
+                DropdownMenuItem(value: model, child: Text(model.label)),
+            ],
+            onChanged: isJudging ? null : onModelChanged,
+          ),
+        const SizedBox(height: 16),
         TextField(
           controller: controller,
           enabled: !isJudging,
@@ -370,16 +411,17 @@ class _ResultView extends StatelessWidget {
         const SizedBox(height: 16),
         Text(judgment.roast, textAlign: TextAlign.center),
         const SizedBox(height: 24),
-        Semantics(
-          liveRegion: true,
-          label: '備援提示：AI 主持人暫時離線，改由備援鄉民評審裁決！',
-          child: ExcludeSemantics(
-            child: Text(
-              'AI 主持人暫時離線，改由備援鄉民評審裁決！',
-              textAlign: TextAlign.center,
+        if (judgment.isFallback)
+          Semantics(
+            liveRegion: true,
+            label: '備援提示：AI 主持人暫時離線，改由備援鄉民評審裁決！',
+            child: ExcludeSemantics(
+              child: Text(
+                'AI 主持人暫時離線，改由備援鄉民評審裁決！',
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-        ),
         const Spacer(),
         FilledButton(onPressed: onReplay, child: const Text('再玩一次')),
         const SizedBox(height: 12),
