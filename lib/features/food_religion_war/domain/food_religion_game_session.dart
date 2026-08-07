@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
@@ -6,34 +7,68 @@ import 'package:little_star_app/features/food_religion_war/domain/food_religion_
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
 
-enum FoodReligionGameStage {
-  semifinalZongzi,
-  semifinalCilantro,
-  finalMatch,
-  defense,
-  judging,
-  result,
+enum FoodReligionGameStage { choice, draw, defense, judging, result }
+
+abstract class FoodReligionGameRandomizer {
+  List<FoodFaithPair> selectRounds(List<FoodFaithPair> pool, int count);
+
+  FoodFaith draw(List<FoodFaith> candidates, {FoodFaith? avoid});
+}
+
+class DefaultFoodReligionGameRandomizer implements FoodReligionGameRandomizer {
+  DefaultFoodReligionGameRandomizer({Random? random})
+    : _random = random ?? Random();
+
+  final Random _random;
+
+  @override
+  List<FoodFaithPair> selectRounds(List<FoodFaithPair> pool, int count) {
+    final shuffled = [...pool]..shuffle(_random);
+    return List.unmodifiable(shuffled.take(count));
+  }
+
+  @override
+  FoodFaith draw(List<FoodFaith> candidates, {FoodFaith? avoid}) {
+    final eligible =
+        avoid != null && candidates.any((faith) => faith != avoid)
+            ? candidates.where((faith) => faith != avoid).toList()
+            : candidates;
+    return eligible[_random.nextInt(eligible.length)];
+  }
 }
 
 class FoodReligionGameSession extends ChangeNotifier {
   static const selectionFeedbackDuration = Duration(milliseconds: 800);
   static const fallbackJudgmentDelay = Duration(milliseconds: 500);
+  static const choiceRoundCount = 4;
 
-  FoodReligionGameSession({FoodReligionJudgmentService? judgmentService})
-    : _judgmentService =
-          judgmentService ?? OnDeviceFoodReligionJudgmentService() {
+  FoodReligionGameSession({
+    FoodReligionJudgmentService? judgmentService,
+    FoodReligionGameRandomizer? randomizer,
+    this.previousDrawnFaith,
+  }) : _judgmentService =
+           judgmentService ?? OnDeviceFoodReligionJudgmentService(),
+       _randomizer = randomizer ?? DefaultFoodReligionGameRandomizer() {
+    _rounds = _randomizer.selectRounds(FoodFaithPair.pool, choiceRoundCount);
+    if (_rounds.length != choiceRoundCount ||
+        _rounds.toSet().length != choiceRoundCount) {
+      throw ArgumentError('A game requires four distinct choice rounds.');
+    }
     _discovery = _discoverModels();
   }
 
   final FallbackJudgmentService _fallbackJudgmentService =
       FallbackJudgmentService();
   final FoodReligionJudgmentService _judgmentService;
+  final FoodReligionGameRandomizer _randomizer;
+  final FoodFaith? previousDrawnFaith;
 
-  FoodReligionGameStage _stage = FoodReligionGameStage.semifinalZongzi;
+  late final List<FoodFaithPair> _rounds;
+  final List<FoodFaith> _beliefSlate = [];
+  FoodReligionGameStage _stage = FoodReligionGameStage.choice;
+  int _choiceIndex = 0;
   FoodFaith? _selectedFaith;
-  FoodFaith? _zongziWinner;
-  FoodFaith? _cilantroWinner;
-  FoodFaith? _champion;
+  FoodFaith? _drawnFaith;
   FoodReligionDefense? _defense;
   FoodReligionJudgment? _judgment;
   List<FoodReligionModel> _models = const [];
@@ -45,8 +80,13 @@ class FoodReligionGameSession extends ChangeNotifier {
   Timer? _judgmentTimer;
 
   FoodReligionGameStage get stage => _stage;
+  int get choiceIndex => _choiceIndex;
+  FoodFaithPair get currentRound => _rounds[_choiceIndex];
+  List<FoodFaith> get contenders =>
+      _stage == FoodReligionGameStage.choice ? currentRound.stances : const [];
+  List<FoodFaith> get beliefSlate => List.unmodifiable(_beliefSlate);
   FoodFaith? get selectedFaith => _selectedFaith;
-  FoodFaith? get champion => _champion;
+  FoodFaith? get drawnFaith => _drawnFaith;
   FoodReligionDefense? get defense => _defense;
   FoodReligionJudgment? get judgment => _judgment;
   List<FoodReligionModel> get models => _models;
@@ -54,76 +94,61 @@ class FoodReligionGameSession extends ChangeNotifier {
   bool get isDiscoveringModels => _isDiscoveringModels;
   bool get isSelectionLocked => _selectedFaith != null;
 
-  List<FoodFaith> get contenders => switch (_stage) {
-    FoodReligionGameStage.semifinalZongzi => const [
-      FoodFaith.northernZongzi,
-      FoodFaith.southernZongzi,
-    ],
-    FoodReligionGameStage.semifinalCilantro => const [
-      FoodFaith.extraCilantro,
-      FoodFaith.noCilantro,
-    ],
-    FoodReligionGameStage.finalMatch => [_zongziWinner!, _cilantroWinner!],
-    FoodReligionGameStage.defense ||
-    FoodReligionGameStage.judging ||
-    FoodReligionGameStage.result => const [],
-  };
-
   String get progressLabel => switch (_stage) {
-    FoodReligionGameStage.semifinalZongzi => '準決賽 1/2',
-    FoodReligionGameStage.semifinalCilantro => '準決賽 2/2',
-    FoodReligionGameStage.finalMatch => '決賽',
-    FoodReligionGameStage.defense => '終極辯護',
+    FoodReligionGameStage.choice =>
+      '飲食抉擇 ${_choiceIndex + 1}/$choiceRoundCount',
+    FoodReligionGameStage.draw => '辯護抽籤',
+    FoodReligionGameStage.defense => '立場辯護',
     FoodReligionGameStage.judging => '裁決中',
     FoodReligionGameStage.result => '裁決結果',
   };
 
   void select(FoodFaith faith) {
-    if (isSelectionLocked || !contenders.contains(faith)) return;
-
-    _selectedFaith = faith;
-    switch (_stage) {
-      case FoodReligionGameStage.semifinalZongzi:
-        _zongziWinner = faith;
-      case FoodReligionGameStage.semifinalCilantro:
-        _cilantroWinner = faith;
-      case FoodReligionGameStage.finalMatch:
-        _champion = faith;
-      case FoodReligionGameStage.defense:
-      case FoodReligionGameStage.judging:
-      case FoodReligionGameStage.result:
-        return;
+    if (_stage != FoodReligionGameStage.choice ||
+        isSelectionLocked ||
+        !contenders.contains(faith)) {
+      return;
     }
+    _selectedFaith = faith;
+    _beliefSlate.add(faith);
     notifyListeners();
 
-    final completedStage = _stage;
+    final completedIndex = _choiceIndex;
     _transitionTimer = Timer(selectionFeedbackDuration, () {
-      if (_stage != completedStage) return;
-      _stage = switch (completedStage) {
-        FoodReligionGameStage.semifinalZongzi =>
-          FoodReligionGameStage.semifinalCilantro,
-        FoodReligionGameStage.semifinalCilantro =>
-          FoodReligionGameStage.finalMatch,
-        FoodReligionGameStage.finalMatch => FoodReligionGameStage.defense,
-        FoodReligionGameStage.defense => FoodReligionGameStage.defense,
-        FoodReligionGameStage.judging => FoodReligionGameStage.judging,
-        FoodReligionGameStage.result => FoodReligionGameStage.result,
-      };
+      if (_isDisposed ||
+          _stage != FoodReligionGameStage.choice ||
+          _choiceIndex != completedIndex) {
+        return;
+      }
+      if (_choiceIndex == choiceRoundCount - 1) {
+        _stage = FoodReligionGameStage.draw;
+      } else {
+        _choiceIndex++;
+      }
       _selectedFaith = null;
       notifyListeners();
     });
   }
 
+  void drawDefense() {
+    if (_stage != FoodReligionGameStage.draw || _drawnFaith != null) return;
+    _drawnFaith = _randomizer.draw(_beliefSlate, avoid: previousDrawnFaith);
+    if (!_beliefSlate.contains(_drawnFaith)) {
+      throw StateError('The defense draw must come from the belief slate.');
+    }
+    _stage = FoodReligionGameStage.defense;
+    notifyListeners();
+  }
+
   void submitDefense(FoodReligionDefense defense) {
     if (_stage != FoodReligionGameStage.defense) return;
-
     _defense = defense;
     _stage = FoodReligionGameStage.judging;
     notifyListeners();
 
     _judgmentTimer = Timer(fallbackJudgmentDelay, () {
       if (_selectedModel == null || _isDiscoveringModels) {
-        _completeJudgment(_fallbackJudgmentService.judge(_champion!));
+        _completeJudgment(_fallbackJudgmentService.judge(_drawnFaith!));
       }
     });
     unawaited(_resolveJudgment());
@@ -159,14 +184,12 @@ class FoodReligionGameSession extends ChangeNotifier {
       try {
         final result = await _judgmentService.judge(
           model: model,
-          stance: _champion!,
+          stance: _drawnFaith!,
           defense: _defense!,
         );
         _completeJudgment(result);
-        return;
       } catch (_) {
-        // All technical failures intentionally converge on the safe fallback.
-        _completeJudgment(_fallbackJudgmentService.judge(_champion!));
+        _completeJudgment(_fallbackJudgmentService.judge(_drawnFaith!));
       }
     }
   }

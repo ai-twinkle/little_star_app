@@ -9,6 +9,8 @@ import 'package:little_star_app/features/food_religion_war/domain/food_religion_
 import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
 import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_screen.dart';
 
+import 'food_religion_test_support.dart';
+
 void main() {
   testWidgets(
     'player switches model, submit locks it, and valid AI result wins',
@@ -16,7 +18,10 @@ void main() {
       final service = _FakeJudgmentService();
       await tester.pumpWidget(
         MaterialApp(
-          home: FoodReligionGameScreen(judgmentServiceFactory: () => service),
+          home: FoodReligionGameScreen(
+            judgmentServiceFactory: () => service,
+            randomizer: FixedFoodReligionRandomizer(),
+          ),
         ),
       );
       await tester.pump();
@@ -64,6 +69,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: FoodReligionGameScreen(
+            randomizer: FixedFoodReligionRandomizer(),
             judgmentServiceFactory: () {
               final service = _FakeJudgmentService();
               services.add(service);
@@ -98,7 +104,10 @@ void main() {
     final service = _FakeJudgmentService(failJudgment: true);
     await tester.pumpWidget(
       MaterialApp(
-        home: FoodReligionGameScreen(judgmentServiceFactory: () => service),
+        home: FoodReligionGameScreen(
+          judgmentServiceFactory: () => service,
+          randomizer: FixedFoodReligionRandomizer(),
+        ),
       ),
     );
     await tester.pump();
@@ -118,7 +127,10 @@ void main() {
     final service = _FakeJudgmentService(failDiscovery: true);
     await tester.pumpWidget(
       MaterialApp(
-        home: FoodReligionGameScreen(judgmentServiceFactory: () => service),
+        home: FoodReligionGameScreen(
+          judgmentServiceFactory: () => service,
+          randomizer: FixedFoodReligionRandomizer(),
+        ),
       ),
     );
     await tester.pump();
@@ -138,7 +150,10 @@ void main() {
     final service = _FakeJudgmentService(models: const []);
     await tester.pumpWidget(
       MaterialApp(
-        home: FoodReligionGameScreen(judgmentServiceFactory: () => service),
+        home: FoodReligionGameScreen(
+          judgmentServiceFactory: () => service,
+          randomizer: FixedFoodReligionRandomizer(),
+        ),
       ),
     );
     await tester.pump();
@@ -158,7 +173,10 @@ void main() {
       final service = _FakeJudgmentService();
       await tester.pumpWidget(
         MaterialApp(
-          home: FoodReligionGameScreen(judgmentServiceFactory: () => service),
+          home: FoodReligionGameScreen(
+            judgmentServiceFactory: () => service,
+            randomizer: FixedFoodReligionRandomizer(),
+          ),
         ),
       );
       await tester.pump();
@@ -185,12 +203,7 @@ void main() {
 }
 
 Future<void> _playToDefense(WidgetTester tester) async {
-  await tester.tap(find.text('北部粽派'));
-  await tester.pump(const Duration(milliseconds: 800));
-  await tester.tap(find.text('香菜加爆派'));
-  await tester.pump(const Duration(milliseconds: 800));
-  await tester.tap(find.text('北部粽派'));
-  await tester.pump(const Duration(milliseconds: 800));
+  await playToDefense(tester);
 }
 
 class _FakeJudgmentService implements FoodReligionJudgmentService {

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
-import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_home_card.dart';
-import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_screen.dart';
+
+import 'food_religion_test_support.dart';
 
 void main() {
   const expectedAssets = {
@@ -16,113 +16,66 @@ void main() {
     FoodFaith.noCilantro: 'assets/food_religion_war/characters/no_cilantro.png',
   };
 
-  testWidgets('四個信仰對應可載入的 1024 方形角色資產', (tester) async {
+  testWidgets('existing stances retain their loadable square character art', (
+    tester,
+  ) async {
     for (final MapEntry(key: faith, value: expectedPath)
         in expectedAssets.entries) {
       expect(faith.characterAssetPath, expectedPath);
-
       final data = await rootBundle.load(expectedPath);
       expect(data.getUint32(16), 1024, reason: faith.label);
       expect(data.getUint32(20), 1024, reason: faith.label);
     }
   });
 
-  testWidgets('準決賽依信仰呈現正確角色', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: FoodReligionGameScreen()));
+  testWidgets('all twelve stances have stable content and artwork slots', (
+    tester,
+  ) async {
+    expect(FoodFaith.values, hasLength(12));
+    expect(FoodFaith.values.map((faith) => faith.label).toSet(), hasLength(12));
+    for (final faith in FoodFaith.values) {
+      expect(faith.finalChallenge, isNotEmpty);
+      expect(faith.fallbackRoasts, hasLength(3));
+    }
 
+    await pumpFixedGame(tester);
     expect(
-      _assetName(tester, FoodFaith.northernZongzi),
-      expectedAssets[FoodFaith.northernZongzi],
+      find.byKey(const ValueKey('food-faith-art-northernZongzi')),
+      findsOneWidget,
     );
     expect(
-      _assetName(tester, FoodFaith.southernZongzi),
-      expectedAssets[FoodFaith.southernZongzi],
-    );
-    expect(
-      find.byKey(const ValueKey('food-faith-art-extraCilantro')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const ValueKey('food-faith-art-noCilantro')),
-      findsNothing,
+      find.byKey(const ValueKey('food-faith-art-southernZongzi')),
+      findsOneWidget,
     );
   });
 
-  testWidgets('勝方回饋持續 800 ms 並鎖定兩張卡片', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: FoodReligionGameScreen()));
-
+  testWidgets('recorded choice uses text, icon, border, and a locked state', (
+    tester,
+  ) async {
+    await pumpFixedGame(tester);
     await tester.tap(find.text('北部粽派'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('南部粽派'));
 
-    final transform = tester.widget<Transform>(
-      find.byKey(const ValueKey('winner-motion-northernZongzi')),
-    );
-    expect(transform.transform.getMaxScaleOnAxis(), greaterThan(1.02));
-    expect(transform.transform.getTranslation().y, lessThan(-4));
-
-    final glow = tester.widget<DecoratedBox>(
-      find.byKey(const ValueKey('winner-glow-northernZongzi')),
-    );
-    expect((glow.decoration as BoxDecoration).boxShadow, isNotEmpty);
-    expect(find.text('北部粽派晉級！'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 399));
-    expect(find.text('準決賽 1/2'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1));
-    expect(find.text('準決賽 2/2'), findsOneWidget);
+    expect(find.text('立場已記錄'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.bySemanticsLabel('北部粽派，立場已記錄，已鎖定'), findsOneWidget);
+    expect(find.bySemanticsLabel('南部粽派，已鎖定'), findsOneWidget);
   });
 
-  testWidgets('從 Home 到備援結果重用角色並以原生 UI 呈現冠軍感', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FoodReligionGameHomeCard())),
-    );
-    await tester.tap(find.text('台灣食物宗教戰爭'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('北部粽派'));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(
-      _assetName(tester, FoodFaith.extraCilantro),
-      expectedAssets[FoodFaith.extraCilantro],
-    );
-    expect(
-      _assetName(tester, FoodFaith.noCilantro),
-      expectedAssets[FoodFaith.noCilantro],
-    );
-
-    await tester.tap(find.text('香菜加爆派'));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(find.byKey(const ValueKey('final-match-versus')), findsOneWidget);
-    expect(
-      _assetName(tester, FoodFaith.northernZongzi),
-      expectedAssets[FoodFaith.northernZongzi],
-    );
-    expect(
-      _assetName(tester, FoodFaith.extraCilantro),
-      expectedAssets[FoodFaith.extraCilantro],
-    );
-
-    await tester.tap(find.text('北部粽派'));
-    await tester.pump(const Duration(milliseconds: 800));
+  testWidgets('drawn stance art is reused as the primary fallback result', (
+    tester,
+  ) async {
+    await pumpFixedGame(tester);
+    await playToDefense(tester);
     await tester.enterText(find.byType(TextField), '粽葉香氣就是無法取代');
     await tester.tap(find.text('送出辯護'));
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('冠軍'), findsOneWidget);
-    expect(find.byKey(const ValueKey('champion-confetti')), findsOneWidget);
     expect(
-      _assetName(tester, FoodFaith.northernZongzi),
-      expectedAssets[FoodFaith.northernZongzi],
+      find.byKey(const ValueKey('food-faith-art-northernZongzi')),
+      findsOneWidget,
     );
+    expect(find.text('本次抽中'), findsOneWidget);
     expect(find.textContaining('AI 主持人暫時離線'), findsOneWidget);
   });
-}
-
-String _assetName(WidgetTester tester, FoodFaith faith) {
-  final image = tester.widget<Image>(
-    find.byKey(ValueKey('food-faith-art-${faith.name}')),
-  );
-  return (image.image as AssetImage).assetName;
 }

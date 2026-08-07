@@ -294,7 +294,7 @@ class OnDeviceFoodReligionJudgmentService
 
   bool _isExplicitTurncoat(String defense, FoodFaith stance) {
     final normalized = defense.replaceAll(RegExp(r'\s+'), '');
-    if (RegExp(r'不支持|放棄|倒戈|我錯了|冠軍(不好|難吃)').hasMatch(normalized)) {
+    if (RegExp(r'不支持|放棄|倒戈|我錯了|這立場(不好|難吃)').hasMatch(normalized)) {
       return true;
     }
     final opposingLabels = switch (stance) {
@@ -302,6 +302,14 @@ class OnDeviceFoodReligionJudgmentService
       FoodFaith.southernZongzi => const ['北部粽', '北粽'],
       FoodFaith.extraCilantro => const ['香菜退散', '不加香菜'],
       FoodFaith.noCilantro => const ['香菜加爆', '加香菜'],
+      FoodFaith.sweetTofuPudding => const ['豆花配豆漿'],
+      FoodFaith.soyMilkTofuPudding => const ['豆花配糖水'],
+      FoodFaith.satayHotPot => const ['火鍋原湯'],
+      FoodFaith.brothHotPot => const ['火鍋沾沙茶'],
+      FoodFaith.fullSugarBubbleTea => const ['珍奶微糖'],
+      FoodFaith.lessSugarBubbleTea => const ['珍奶全糖'],
+      FoodFaith.saltedFries => const ['原味不加鹽'],
+      FoodFaith.plainFries => const ['薯條加鹽'],
     };
     return opposingLabels.any((label) {
       final escapedLabel = RegExp.escape(label);

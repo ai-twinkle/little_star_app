@@ -17,9 +17,9 @@ class FoodReligionGameHomeCard extends StatelessWidget {
           );
         },
         child: const ListTile(
-          leading: Icon(Icons.emoji_events, color: Colors.deepOrange),
+          leading: Icon(Icons.restaurant_menu, color: Colors.deepOrange),
           title: Text('台灣食物宗教戰爭'),
-          subtitle: Text('三場淘汰賽，選出你的終極飲食信仰'),
+          subtitle: Text('四次飲食抉擇，一次辯護抽籤'),
           trailing: Icon(Icons.chevron_right),
         ),
       ),

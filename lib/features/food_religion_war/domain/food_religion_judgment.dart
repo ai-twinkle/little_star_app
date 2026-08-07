@@ -30,7 +30,7 @@ class FallbackJudgmentService {
   final Random _random;
 
   FoodReligionJudgment judge(FoodFaith stance) {
-    final pool = _judgmentsByFaith[stance]!;
+    final pool = _judgmentsFor(stance);
     return pool[_random.nextInt(pool.length)];
   }
 
@@ -38,78 +38,16 @@ class FallbackJudgmentService {
     FoodFaith stance,
     FoodReligionVerdict verdict,
   ) =>
-      _judgmentsByFaith[stance]!
-          .singleWhere((judgment) => judgment.verdict == verdict)
-          .roast;
+      _judgmentsFor(
+        stance,
+      ).singleWhere((judgment) => judgment.verdict == verdict).roast;
 
-  static const _judgmentsByFaith = <FoodFaith, List<FoodReligionJudgment>>{
-    FoodFaith.northernZongzi: [
+  static List<FoodReligionJudgment> _judgmentsFor(FoodFaith stance) => [
+    for (final (index, verdict) in FoodReligionVerdict.values.indexed)
       FoodReligionJudgment(
-        verdict: FoodReligionVerdict.steadfast,
-        roast: '油飯只是外表，粽葉才是北粽的戰袍！',
+        verdict: verdict,
+        roast: stance.fallbackRoasts[index],
         isFallback: true,
       ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.reluctant,
-        roast: '這理由有拌到油，還沒包進粽葉。',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.wavering,
-        roast: '北粽都站穩了，你的論點還在油飯上打滑。',
-        isFallback: true,
-      ),
-    ],
-    FoodFaith.southernZongzi: [
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.steadfast,
-        roast: '水煮不是退讓，是南粽糯米的內功修煉！',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.reluctant,
-        roast: '粽葉都聽懂了，南粽糯米還在想。',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.wavering,
-        roast: '南粽還在鍋裡撐著，你的理由先散開了。',
-        isFallback: true,
-      ),
-    ],
-    FoodFaith.extraCilantro: [
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.steadfast,
-        roast: '這把香菜撒得夠高，評審席都綠了！',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.reluctant,
-        roast: '香菜有加爆，論點只加了一小撮。',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.wavering,
-        roast: '香菜堆成山，你的理由卻只剩一片葉。',
-        isFallback: true,
-      ),
-    ],
-    FoodFaith.noCilantro: [
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.steadfast,
-        roast: '防香菜裝備完整，連一片葉子都過不了！',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.reluctant,
-        roast: '香菜是退了，你的理由也差點退場。',
-        isFallback: true,
-      ),
-      FoodReligionJudgment(
-        verdict: FoodReligionVerdict.wavering,
-        roast: '嘴上說退散，論點卻替香菜留了後門。',
-        isFallback: true,
-      ),
-    ],
-  };
+  ];
 }
