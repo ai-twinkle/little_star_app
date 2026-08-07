@@ -124,14 +124,18 @@ Future<void> dismissMissingModelReminder(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> tapReachable(WidgetTester tester, String label) async {
-  final target = find.text(label);
+Future<void> ensureReachableWithin(
+  WidgetTester tester,
+  Finder target, {
+  double minTop = 24,
+  double? maxBottom,
+}) async {
   await tester.ensureVisible(target);
   await tester.pump();
 
   final viewportSize = tester.view.physicalSize / tester.view.devicePixelRatio;
   var targetRect = tester.getRect(target);
-  final overflow = targetRect.bottom - viewportSize.height;
+  final overflow = targetRect.bottom - (maxBottom ?? viewportSize.height);
   if (overflow > 0) {
     await tester.dragFrom(
       Offset(viewportSize.width / 2, viewportSize.height * 0.75),
@@ -140,13 +144,18 @@ Future<void> tapReachable(WidgetTester tester, String label) async {
     await tester.pump();
   }
   targetRect = tester.getRect(target);
-  if (targetRect.top < 24) {
+  if (targetRect.top < minTop) {
     await tester.dragFrom(
       Offset(viewportSize.width / 2, viewportSize.height * 0.25),
-      Offset(0, 48 - targetRect.top),
+      Offset(0, minTop + 24 - targetRect.top),
     );
     await tester.pump();
   }
+}
+
+Future<void> tapReachable(WidgetTester tester, String label) async {
+  final target = find.text(label);
+  await ensureReachableWithin(tester, target);
   await tester.tap(target);
   await tester.pump();
 }

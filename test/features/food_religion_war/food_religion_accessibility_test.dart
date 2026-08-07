@@ -96,14 +96,24 @@ void main() {
     ]) {
       final target = find.text(label);
       expect(target, findsOneWidget);
-      await _ensureAboveInset(tester, target, visibleBottom);
+      await ensureReachableWithin(
+        tester,
+        target,
+        minTop: 0,
+        maxBottom: visibleBottom,
+      );
       final targetRect = tester.getRect(target);
       expect(targetRect.top, greaterThanOrEqualTo(0));
       expect(targetRect.bottom, lessThanOrEqualTo(visibleBottom));
       expect(tester.takeException(), isNull);
     }
     final modelSelector = find.text('GGUF · judge.gguf');
-    await _ensureAboveInset(tester, modelSelector, visibleBottom);
+    await ensureReachableWithin(
+      tester,
+      modelSelector,
+      minTop: 0,
+      maxBottom: visibleBottom,
+    );
     await tester.tap(modelSelector);
     await tester.pumpAndSettle();
     expect(find.text('MLX · judge-mlx'), findsOneWidget);
@@ -266,19 +276,3 @@ List<String> _traversalLabels(WidgetTester tester) =>
         .map((node) => node.getSemanticsData().label)
         .where((label) => label.isNotEmpty)
         .toList();
-
-Future<void> _ensureAboveInset(
-  WidgetTester tester,
-  Finder target,
-  double visibleBottom,
-) async {
-  await tester.ensureVisible(target);
-  await tester.pump();
-  final overflow = tester.getRect(target).bottom - visibleBottom;
-  if (overflow <= 0) return;
-  await tester.dragFrom(
-    Offset(tester.view.physicalSize.width / 2, visibleBottom * 0.75),
-    Offset(0, -overflow - 24),
-  );
-  await tester.pump();
-}
