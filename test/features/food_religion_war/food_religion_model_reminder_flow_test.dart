@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_star_app/core/model/model_profile.dart';
@@ -81,7 +83,7 @@ void main() {
           ],
         ],
       );
-      final modelManager = _LoadedModelManagerViewModel();
+      final modelManager = _ControllableSearchModelManagerViewModel();
 
       await _pumpGame(
         tester,
@@ -313,8 +315,8 @@ class _RediscoveringJudgmentService implements FoodReligionJudgmentService {
   void dispose() {}
 }
 
-class _LoadedModelManagerViewModel extends ModelManagerViewModel {
-  _LoadedModelManagerViewModel()
+class _ControllableSearchModelManagerViewModel extends ModelManagerViewModel {
+  _ControllableSearchModelManagerViewModel()
     : super(
         hfService: HuggingFaceService(),
         downloadService: DownloadService(),
@@ -349,6 +351,24 @@ class _LoadedModelManagerViewModel extends ModelManagerViewModel {
 
 class _UnusedDirectoryService implements DirectoryService {
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('Not used by this widget-flow test.');
+  Future<int> getAvailableStorageSpace() => throw UnimplementedError();
+
+  @override
+  Future<Directory> getModelsDirectory() => throw UnimplementedError();
+
+  @override
+  Future<List<String>> findFiles({
+    required List<DirectoryType> directoryTypes,
+    String? fileName,
+    String? extension,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<Map<String, List<String>>> listDirectories({
+    required List<DirectoryType> directoryTypes,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<bool> requestPermissions({required BuildContext context}) =>
+      throw UnimplementedError();
 }
