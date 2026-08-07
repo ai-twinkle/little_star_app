@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
+import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
 import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_screen.dart';
 
 class FoodReligionGameHomeCard extends StatelessWidget {
-  const FoodReligionGameHomeCard({super.key});
+  const FoodReligionGameHomeCard({
+    super.key,
+    this.judgmentServiceFactory,
+    this.randomizer,
+  });
+
+  final FoodReligionJudgmentService Function()? judgmentServiceFactory;
+  final FoodReligionGameRandomizer? randomizer;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +21,11 @@ class FoodReligionGameHomeCard extends StatelessWidget {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => const FoodReligionGameScreen(),
+              builder:
+                  (_) => FoodReligionGameScreen(
+                    judgmentServiceFactory: judgmentServiceFactory,
+                    randomizer: randomizer,
+                  ),
             ),
           );
         },
