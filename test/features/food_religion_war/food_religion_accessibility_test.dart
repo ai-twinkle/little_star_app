@@ -216,12 +216,12 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField), '   ');
-    await tester.tap(find.text('送出辯護'));
+    await tapReachable(tester, '送出辯護');
     await tester.pump();
     expect(find.bySemanticsLabel('錯誤：請輸入 1～50 字的辯護'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '北粽就是香');
-    await tester.tap(find.text('送出辯護'));
+    await tapReachable(tester, '送出辯護');
     await tester.pump();
     expect(find.bySemanticsLabel('等待裁決：AI 鄉民評審正在審判…'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 500));

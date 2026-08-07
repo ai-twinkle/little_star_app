@@ -74,17 +74,17 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope<void>(
-      canPop: _canLeave,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmExit();
-      },
-      child: Scaffold(
-        key: const ValueKey('night-market-arena'),
-        backgroundColor: _ArenaColors.night,
-        body: Theme(
-          data: _arenaTheme(context),
-          child: SafeArea(
+    return Theme(
+      data: _arenaTheme(context),
+      child: PopScope<void>(
+        canPop: _canLeave,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _confirmExit();
+        },
+        child: Scaffold(
+          key: const ValueKey('night-market-arena'),
+          backgroundColor: _ArenaColors.night,
+          body: SafeArea(
             child: AnimatedBuilder(
               animation: _session,
               builder:
@@ -164,8 +164,21 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
 
   ThemeData _arenaTheme(BuildContext context) {
     final base = Theme.of(context);
+    final coloredTextTheme = base.textTheme.apply(
+      bodyColor: _ArenaColors.cream,
+      displayColor: _ArenaColors.cream,
+    );
+    final textTheme = coloredTextTheme.copyWith(
+      bodySmall: coloredTextTheme.bodySmall?.copyWith(fontSize: 16),
+      bodyMedium: coloredTextTheme.bodyMedium?.copyWith(fontSize: 16),
+      bodyLarge: coloredTextTheme.bodyLarge?.copyWith(fontSize: 16),
+      labelSmall: coloredTextTheme.labelSmall?.copyWith(fontSize: 16),
+      labelMedium: coloredTextTheme.labelMedium?.copyWith(fontSize: 16),
+      labelLarge: coloredTextTheme.labelLarge?.copyWith(fontSize: 18),
+    );
     return base.copyWith(
       brightness: Brightness.dark,
+      disabledColor: _ArenaColors.muted,
       scaffoldBackgroundColor: _ArenaColors.night,
       colorScheme: const ColorScheme.dark(
         primary: _ArenaColors.amber,
@@ -175,24 +188,46 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
         onSurface: _ArenaColors.cream,
         outline: _ArenaColors.metal,
       ),
-      textTheme: base.textTheme.apply(
-        bodyColor: _ArenaColors.cream,
-        displayColor: _ArenaColors.cream,
-      ),
+      textTheme: textTheme,
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: _ArenaColors.amber,
           foregroundColor: const Color(0xFF2B1B05),
+          disabledBackgroundColor: _ArenaColors.panelRaised,
+          disabledForegroundColor: _ArenaColors.muted,
           minimumSize: const Size.fromHeight(52),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: _ArenaColors.cream,
+          disabledForegroundColor: _ArenaColors.muted,
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _ArenaColors.cream,
+          disabledForegroundColor: _ArenaColors.muted,
+          side: const BorderSide(color: _ArenaColors.metal),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: _ArenaColors.panelRaised,
+        side: const BorderSide(color: _ArenaColors.metal),
+        labelStyle: const TextStyle(color: _ArenaColors.cream, fontSize: 16),
+        iconTheme: const IconThemeData(color: _ArenaColors.amber),
+      ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
         fillColor: _ArenaColors.night,
+        labelStyle: TextStyle(color: _ArenaColors.cream, fontSize: 16),
+        hintStyle: TextStyle(color: _ArenaColors.muted, fontSize: 16),
         border: OutlineInputBorder(),
       ),
     );
@@ -707,6 +742,10 @@ class _DefenseView extends StatelessWidget {
           TextField(
             controller: controller,
             enabled: !isJudging,
+            style: TextStyle(
+              color: isJudging ? _ArenaColors.muted : _ArenaColors.cream,
+              fontSize: 16,
+            ),
             onChanged: onChanged,
             decoration: InputDecoration(
               labelText: '你的辯護',
@@ -941,7 +980,15 @@ class _DrawnStanceHero extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _ArenaColors.metal),
             ),
-            child: Text(faith.finalChallenge, textAlign: TextAlign.center),
+            child: Text(
+              faith.finalChallenge,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _ArenaColors.cream,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),
@@ -1142,7 +1189,17 @@ class _FaithCard extends StatelessWidget {
             children: [
               _FaithArtwork(faith: faith, height: 76),
               const SizedBox(width: 12),
-              Expanded(child: Text(faith.label, textAlign: TextAlign.center)),
+              Expanded(
+                child: Text(
+                  faith.label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _ArenaColors.cream,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
               if (isSelected) ...[
                 const SizedBox(width: 6),
                 const Icon(Icons.check_circle, color: _ArenaColors.amber),

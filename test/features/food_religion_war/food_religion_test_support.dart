@@ -155,8 +155,12 @@ Future<void> ensureReachableWithin(
 
 Future<void> tapReachable(WidgetTester tester, String label) async {
   final target = find.text(label);
-  await ensureReachableWithin(tester, target);
-  await tester.tap(target);
+  await ensureReachableWithin(tester, target, minTop: 140);
+  final button = find.ancestor(
+    of: target,
+    matching: find.byWidgetPredicate((widget) => widget is ButtonStyleButton),
+  );
+  await tester.tap(button.evaluate().isEmpty ? target : button.first);
   await tester.pump();
 }
 
