@@ -47,6 +47,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   bool _canLeave = false;
   bool _isExitDialogVisible = false;
   bool _isMissingModelReminderScheduled = false;
+  FoodReligionGameStage _lastFeedbackStage = FoodReligionGameStage.choice;
   String? _defenseError;
 
   @override
@@ -236,6 +237,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
       _session = _createSession(
         previousDrawnFaith: completedSession.drawnFaith,
       );
+      _lastFeedbackStage = FoodReligionGameStage.choice;
       _session.addListener(_handleSessionChanged);
       _defenseController.clear();
       _defenseError = null;
@@ -253,6 +255,12 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
       );
 
   void _handleSessionChanged() {
+    if (_session.stage != _lastFeedbackStage) {
+      _lastFeedbackStage = _session.stage;
+      if (_session.stage == FoodReligionGameStage.result) {
+        HapticFeedback.mediumImpact();
+      }
+    }
     if (_isMissingModelReminderScheduled ||
         _session.isDiscoveringModels ||
         _session.models.isNotEmpty ||
@@ -355,7 +363,7 @@ class _MainMarquee extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: _ArenaColors.redSeat, width: 2),
       boxShadow: const [
-        BoxShadow(color: Color(0x6658C6C8), blurRadius: 0, spreadRadius: 5),
+        BoxShadow(color: _ArenaColors.metal, blurRadius: 0, spreadRadius: 5),
         BoxShadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 5)),
       ],
     ),
@@ -425,7 +433,7 @@ class _ProgressLabel extends StatelessWidget {
                       height: 1,
                       color:
                           index <= activeStep
-                              ? _ArenaColors.cyanSeat
+                              ? _ArenaColors.amber
                               : _ArenaColors.metal,
                     ),
                   _ProgressDot(
@@ -460,7 +468,7 @@ class _ProgressDot extends StatelessWidget {
     height: 30,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      color: isComplete ? _ArenaColors.cyanSeat : _ArenaColors.panel,
+      color: isComplete ? _ArenaColors.amber : _ArenaColors.panel,
       shape: BoxShape.circle,
       border: Border.all(
         color: isActive ? _ArenaColors.amber : _ArenaColors.metal,
@@ -502,7 +510,7 @@ class _ChoiceView extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          session.isSelectionLocked ? '這一票，記下來了' : '你站哪一邊？',
+          session.isSelectionLocked ? '這次選擇，記下來了' : '你站哪一邊？',
           textAlign: TextAlign.center,
           style: Theme.of(
             context,
@@ -693,41 +701,7 @@ class _DefenseView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '本次抽中',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _ArenaColors.amber,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          _FaithArtwork(faith: drawnFaith, height: 120),
-          Text(
-            drawnFaith.label,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          Semantics(
-            container: true,
-            label: '固定質疑：${drawnFaith.finalChallenge}',
-            child: ExcludeSemantics(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _ArenaColors.night,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _ArenaColors.metal),
-                ),
-                child: Text(
-                  drawnFaith.finalChallenge,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ),
+          _DrawnStanceHero(faith: drawnFaith, artworkHeight: 120),
           const SizedBox(height: 16),
           TextField(
             controller: controller,
@@ -764,8 +738,16 @@ class _DefenseView extends StatelessWidget {
           ),
           if (isJudging) ...[
             const SizedBox(height: 16),
-            const ExcludeSemantics(
-              child: Center(child: CircularProgressIndicator()),
+            ExcludeSemantics(
+              child: Center(
+                child:
+                    MediaQuery.disableAnimationsOf(context)
+                        ? const Icon(
+                          Icons.hourglass_top,
+                          color: _ArenaColors.amber,
+                        )
+                        : const CircularProgressIndicator(),
+              ),
             ),
             Semantics(
               liveRegion: true,
@@ -856,32 +838,7 @@ class _ResultView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '本次抽中',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _ArenaColors.amber,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          _FaithArtwork(faith: drawnFaith, height: 156),
-          Text(
-            drawnFaith.label,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _ArenaColors.night,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _ArenaColors.metal),
-            ),
-            child: Text(drawnFaith.finalChallenge, textAlign: TextAlign.center),
-          ),
+          _DrawnStanceHero(faith: drawnFaith, artworkHeight: 156),
           const SizedBox(height: 12),
           Semantics(
             liveRegion: true,
@@ -891,7 +848,7 @@ class _ResultView extends StatelessWidget {
                 judgment.verdict.label,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: _ArenaColors.amber,
+                  color: _ArenaColors.cream,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -942,6 +899,52 @@ class _ResultView extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+
+class _DrawnStanceHero extends StatelessWidget {
+  const _DrawnStanceHero({required this.faith, required this.artworkHeight});
+
+  final FoodFaith faith;
+  final double artworkHeight;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(
+        '本次抽中',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: _ArenaColors.amber,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      _FaithArtwork(faith: faith, height: artworkHeight),
+      Text(
+        faith.label,
+        textAlign: TextAlign.center,
+        style: Theme.of(
+          context,
+        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+      ),
+      const SizedBox(height: 10),
+      Semantics(
+        container: true,
+        label: '固定質疑：${faith.finalChallenge}',
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _ArenaColors.night,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _ArenaColors.metal),
+            ),
+            child: Text(faith.finalChallenge, textAlign: TextAlign.center),
+          ),
+        ),
+      ),
+    ],
   );
 }
 

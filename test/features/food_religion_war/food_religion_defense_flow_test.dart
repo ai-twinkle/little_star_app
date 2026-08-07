@@ -75,12 +75,18 @@ void main() {
     await tester.tap(find.text('送出辯護'));
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.dragUntilVisible(
-      find.text('再玩一次'),
-      find.byType(CustomScrollView),
-      const Offset(0, -120),
-    );
-    await tester.tap(find.text('再玩一次'));
+    final replay = find.text('再玩一次');
+    final viewportHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final replayOverflow = tester.getRect(replay).bottom - viewportHeight;
+    if (replayOverflow > 0) {
+      await tester.drag(
+        find.byType(CustomScrollView),
+        Offset(0, -replayOverflow - 24),
+      );
+      await tester.pump();
+    }
+    await tester.tap(replay);
     await tester.pump();
     expect(find.text('飲食抉擇 1/4'), findsOneWidget);
     expect(find.text('北粽就是香'), findsNothing);

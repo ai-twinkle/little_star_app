@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'food_religion_test_support.dart';
@@ -89,6 +90,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('reduced motion replaces judging movement with a static marker', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _setViewport(tester, const Size(430, 932));
+    await pumpFixedGame(tester);
+    await playToDefense(tester);
+    await tester.enterText(find.byType(TextField), '粽葉香氣就是無法取代');
+
+    await tester.tap(find.text('送出辯護'));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.hourglass_top), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('AI 鄉民評審正在審判…'), findsOneWidget);
+  });
+
   testWidgets('arena styling persists through draw, defense, and result', (
     tester,
   ) async {
@@ -110,6 +130,38 @@ void main() {
     expect(find.text('本次抽中；四個選擇都會保留。'), findsOneWidget);
     expect(find.byKey(const ValueKey('night-market-arena')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('result arrival provides short native feedback', (tester) async {
+    final platformCalls = <MethodCall>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      platformCalls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await pumpFixedGame(tester);
+    await playToDefense(tester);
+    await tester.enterText(find.byType(TextField), '粽葉香氣就是無法取代');
+
+    await tester.tap(find.text('送出辯護'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(
+      platformCalls,
+      contains(
+        isA<MethodCall>()
+            .having((call) => call.method, 'method', 'HapticFeedback.vibrate')
+            .having(
+              (call) => call.arguments,
+              'arguments',
+              'HapticFeedbackType.mediumImpact',
+            ),
+      ),
+    );
   });
 }
 
