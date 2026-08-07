@@ -321,7 +321,7 @@ class _ControllableSearchModelManagerViewModel extends ModelManagerViewModel {
         hfService: HuggingFaceService(),
         downloadService: DownloadService(),
         downloadRepository: DownloadRepository(),
-        directoryService: _UnusedDirectoryService(),
+        directoryService: _EmptyDirectoryService(),
       );
 
   bool _isSearchPending = true;
@@ -349,26 +349,26 @@ class _ControllableSearchModelManagerViewModel extends ModelManagerViewModel {
   }
 }
 
-class _UnusedDirectoryService implements DirectoryService {
+class _EmptyDirectoryService implements DirectoryService {
   @override
-  Future<int> getAvailableStorageSpace() => throw UnimplementedError();
+  Future<int> getAvailableStorageSpace() async => 0;
 
   @override
-  Future<Directory> getModelsDirectory() => throw UnimplementedError();
+  Future<Directory> getModelsDirectory() async => Directory.systemTemp;
 
   @override
   Future<List<String>> findFiles({
     required List<DirectoryType> directoryTypes,
     String? fileName,
     String? extension,
-  }) => throw UnimplementedError();
+  }) async => const [];
 
   @override
   Future<Map<String, List<String>>> listDirectories({
     required List<DirectoryType> directoryTypes,
-  }) => throw UnimplementedError();
+  }) async => const {};
 
   @override
-  Future<bool> requestPermissions({required BuildContext context}) =>
-      throw UnimplementedError();
+  Future<bool> requestPermissions({required BuildContext context}) async =>
+      false;
 }
