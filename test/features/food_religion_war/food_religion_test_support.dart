@@ -74,10 +74,21 @@ Future<void> playFourChoices(
   WidgetTester tester, {
   List<String> choices = const ['北部粽派', '香菜退散派', '豆花配糖水', '火鍋原湯派'],
 }) async {
+  await tester.pump();
+  await dismissMissingModelReminder(tester);
   for (final choice in choices) {
+    await dismissMissingModelReminder(tester);
     await tester.tap(find.text(choice));
     await tester.pump(FoodReligionGameSession.selectionFeedbackDuration);
+    await dismissMissingModelReminder(tester);
   }
+}
+
+Future<void> dismissMissingModelReminder(WidgetTester tester) async {
+  final continueWithoutModel = find.text('先玩再說');
+  if (continueWithoutModel.evaluate().isEmpty) return;
+  await tester.tap(continueWithoutModel);
+  await tester.pumpAndSettle();
 }
 
 Future<void> playToDefense(WidgetTester tester) async {

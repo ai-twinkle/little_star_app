@@ -4,6 +4,7 @@ import 'package:little_star_app/features/food_religion_war/domain/food_religion_
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
+import 'package:little_star_app/ui/models/widgets/model_manager_screen.dart';
 
 class FoodReligionGameScreen extends StatefulWidget {
   const FoodReligionGameScreen({
@@ -11,11 +12,13 @@ class FoodReligionGameScreen extends StatefulWidget {
     this.judgmentServiceFactory,
     this.randomizer,
     this.runState,
+    this.recommendedModelsPageBuilder,
   });
 
   final FoodReligionJudgmentService Function()? judgmentServiceFactory;
   final FoodReligionGameRandomizer? randomizer;
   final FoodReligionGameRunState? runState;
+  final WidgetBuilder? recommendedModelsPageBuilder;
 
   @override
   State<FoodReligionGameScreen> createState() => _FoodReligionGameScreenState();
@@ -28,6 +31,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   final _defenseController = TextEditingController();
   bool _canLeave = false;
   bool _isExitDialogVisible = false;
+  bool _isMissingModelReminderScheduled = false;
   String? _defenseError;
 
   @override
@@ -40,11 +44,13 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
             ? FoodReligionGameRunState.shared
             : FoodReligionGameRunState());
     _session = _createSession();
+    _session.addListener(_handleSessionChanged);
   }
 
   @override
   void dispose() {
     _defenseController.dispose();
+    _session.removeListener(_handleSessionChanged);
     _session.dispose();
     super.dispose();
   }
@@ -128,6 +134,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
     selectedModel: _session.selectedModel,
     isDiscoveringModels: _session.isDiscoveringModels,
     onModelChanged: _session.selectModel,
+    onOpenRecommendedModels: _openRecommendedModels,
     onChanged: isJudging ? (_) {} : (_) => setState(() => _defenseError = null),
     onSubmit: _submitDefense,
   );
@@ -140,10 +147,12 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
 
   void _restartGame() {
     final completedSession = _session;
+    completedSession.removeListener(_handleSessionChanged);
     setState(() {
       _session = _createSession(
         previousDrawnFaith: completedSession.drawnFaith,
       );
+      _session.addListener(_handleSessionChanged);
       _defenseController.clear();
       _defenseError = null;
     });
@@ -158,6 +167,59 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
         randomizer: _randomizer,
         previousDrawnFaith: previousDrawnFaith ?? _runState.lastDrawnFaith,
       );
+
+  void _handleSessionChanged() {
+    if (_isMissingModelReminderScheduled ||
+        _session.isDiscoveringModels ||
+        _session.models.isNotEmpty ||
+        !_runState.shouldShowMissingModelReminder) {
+      return;
+    }
+    _isMissingModelReminderScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showMissingModelReminder();
+    });
+  }
+
+  Future<void> _showMissingModelReminder() async {
+    _runState.recordMissingModelReminderShown();
+    final openRecommendedModels = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('AI 評審還沒來報到'),
+            content: const Text('目前沒有可用模型，但不影響遊戲；你仍可完成整局並取得備援裁決。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('前往推薦模型'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('先玩再說'),
+              ),
+            ],
+          ),
+    );
+    if (openRecommendedModels == true && mounted) {
+      await _openRecommendedModels();
+    }
+  }
+
+  Future<void> _openRecommendedModels() async {
+    final activeSession = _session;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder:
+            widget.recommendedModelsPageBuilder ??
+            (_) => ModelManagerScreen.recommended(),
+      ),
+    );
+    if (mounted && identical(_session, activeSession)) {
+      await activeSession.rediscoverModels();
+    }
+  }
 
   void _leaveToHome() {
     setState(() => _canLeave = true);
@@ -284,6 +346,7 @@ class _DefenseView extends StatelessWidget {
     required this.selectedModel,
     required this.isDiscoveringModels,
     required this.onModelChanged,
+    required this.onOpenRecommendedModels,
     required this.onChanged,
     required this.onSubmit,
   });
@@ -298,6 +361,7 @@ class _DefenseView extends StatelessWidget {
   final FoodReligionModel? selectedModel;
   final bool isDiscoveringModels;
   final ValueChanged<FoodReligionModel?> onModelChanged;
+  final VoidCallback onOpenRecommendedModels;
   final ValueChanged<String> onChanged;
   final VoidCallback onSubmit;
 
@@ -327,7 +391,17 @@ class _DefenseView extends StatelessWidget {
       if (isDiscoveringModels)
         const Text('正在發現已安裝模型…', textAlign: TextAlign.center)
       else if (models.isEmpty)
-        const Text('目前沒有已安裝模型，送出後將使用備援裁決。', textAlign: TextAlign.center)
+        Column(
+          children: [
+            const Text('目前沒有已安裝模型，送出後將使用備援裁決。', textAlign: TextAlign.center),
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: isJudging ? null : onOpenRecommendedModels,
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('前往推薦模型'),
+            ),
+          ],
+        )
       else
         DropdownButtonFormField<FoodReligionModel>(
           initialValue: selectedModel,

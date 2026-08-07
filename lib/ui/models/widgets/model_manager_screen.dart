@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:little_star_app/config/recommended_models.dart';
+import 'package:little_star_app/data/repositories/download_repository.dart';
+import 'package:little_star_app/data/services/directory_service.dart';
+import 'package:little_star_app/data/services/download_service.dart';
+import 'package:little_star_app/data/services/huggingface_service.dart';
 import 'package:little_star_app/models/download_task.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_file_list.dart';
@@ -13,12 +17,28 @@ import 'package:little_star_app/utils/logger.dart';
 class ModelManagerScreen extends StatefulWidget {
   final ModelManagerViewModel viewModel;
   final dynamic preselectedModel;
+  final int initialTabIndex;
 
   const ModelManagerScreen({
     super.key,
     required this.viewModel,
     this.preselectedModel,
+    this.initialTabIndex = 0,
   });
+
+  factory ModelManagerScreen.recommended({Key? key}) {
+    final directoryService = DirectoryServiceFactory.create();
+    return ModelManagerScreen(
+      key: key,
+      viewModel: ModelManagerViewModel(
+        hfService: HuggingFaceService(),
+        downloadService: DownloadService(),
+        downloadRepository: DownloadRepository(),
+        directoryService: directoryService,
+      ),
+      initialTabIndex: 1,
+    );
+  }
 
   @override
   State<ModelManagerScreen> createState() => _ModelManagerScreenState();
@@ -33,7 +53,11 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
     widget.viewModel.init();
 
     // If a preselected model is provided, switch to online tab and select it
@@ -262,7 +286,7 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
               'No local models',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
-                  ),
+                ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -378,7 +402,7 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
                       ),
                     ),
                   ],
-                ),
+                  ),
         ),
       ],
     );

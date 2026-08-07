@@ -9,6 +9,8 @@ void main() {
   ) async {
     await _setViewport(tester, const Size(320, 568));
     await pumpFixedGame(tester);
+    await tester.pump();
+    await dismissMissingModelReminder(tester);
 
     expect(find.text('飲食抉擇 1/4'), findsOneWidget);
     await tester.ensureVisible(find.text('南部粽派'));
@@ -22,6 +24,8 @@ void main() {
   testWidgets('compact phone can complete the fallback flow', (tester) async {
     await _setViewport(tester, const Size(320, 568));
     await pumpFixedGame(tester);
+    await tester.pump();
+    await dismissMissingModelReminder(tester);
 
     await _playReachableChoices(tester);
     await _tapReachable(tester, '抽出辯護立場');
@@ -42,6 +46,8 @@ void main() {
   ) async {
     final semantics = tester.ensureSemantics();
     await pumpFixedGame(tester);
+    await tester.pump();
+    await dismissMissingModelReminder(tester);
 
     expect(find.bySemanticsLabel('遊戲進度：飲食抉擇 1/4'), findsOneWidget);
     final northern = find.bySemanticsLabel('北部粽派，未選擇');

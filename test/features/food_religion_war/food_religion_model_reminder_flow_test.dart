@@ -1,0 +1,150 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:little_star_app/core/model/model_profile.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
+import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
+import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_screen.dart';
+
+import 'food_religion_test_support.dart';
+
+void main() {
+  testWidgets('missing-model reminder appears only once per app run', (
+    tester,
+  ) async {
+    final runState = FoodReligionGameRunState();
+
+    await _pumpGame(tester, runState: runState);
+
+    expect(find.text('AI 評審還沒來報到'), findsOneWidget);
+    expect(find.textContaining('不影響遊戲'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '先玩再說'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '前往推薦模型'), findsOneWidget);
+
+    await tester.tap(find.text('先玩再說'));
+    await tester.pumpAndSettle();
+    expect(find.text('飲食抉擇 1/4'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpGame(tester, runState: runState);
+
+    expect(find.text('AI 評審還沒來報到'), findsNothing);
+    expect(find.text('飲食抉擇 1/4'), findsOneWidget);
+  });
+
+  testWidgets(
+    'model-manager round trip preserves the game and rediscovers models',
+    (tester) async {
+      final service = _RediscoveringJudgmentService(
+        discoveries: [
+          const [],
+          const [
+            FoodReligionModel(
+              label: 'GGUF · newly-installed.gguf',
+              path: '/models/newly-installed.gguf',
+              format: ModelFormat.gguf,
+            ),
+          ],
+        ],
+      );
+
+      await _pumpGame(tester, service: service);
+      await tester.tap(find.text('先玩再說'));
+      await tester.pumpAndSettle();
+      await playToDefense(tester);
+
+      expect(find.text('前往推薦模型'), findsOneWidget);
+      await tester.tap(find.text('前往推薦模型'));
+      await tester.pumpAndSettle();
+      expect(find.text('推薦模型區'), findsOneWidget);
+
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+
+      expect(service.discoverCalls, 2);
+      expect(find.text('立場辯護'), findsOneWidget);
+      expect(find.text('北部粽派（抽中）'), findsOneWidget);
+      expect(find.text('GGUF · newly-installed.gguf'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'failed download remains hidden and fallback completes the game',
+    (tester) async {
+      final service = _RediscoveringJudgmentService(
+        discoveries: [const [], StateError('DOWNLOAD_FAILED E_MODEL_42')],
+      );
+
+      await _pumpGame(tester, service: service);
+      await tester.tap(find.text('先玩再說'));
+      await tester.pumpAndSettle();
+      await playToDefense(tester);
+      await tester.tap(find.text('前往推薦模型'));
+      await tester.pumpAndSettle();
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('DOWNLOAD_FAILED'), findsNothing);
+      expect(find.textContaining('E_MODEL_42'), findsNothing);
+      await tester.enterText(find.byType(TextField), '沒有模型也能完成辯護');
+      await tester.tap(find.text('送出辯護'));
+      await tester.pump(FoodReligionGameSession.fallbackJudgmentDelay);
+
+      expect(find.textContaining('AI 主持人暫時離線'), findsOneWidget);
+      expect(find.textContaining(RegExp('信仰堅定|勉強護教|叛教邊緣')), findsOneWidget);
+    },
+  );
+}
+
+Future<void> _pumpGame(
+  WidgetTester tester, {
+  FoodReligionGameRunState? runState,
+  _RediscoveringJudgmentService? service,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: FoodReligionGameScreen(
+        judgmentServiceFactory:
+            () =>
+                service ??
+                _RediscoveringJudgmentService(discoveries: [const []]),
+        randomizer: FixedFoodReligionRandomizer(),
+        runState: runState,
+        recommendedModelsPageBuilder:
+            (_) => const Scaffold(body: Center(child: Text('推薦模型區'))),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump();
+}
+
+class _RediscoveringJudgmentService implements FoodReligionJudgmentService {
+  _RediscoveringJudgmentService({required this.discoveries});
+
+  final List<Object> discoveries;
+  int discoverCalls = 0;
+
+  @override
+  Future<List<FoodReligionModel>> discoverModels() async {
+    final result =
+        discoveries[(discoverCalls++).clamp(0, discoveries.length - 1)];
+    if (result is Error) throw result;
+    return result as List<FoodReligionModel>;
+  }
+
+  @override
+  Future<FoodReligionJudgment> judge({
+    required FoodReligionModel model,
+    required FoodFaith stance,
+    required FoodReligionDefense defense,
+  }) => throw UnimplementedError();
+
+  @override
+  void cancel() {}
+
+  @override
+  void dispose() {}
+}

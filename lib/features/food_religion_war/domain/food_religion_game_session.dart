@@ -39,11 +39,18 @@ class DefaultFoodReligionGameRandomizer implements FoodReligionGameRandomizer {
 
 class FoodReligionGameRunState {
   FoodFaith? lastDrawnFaith;
+  bool _hasShownMissingModelReminder = false;
 
   static final shared = FoodReligionGameRunState();
 
+  bool get shouldShowMissingModelReminder => !_hasShownMissingModelReminder;
+
   void recordDraw(FoodFaith faith) {
     lastDrawnFaith = faith;
+  }
+
+  void recordMissingModelReminderShown() {
+    _hasShownMissingModelReminder = true;
   }
 }
 
@@ -109,6 +116,13 @@ class FoodReligionGameSession extends ChangeNotifier {
   FoodReligionModel? get selectedModel => _selectedModel;
   bool get isDiscoveringModels => _isDiscoveringModels;
   bool get isSelectionLocked => _selectedFaith != null;
+
+  Future<void> rediscoverModels() async {
+    if (_isDisposed || _isDiscoveringModels) return;
+    _isDiscoveringModels = true;
+    notifyListeners();
+    await _discoverModels();
+  }
 
   String get progressLabel => switch (_stage) {
     FoodReligionGameStage.choice =>
