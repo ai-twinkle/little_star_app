@@ -29,8 +29,22 @@ class FoodReligionModel {
   ModelProfile get profile => ModelProfile.fromLocalPath(path);
 }
 
+enum FoodReligionJudgmentFailure {
+  modelUnavailable,
+  modelLoad,
+  generation,
+  timeout,
+  parse,
+  missingFields,
+  invalidVerdict,
+  contentValidation,
+  cancelled,
+}
+
 class FoodReligionJudgmentException implements Exception {
-  const FoodReligionJudgmentException();
+  const FoodReligionJudgmentException(this.failure);
+
+  final FoodReligionJudgmentFailure failure;
 }
 
 typedef FoodReligionJudgmentTimerFactory =
@@ -68,9 +82,17 @@ class OnDeviceFoodReligionJudgmentService
   final Duration timeout;
   GenerationController? _activeController;
   Completer<String>? _activeOperation;
+  bool _isJudging = false;
+  bool _isCancellationRequested = false;
+  bool _isDisposed = false;
 
   @override
   Future<List<FoodReligionModel>> discoverModels() async {
+    if (_isDisposed) {
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.cancelled,
+      );
+    }
     final entries = await _catalog.discover();
     final models = [
       for (final entry in entries)
@@ -97,21 +119,45 @@ class OnDeviceFoodReligionJudgmentService
     required FoodFaith stance,
     required FoodReligionDefense defense,
   }) async {
-    if (_activeController != null) throw const FoodReligionJudgmentException();
-    if (!await _isAvailable(model)) {
-      throw const FoodReligionJudgmentException();
+    if (_isDisposed || _isJudging) {
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.cancelled,
+      );
     }
+    _isJudging = true;
+    _isCancellationRequested = false;
 
     InferenceSession? session;
     StreamSubscription<GenerationEvent>? subscription;
     Timer? timer;
     try {
-      final profile = model.profile;
-      final backend = _backendResolver(profile);
-      if (!backend.canHandle(profile)) {
-        throw const FoodReligionJudgmentException();
+      if (!await _isAvailable(model)) {
+        throw const FoodReligionJudgmentException(
+          FoodReligionJudgmentFailure.modelUnavailable,
+        );
       }
-      session = backend.createSession(profile, _settings);
+      if (_isCancellationRequested) {
+        throw const FoodReligionJudgmentException(
+          FoodReligionJudgmentFailure.cancelled,
+        );
+      }
+      final profile = model.profile;
+      late final InferenceBackend backend;
+      try {
+        backend = _backendResolver(profile);
+        if (!backend.canHandle(profile)) {
+          throw const FoodReligionJudgmentException(
+            FoodReligionJudgmentFailure.modelLoad,
+          );
+        }
+        session = backend.createSession(profile, _settings);
+      } on FoodReligionJudgmentException {
+        rethrow;
+      } catch (_) {
+        throw const FoodReligionJudgmentException(
+          FoodReligionJudgmentFailure.modelLoad,
+        );
+      }
       final controller = GenerationController();
       _activeController = controller;
       final operation = Completer<String>();
@@ -136,14 +182,20 @@ class OnDeviceFoodReligionJudgmentService
                 case GenerationError():
                   if (!operation.isCompleted) {
                     operation.completeError(
-                      const FoodReligionJudgmentException(),
+                      const FoodReligionJudgmentException(
+                        FoodReligionJudgmentFailure.generation,
+                      ),
                     );
                   }
               }
             },
             onError: (Object _, StackTrace __) {
               if (!operation.isCompleted) {
-                operation.completeError(const FoodReligionJudgmentException());
+                operation.completeError(
+                  const FoodReligionJudgmentException(
+                    FoodReligionJudgmentFailure.generation,
+                  ),
+                );
               }
             },
             onDone: () {
@@ -154,7 +206,11 @@ class OnDeviceFoodReligionJudgmentService
       timer = _timerFactory(timeout, () {
         if (operation.isCompleted) return;
         controller.cancel();
-        operation.completeError(const FoodReligionJudgmentException());
+        operation.completeError(
+          const FoodReligionJudgmentException(
+            FoodReligionJudgmentFailure.timeout,
+          ),
+        );
       });
 
       final raw = await operation.future;
@@ -162,7 +218,9 @@ class OnDeviceFoodReligionJudgmentService
     } on FoodReligionJudgmentException {
       rethrow;
     } catch (_) {
-      throw const FoodReligionJudgmentException();
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.generation,
+      );
     } finally {
       timer?.cancel();
       final cancellation = subscription?.cancel();
@@ -170,6 +228,8 @@ class OnDeviceFoodReligionJudgmentService
       await cancellation;
       _activeController = null;
       _activeOperation = null;
+      _isJudging = false;
+      _isCancellationRequested = false;
     }
   }
 
@@ -229,7 +289,9 @@ class OnDeviceFoodReligionJudgmentService
     try {
       decoded = jsonDecode(raw);
     } catch (_) {
-      throw const FoodReligionJudgmentException();
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.parse,
+      );
     }
     if (decoded is! Map<String, dynamic> ||
         decoded.length != 2 ||
@@ -237,7 +299,9 @@ class OnDeviceFoodReligionJudgmentService
         !decoded.containsKey('roast') ||
         decoded['verdict'] is! String ||
         decoded['roast'] is! String) {
-      throw const FoodReligionJudgmentException();
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.missingFields,
+      );
     }
     final verdictLabel = decoded['verdict'] as String;
     final roast = decoded['roast'] as String;
@@ -245,14 +309,22 @@ class OnDeviceFoodReligionJudgmentService
         FoodReligionVerdict.values
             .where((candidate) => candidate.label == verdictLabel)
             .firstOrNull;
-    if (verdict == null ||
-        !_isSafeSingleSentence(roast) ||
+    if (verdict == null) {
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.invalidVerdict,
+      );
+    }
+    if (!_isSafeSingleSentence(roast) ||
         roast != FallbackJudgmentService.approvedRoastFor(stance, verdict)) {
-      throw const FoodReligionJudgmentException();
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.contentValidation,
+      );
     }
     if (verdict == FoodReligionVerdict.steadfast &&
         _isExplicitTurncoat(defense.text, stance)) {
-      throw const FoodReligionJudgmentException();
+      throw const FoodReligionJudgmentException(
+        FoodReligionJudgmentFailure.contentValidation,
+      );
     }
     return FoodReligionJudgment(verdict: verdict, roast: roast);
   }
@@ -294,7 +366,14 @@ class OnDeviceFoodReligionJudgmentService
 
   bool _isExplicitTurncoat(String defense, FoodFaith stance) {
     final normalized = defense.replaceAll(RegExp(r'\s+'), '');
-    if (RegExp(r'不支持|放棄|倒戈|我錯了|這立場(不好|難吃)').hasMatch(normalized)) {
+    final ownLabel = RegExp.escape(
+      stance.label.replaceFirst(RegExp(r'派$'), ''),
+    );
+    if (RegExp(
+      '不支持|放棄|倒戈|我錯了|這立場(不好|難吃)|'
+      '$ownLabel.*(不值得支持|不該支持|不想支持|無法支持|沒辦法支持|不再支持|拒絕支持|不好吃|難吃)|'
+      '(討厭|不喜歡|不愛|拒吃).*$ownLabel',
+    ).hasMatch(normalized)) {
       return true;
     }
     final opposingLabels = switch (stance) {
@@ -323,13 +402,22 @@ class OnDeviceFoodReligionJudgmentService
 
   @override
   void cancel() {
+    if (!_isJudging) return;
+    _isCancellationRequested = true;
     _activeController?.cancel();
     final operation = _activeOperation;
     if (operation != null && !operation.isCompleted) {
-      operation.completeError(const FoodReligionJudgmentException());
+      operation.completeError(
+        const FoodReligionJudgmentException(
+          FoodReligionJudgmentFailure.cancelled,
+        ),
+      );
     }
   }
 
   @override
-  void dispose() => cancel();
+  void dispose() {
+    _isDisposed = true;
+    cancel();
+  }
 }

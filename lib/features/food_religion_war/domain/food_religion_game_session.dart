@@ -50,6 +50,7 @@ class FoodReligionGameRunState {
 class FoodReligionGameSession extends ChangeNotifier {
   static const selectionFeedbackDuration = Duration(milliseconds: 800);
   static const fallbackJudgmentDelay = Duration(milliseconds: 500);
+  static const modelDiscoveryTimeout = Duration(seconds: 5);
   static const choiceRoundCount = 4;
 
   FoodReligionGameSession({
@@ -67,7 +68,7 @@ class FoodReligionGameSession extends ChangeNotifier {
         _rounds.toSet().length != choiceRoundCount) {
       throw ArgumentError('A game requires four distinct choice rounds.');
     }
-    _discovery = _discoverModels();
+    unawaited(_discoverModels());
   }
 
   final FallbackJudgmentService _fallbackJudgmentService =
@@ -86,11 +87,13 @@ class FoodReligionGameSession extends ChangeNotifier {
   FoodReligionJudgment? _judgment;
   List<FoodReligionModel> _models = const [];
   FoodReligionModel? _selectedModel;
+  FoodReligionModel? _submittedModel;
   bool _isDiscoveringModels = true;
   bool _isDisposed = false;
-  Future<void>? _discovery;
   Timer? _transitionTimer;
   Timer? _judgmentTimer;
+  Timer? _modelDiscoveryTimer;
+  Completer<List<FoodReligionModel>>? _modelDiscoveryOperation;
 
   FoodReligionGameStage get stage => _stage;
   int get choiceIndex => _choiceIndex;
@@ -154,16 +157,17 @@ class FoodReligionGameSession extends ChangeNotifier {
   }
 
   void submitDefense(FoodReligionDefense defense) {
-    if (_stage != FoodReligionGameStage.defense) return;
+    if (_stage != FoodReligionGameStage.defense || _isDiscoveringModels) return;
     _defense = defense;
+    _submittedModel = _selectedModel;
     _stage = FoodReligionGameStage.judging;
     notifyListeners();
 
-    _judgmentTimer = Timer(fallbackJudgmentDelay, () {
-      if (_selectedModel == null || _isDiscoveringModels) {
+    if (_submittedModel == null) {
+      _judgmentTimer = Timer(fallbackJudgmentDelay, () {
         _completeJudgment(_fallbackJudgmentService.judge(_drawnFaith!));
-      }
-    });
+      });
+    }
     unawaited(_resolveJudgment());
   }
 
@@ -175,23 +179,42 @@ class FoodReligionGameSession extends ChangeNotifier {
   }
 
   Future<void> _discoverModels() async {
-    List<FoodReligionModel> discovered;
+    final operation = Completer<List<FoodReligionModel>>();
+    _modelDiscoveryOperation = operation;
+    _modelDiscoveryTimer = Timer(modelDiscoveryTimeout, () {
+      if (!operation.isCompleted) operation.complete(const []);
+    });
     try {
-      discovered = await _judgmentService.discoverModels();
+      unawaited(
+        _judgmentService.discoverModels().then<void>(
+          (models) {
+            if (!operation.isCompleted) operation.complete(models);
+          },
+          onError: (Object _, StackTrace __) {
+            if (!operation.isCompleted) operation.complete(const []);
+          },
+        ),
+      );
     } catch (_) {
-      discovered = const [];
+      if (!operation.isCompleted) operation.complete(const []);
     }
+    final discovered = await operation.future;
+    _modelDiscoveryTimer?.cancel();
+    _modelDiscoveryTimer = null;
+    _modelDiscoveryOperation = null;
     if (_isDisposed) return;
     _models = List.unmodifiable(discovered);
-    _selectedModel = _models.firstOrNull;
+    if (_stage != FoodReligionGameStage.judging &&
+        _stage != FoodReligionGameStage.result) {
+      _selectedModel = _models.firstOrNull;
+    }
     _isDiscoveringModels = false;
     notifyListeners();
   }
 
   Future<void> _resolveJudgment() async {
-    await _discovery;
     if (_isDisposed || _stage != FoodReligionGameStage.judging) return;
-    final model = _selectedModel;
+    final model = _submittedModel;
     if (model != null) {
       _judgmentTimer?.cancel();
       try {
@@ -221,6 +244,11 @@ class FoodReligionGameSession extends ChangeNotifier {
     _isDisposed = true;
     _transitionTimer?.cancel();
     _judgmentTimer?.cancel();
+    _modelDiscoveryTimer?.cancel();
+    final discovery = _modelDiscoveryOperation;
+    if (discovery != null && !discovery.isCompleted) {
+      discovery.complete(const []);
+    }
     _judgmentService.dispose();
     super.dispose();
   }

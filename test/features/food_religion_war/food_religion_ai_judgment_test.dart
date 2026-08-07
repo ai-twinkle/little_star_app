@@ -47,6 +47,69 @@ void main() {
     ]);
   });
 
+  final stanceCases = [
+    (
+      stance: FoodFaith.northernZongzi,
+      opposingDefense: '其實南部粽比較好',
+      steadfastRoast: '油飯只是外表，粽葉才是北粽的戰袍！',
+    ),
+    (
+      stance: FoodFaith.southernZongzi,
+      opposingDefense: '我改支持北部粽',
+      steadfastRoast: '水煮不是退讓，是南粽糯米的內功修煉！',
+    ),
+    (
+      stance: FoodFaith.extraCilantro,
+      opposingDefense: '我改支持香菜退散',
+      steadfastRoast: '這把香菜撒得夠高，評審席都綠了！',
+    ),
+    (
+      stance: FoodFaith.noCilantro,
+      opposingDefense: '我比較喜歡香菜加爆',
+      steadfastRoast: '防香菜裝備完整，連一片葉子都過不了！',
+    ),
+    (
+      stance: FoodFaith.sweetTofuPudding,
+      opposingDefense: '我改支持豆花配豆漿',
+      steadfastRoast: '糖水接住豆花，甜得很有道理！',
+    ),
+    (
+      stance: FoodFaith.soyMilkTofuPudding,
+      opposingDefense: '我比較喜歡豆花配糖水',
+      steadfastRoast: '豆香疊豆香，這套組合有自己的節奏！',
+    ),
+    (
+      stance: FoodFaith.satayHotPot,
+      opposingDefense: '我改支持火鍋原湯',
+      steadfastRoast: '沙茶不是遮味，是火鍋的加速器！',
+    ),
+    (
+      stance: FoodFaith.brothHotPot,
+      opposingDefense: '我比較喜歡火鍋沾沙茶',
+      steadfastRoast: '原湯敢單挑，這鍋底氣很足！',
+    ),
+    (
+      stance: FoodFaith.fullSugarBubbleTea,
+      opposingDefense: '我改支持珍奶微糖',
+      steadfastRoast: '全糖就是完整火力，珍珠都點頭了！',
+    ),
+    (
+      stance: FoodFaith.lessSugarBubbleTea,
+      opposingDefense: '我比較喜歡珍奶全糖',
+      steadfastRoast: '微糖留住茶香，也留住了立場！',
+    ),
+    (
+      stance: FoodFaith.saltedFries,
+      opposingDefense: '我改支持原味不加鹽',
+      steadfastRoast: '這撮鹽把薯條的靈魂叫醒了！',
+    ),
+    (
+      stance: FoodFaith.plainFries,
+      opposingDefense: '我比較喜歡薯條加鹽',
+      steadfastRoast: '原味敢直接上桌，馬鈴薯本人很有底氣！',
+    ),
+  ];
+
   final approvedJudgments = [
     (FoodReligionVerdict.steadfast, '油飯只是外表，粽葉才是北粽的戰袍！'),
     (FoodReligionVerdict.reluctant, '這理由有拌到油，還沒包進粽葉。'),
@@ -96,12 +159,24 @@ void main() {
     'rejects malformed, missing, illegal, unsafe, and turncoat outputs',
     () async {
       final invalidOutputs = [
-        'not json',
-        '{"verdict":"信仰堅定"}',
-        '{"verdict":"滿分","roast":"好吃！"}',
-        '{"verdict":"勉強護教","roast":"**好吃**"}',
-        '{"verdict":"勉強護教","roast":"你真是白痴！"}',
-        '{"verdict":"信仰堅定","roast":"立場穩固！"}',
+        ('not json', FoodReligionJudgmentFailure.parse),
+        ('{"verdict":"信仰堅定"}', FoodReligionJudgmentFailure.missingFields),
+        (
+          '{"verdict":"滿分","roast":"好吃！"}',
+          FoodReligionJudgmentFailure.invalidVerdict,
+        ),
+        (
+          '{"verdict":"勉強護教","roast":"**好吃**"}',
+          FoodReligionJudgmentFailure.contentValidation,
+        ),
+        (
+          '{"verdict":"勉強護教","roast":"你真是白痴！"}',
+          FoodReligionJudgmentFailure.contentValidation,
+        ),
+        (
+          '{"verdict":"信仰堅定","roast":"立場穩固！"}',
+          FoodReligionJudgmentFailure.contentValidation,
+        ),
       ];
 
       for (var index = 0; index < invalidOutputs.length; index++) {
@@ -109,7 +184,7 @@ void main() {
           ..writeAsStringSync('model');
         final service = OnDeviceFoodReligionJudgmentService(
           backendResolver:
-              (_) => _FakeBackend(_FakeSession([invalidOutputs[index]])),
+              (_) => _FakeBackend(_FakeSession([invalidOutputs[index].$1])),
         );
         final defense =
             FoodReligionDefense.validate(
@@ -126,7 +201,7 @@ void main() {
             stance: FoodFaith.northernZongzi,
             defense: defense,
           ),
-          throwsA(isA<FoodReligionJudgmentException>()),
+          throwsA(_failure(invalidOutputs[index].$2)),
         );
       }
     },
@@ -169,21 +244,15 @@ void main() {
   test(
     'rejects steadfast judgments after switching to the opposing stance',
     () async {
-      final cases = [
-        (FoodFaith.northernZongzi, '我改支持南粽', '油飯只是外表，粽葉才是北粽的戰袍！'),
-        (FoodFaith.southernZongzi, '我比較喜歡北粽', '水煮不是退讓，是南粽糯米的內功修煉！'),
-        (FoodFaith.extraCilantro, '我改支持香菜退散', '這把香菜撒得夠高，評審席都綠了！'),
-        (FoodFaith.noCilantro, '我比較喜歡香菜加爆', '防香菜裝備完整，連一片葉子都過不了！'),
-      ];
-
-      for (var index = 0; index < cases.length; index++) {
+      for (var index = 0; index < stanceCases.length; index++) {
+        final stanceCase = stanceCases[index];
         final modelFile = File('${ggufRoot.path}/turncoat-$index.gguf')
           ..writeAsStringSync('model');
         final service = OnDeviceFoodReligionJudgmentService(
           backendResolver:
               (_) => _FakeBackend(
                 _FakeSession([
-                  '{"verdict":"信仰堅定","roast":"${cases[index].$3}"}',
+                  '{"verdict":"信仰堅定","roast":"${stanceCase.steadfastRoast}"}',
                 ]),
               ),
         );
@@ -195,15 +264,46 @@ void main() {
               path: modelFile.path,
               format: ModelFormat.gguf,
             ),
-            stance: cases[index].$1,
-            defense: FoodReligionDefense.validate(cases[index].$2).defense!,
+            stance: stanceCase.stance,
+            defense:
+                FoodReligionDefense.validate(
+                  stanceCase.opposingDefense,
+                ).defense!,
           ),
           throwsA(isA<FoodReligionJudgmentException>()),
-          reason: cases[index].$2,
+          reason: stanceCase.opposingDefense,
         );
       }
     },
   );
+
+  for (final denial in ['北部粽根本不值得支持', '北部粽不好吃', '我討厭北部粽']) {
+    test('rejects steadfast judgment for explicit denial: $denial', () async {
+      final modelFile = File('${ggufRoot.path}/denial.gguf')
+        ..writeAsStringSync('model');
+      final service = OnDeviceFoodReligionJudgmentService(
+        backendResolver:
+            (_) => _FakeBackend(
+              _FakeSession(const [
+                '{"verdict":"信仰堅定","roast":"油飯只是外表，粽葉才是北粽的戰袍！"}',
+              ]),
+            ),
+      );
+
+      await expectLater(
+        service.judge(
+          model: FoodReligionModel(
+            label: 'denial',
+            path: modelFile.path,
+            format: ModelFormat.gguf,
+          ),
+          stance: FoodFaith.northernZongzi,
+          defense: FoodReligionDefense.validate(denial).defense!,
+        ),
+        throwsA(isA<FoodReligionJudgmentException>()),
+      );
+    });
+  }
 
   test(
     'timeout cancels and disposes a generation that completes late',
@@ -252,7 +352,7 @@ void main() {
     );
     final expectation = expectLater(
       judgment,
-      throwsA(isA<FoodReligionJudgmentException>()),
+      throwsA(_failure(FoodReligionJudgmentFailure.cancelled)),
     );
     while (session.generateCalls == 0) {
       await Future<void>.delayed(Duration.zero);
@@ -263,6 +363,39 @@ void main() {
 
     expect(session.cancelCalls, 1);
     expect(session.disposeCalls, 1);
+  });
+
+  test('immediate cancellation prevents inference from starting', () async {
+    final modelFile = File('${ggufRoot.path}/cancel-before-load.gguf')
+      ..writeAsStringSync('model');
+    var resolverCalls = 0;
+    final service = OnDeviceFoodReligionJudgmentService(
+      backendResolver: (_) {
+        resolverCalls++;
+        return _FakeBackend(
+          _FakeSession(const [
+            '{"verdict":"信仰堅定","roast":"油飯只是外表，粽葉才是北粽的戰袍！"}',
+          ]),
+        );
+      },
+    );
+
+    final judgment = service.judge(
+      model: FoodReligionModel(
+        label: 'cancel before load',
+        path: modelFile.path,
+        format: ModelFormat.gguf,
+      ),
+      stance: FoodFaith.northernZongzi,
+      defense: FoodReligionDefense.validate('北粽最好吃').defense!,
+    );
+    service.cancel();
+
+    await expectLater(
+      judgment,
+      throwsA(_failure(FoodReligionJudgmentFailure.cancelled)),
+    );
+    expect(resolverCalls, 0);
   });
 
   test('immediate completion wins a simultaneous timeout race', () async {
@@ -315,7 +448,7 @@ void main() {
     );
     final expectation = expectLater(
       judgment,
-      throwsA(isA<FoodReligionJudgmentException>()),
+      throwsA(_failure(FoodReligionJudgmentFailure.timeout)),
     );
     while (session.generateCalls == 0) {
       await Future<void>.delayed(Duration.zero);
@@ -353,7 +486,7 @@ void main() {
     );
     final expectation = expectLater(
       judgment,
-      throwsA(isA<FoodReligionJudgmentException>()),
+      throwsA(_failure(FoodReligionJudgmentFailure.generation)),
     );
     while (session.generateCalls == 0) {
       await Future<void>.delayed(Duration.zero);
@@ -389,7 +522,7 @@ void main() {
           stance: FoodFaith.northernZongzi,
           defense: FoodReligionDefense.validate('北粽最好吃').defense!,
         ),
-        throwsA(isA<FoodReligionJudgmentException>()),
+        throwsA(_failure(FoodReligionJudgmentFailure.modelUnavailable)),
       );
       expect(resolverCalls, 0);
     },
@@ -407,27 +540,40 @@ void main() {
       );
       final defense = FoodReligionDefense.validate('北粽最好吃').defense!;
       final services = [
-        OnDeviceFoodReligionJudgmentService(
-          backendResolver: (_) => _ThrowingBackend(),
+        (
+          OnDeviceFoodReligionJudgmentService(
+            backendResolver: (_) => _ThrowingBackend(),
+          ),
+          FoodReligionJudgmentFailure.modelLoad,
         ),
-        OnDeviceFoodReligionJudgmentService(
-          backendResolver: (_) => _FakeBackend(_ErrorSession()),
+        (
+          OnDeviceFoodReligionJudgmentService(
+            backendResolver: (_) => _FakeBackend(_ErrorSession()),
+          ),
+          FoodReligionJudgmentFailure.generation,
         ),
       ];
 
-      for (final service in services) {
+      for (final (service, failure) in services) {
         await expectLater(
           service.judge(
             model: model,
             stance: FoodFaith.northernZongzi,
             defense: defense,
           ),
-          throwsA(isA<FoodReligionJudgmentException>()),
+          throwsA(_failure(failure)),
         );
       }
     },
   );
 }
+
+Matcher _failure(FoodReligionJudgmentFailure failure) =>
+    isA<FoodReligionJudgmentException>().having(
+      (error) => error.failure,
+      'failure',
+      failure,
+    );
 
 class _FakeBackend implements InferenceBackend {
   _FakeBackend(this.session);

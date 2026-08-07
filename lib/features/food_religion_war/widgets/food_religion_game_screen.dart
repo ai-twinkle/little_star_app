@@ -353,7 +353,8 @@ class _DefenseView extends StatelessWidget {
           border: const OutlineInputBorder(),
         ),
         textInputAction: TextInputAction.done,
-        onSubmitted: isJudging ? null : (_) => onSubmit(),
+        onSubmitted:
+            isJudging || isDiscoveringModels ? null : (_) => onSubmit(),
       ),
       const SizedBox(height: 6),
       Semantics(
@@ -371,7 +372,7 @@ class _DefenseView extends StatelessWidget {
         ),
       const SizedBox(height: 12),
       FilledButton(
-        onPressed: isJudging ? null : onSubmit,
+        onPressed: isJudging || isDiscoveringModels ? null : onSubmit,
         child: const Text('送出辯護'),
       ),
       if (isJudging) ...[

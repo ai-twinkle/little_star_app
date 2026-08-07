@@ -4,14 +4,20 @@
 
 **Blocked by:** 06 — 以四次飲食抉擇完成備援流程.
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] 辯護頁列出可發現的 GGUF 與 MLX 模型；預設維持 GGUF 優先、同類穩定排序，玩家可在送出前切換。
-- [ ] 模型輸入使用抽中立場、該立場固定質疑、玩家原始辯護、三級裁決規則與安全護欄，不再使用舊流程的結果角色或文案。
-- [ ] 十二個飲食立場都能形成正確模型上下文；明確倒向同題相對立場或否定抽中立場時不得判為「信仰堅定」。
-- [ ] 每次辯護最多啟動一次生成；送出後模型選擇、輸入與送出行動一併鎖定。
-- [ ] 串流內容在服務邊界內組合並驗證後一次顯示；結果只包含合法三級裁決與一句安全吐槽，不顯示 Markdown、前後說明或技術資訊。
-- [ ] 沒有模型、所選模型消失、載入或生成失敗、20 秒逾時、解析失敗、缺欄位、非法裁決或內容驗證失敗時，產生與抽中立場相符且透明揭露的備援裁決。
-- [ ] 成功、逾時、失敗、取消或離開接近同時發生時只接受第一個合法終態；後續事件不得覆寫結果，推論與 native 資源會正確取消及釋放。
-- [ ] 模型選擇只存在目前 Session；再玩時重新發現模型並套用預設，不保留上一局選擇。
-- [ ] 自動測試以可替換裁決服務覆蓋模型發現、切換、三種合法裁決、十二立場上下文、所有失敗分類與終態競態，不載入真實模型或呼叫網路。
+- [x] 辯護頁列出可發現的 GGUF 與 MLX 模型；預設維持 GGUF 優先、同類穩定排序，玩家可在送出前切換。
+- [x] 模型輸入使用抽中立場、該立場固定質疑、玩家原始辯護、三級裁決規則與安全護欄，不再使用舊流程的結果角色或文案。
+- [x] 十二個飲食立場都能形成正確模型上下文；明確倒向同題相對立場或否定抽中立場時不得判為「信仰堅定」。
+- [x] 每次辯護最多啟動一次生成；送出後模型選擇、輸入與送出行動一併鎖定。
+- [x] 串流內容在服務邊界內組合並驗證後一次顯示；結果只包含合法三級裁決與一句安全吐槽，不顯示 Markdown、前後說明或技術資訊。
+- [x] 沒有模型、所選模型消失、載入或生成失敗、20 秒逾時、解析失敗、缺欄位、非法裁決或內容驗證失敗時，產生與抽中立場相符且透明揭露的備援裁決。
+- [x] 成功、逾時、失敗、取消或離開接近同時發生時只接受第一個合法終態；後續事件不得覆寫結果，推論與 native 資源會正確取消及釋放。
+- [x] 模型選擇只存在目前 Session；再玩時重新發現模型並套用預設，不保留上一局選擇。
+- [x] 自動測試以可替換裁決服務覆蓋模型發現、切換、三種合法裁決、十二立場上下文、所有失敗分類與終態競態，不載入真實模型或呼叫網路。
+
+## Comments
+
+- Completed the on-device judgment path for the four-choice defense-draw flow, including stable GGUF-first discovery, submission-time model locking, and a bounded discovery fallback.
+- Added typed safe failure classifications, first-terminal-result lifecycle guards, cancellation before load, native session cleanup, and expanded explicit stance-denial validation.
+- Covered all twelve drawn stances, all three legal verdicts, every fallback class, discovery races, replay reset, cancellation, and late terminal events through replaceable services without loading a real model or using the network.

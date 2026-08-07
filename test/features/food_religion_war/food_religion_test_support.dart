@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_faith.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_defense.dart';
 import 'package:little_star_app/features/food_religion_war/domain/food_religion_game_session.dart';
+import 'package:little_star_app/features/food_religion_war/domain/food_religion_judgment.dart';
 import 'package:little_star_app/features/food_religion_war/services/food_religion_judgment_service.dart';
 import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_screen.dart';
 
@@ -37,12 +39,35 @@ Future<void> pumpFixedGame(
   await tester.pumpWidget(
     MaterialApp(
       home: FoodReligionGameScreen(
-        judgmentServiceFactory: judgmentServiceFactory,
+        judgmentServiceFactory:
+            judgmentServiceFactory ?? () => NoModelJudgmentService(),
         randomizer: randomizer ?? FixedFoodReligionRandomizer(),
       ),
     ),
   );
   await tester.pump();
+}
+
+class NoModelJudgmentService implements FoodReligionJudgmentService {
+  @override
+  Future<List<FoodReligionModel>> discoverModels() async => const [];
+
+  @override
+  Future<FoodReligionJudgment> judge({
+    required FoodReligionModel model,
+    required FoodFaith stance,
+    required FoodReligionDefense defense,
+  }) => Future.error(
+    const FoodReligionJudgmentException(
+      FoodReligionJudgmentFailure.modelUnavailable,
+    ),
+  );
+
+  @override
+  void cancel() {}
+
+  @override
+  void dispose() {}
 }
 
 Future<void> playFourChoices(
