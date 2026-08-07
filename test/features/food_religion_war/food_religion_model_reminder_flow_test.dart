@@ -35,6 +35,27 @@ void main() {
   });
 
   testWidgets(
+    'reminder opens the recommended-model area and returns in place',
+    (tester) async {
+      final service = _RediscoveringJudgmentService(
+        discoveries: [const [], const []],
+      );
+
+      await _pumpGame(tester, service: service);
+      await tester.tap(find.text('前往推薦模型'));
+      await tester.pumpAndSettle();
+      expect(find.text('推薦模型區'), findsOneWidget);
+
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+
+      expect(service.discoverCalls, 2);
+      expect(find.text('飲食抉擇 1/4'), findsOneWidget);
+      expect(find.text('AI 評審還沒來報到'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'model-manager round trip preserves the game and rediscovers models',
     (tester) async {
       final service = _RediscoveringJudgmentService(
@@ -67,25 +88,38 @@ void main() {
       expect(find.text('立場辯護'), findsOneWidget);
       expect(find.text('北部粽派（抽中）'), findsOneWidget);
       expect(find.text('GGUF · newly-installed.gguf'), findsOneWidget);
+      expect(find.text('前往推薦模型'), findsOneWidget);
     },
   );
 
   testWidgets(
     'failed download remains hidden and fallback completes the game',
     (tester) async {
+      var downloadFailed = false;
       final service = _RediscoveringJudgmentService(
-        discoveries: [const [], StateError('DOWNLOAD_FAILED E_MODEL_42')],
+        discoveries: [const [], const []],
       );
 
-      await _pumpGame(tester, service: service);
+      await _pumpGame(
+        tester,
+        service: service,
+        recommendedModelsPageBuilder:
+            (_) => _FakeRecommendedModelsPage(
+              onDownloadFailed: () => downloadFailed = true,
+            ),
+      );
       await tester.tap(find.text('先玩再說'));
       await tester.pumpAndSettle();
       await playToDefense(tester);
       await tester.tap(find.text('前往推薦模型'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('模擬下載失敗'));
+      await tester.pump();
+      expect(find.text('DOWNLOAD_FAILED E_MODEL_42'), findsOneWidget);
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();
 
+      expect(downloadFailed, isTrue);
       expect(find.textContaining('DOWNLOAD_FAILED'), findsNothing);
       expect(find.textContaining('E_MODEL_42'), findsNothing);
       await tester.enterText(find.byType(TextField), '沒有模型也能完成辯護');
@@ -96,12 +130,46 @@ void main() {
       expect(find.textContaining(RegExp('信仰堅定|勉強護教|叛教邊緣')), findsOneWidget);
     },
   );
+
+  testWidgets('cancelled download still allows fallback completion', (
+    tester,
+  ) async {
+    var downloadCancelled = false;
+    final service = _RediscoveringJudgmentService(
+      discoveries: [const [], const []],
+    );
+
+    await _pumpGame(
+      tester,
+      service: service,
+      recommendedModelsPageBuilder:
+          (_) => _FakeRecommendedModelsPage(
+            onDownloadCancelled: () => downloadCancelled = true,
+          ),
+    );
+    await tester.tap(find.text('先玩再說'));
+    await tester.pumpAndSettle();
+    await playToDefense(tester);
+    await tester.tap(find.text('前往推薦模型'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('模擬取消下載'));
+    await tester.pump();
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+
+    expect(downloadCancelled, isTrue);
+    await tester.enterText(find.byType(TextField), '取消下載也不影響辯護');
+    await tester.tap(find.text('送出辯護'));
+    await tester.pump(FoodReligionGameSession.fallbackJudgmentDelay);
+    expect(find.textContaining('AI 主持人暫時離線'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpGame(
   WidgetTester tester, {
   FoodReligionGameRunState? runState,
   _RediscoveringJudgmentService? service,
+  WidgetBuilder? recommendedModelsPageBuilder,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -113,12 +181,55 @@ Future<void> _pumpGame(
         randomizer: FixedFoodReligionRandomizer(),
         runState: runState,
         recommendedModelsPageBuilder:
+            recommendedModelsPageBuilder ??
             (_) => const Scaffold(body: Center(child: Text('推薦模型區'))),
       ),
     ),
   );
   await tester.pump();
   await tester.pump();
+}
+
+class _FakeRecommendedModelsPage extends StatefulWidget {
+  const _FakeRecommendedModelsPage({
+    this.onDownloadFailed,
+    this.onDownloadCancelled,
+  });
+
+  final VoidCallback? onDownloadFailed;
+  final VoidCallback? onDownloadCancelled;
+
+  @override
+  State<_FakeRecommendedModelsPage> createState() =>
+      _FakeRecommendedModelsPageState();
+}
+
+class _FakeRecommendedModelsPageState
+    extends State<_FakeRecommendedModelsPage> {
+  String? _technicalError;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('推薦模型區')),
+    body: Column(
+      children: [
+        if (widget.onDownloadFailed != null)
+          FilledButton(
+            onPressed: () {
+              widget.onDownloadFailed!();
+              setState(() => _technicalError = 'DOWNLOAD_FAILED E_MODEL_42');
+            },
+            child: const Text('模擬下載失敗'),
+          ),
+        if (widget.onDownloadCancelled != null)
+          FilledButton(
+            onPressed: widget.onDownloadCancelled,
+            child: const Text('模擬取消下載'),
+          ),
+        if (_technicalError != null) Text(_technicalError!),
+      ],
+    ),
+  );
 }
 
 class _RediscoveringJudgmentService implements FoodReligionJudgmentService {

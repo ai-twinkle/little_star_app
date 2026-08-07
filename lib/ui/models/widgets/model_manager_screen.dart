@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:little_star_app/config/recommended_models.dart';
-import 'package:little_star_app/data/repositories/download_repository.dart';
-import 'package:little_star_app/data/services/directory_service.dart';
-import 'package:little_star_app/data/services/download_service.dart';
-import 'package:little_star_app/data/services/huggingface_service.dart';
 import 'package:little_star_app/models/download_task.dart';
+import 'package:little_star_app/providers/service_providers.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_file_list.dart';
 import 'package:little_star_app/ui/models/widgets/model_search_list.dart';
@@ -14,31 +12,29 @@ import 'package:little_star_app/ui/models/widgets/download_progress_card.dart';
 import 'package:little_star_app/utils/logger.dart';
 
 /// Main screen for managing models - browsing, downloading, and local files.
+enum ModelManagerSection { localModels, recommendedModels }
+
+class RecommendedModelManagerScreen extends ConsumerWidget {
+  const RecommendedModelManagerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ModelManagerScreen(
+        viewModel: ref.watch(modelManagerViewModelProvider),
+        initialSection: ModelManagerSection.recommendedModels,
+      );
+}
+
 class ModelManagerScreen extends StatefulWidget {
   final ModelManagerViewModel viewModel;
   final dynamic preselectedModel;
-  final int initialTabIndex;
+  final ModelManagerSection initialSection;
 
   const ModelManagerScreen({
     super.key,
     required this.viewModel,
     this.preselectedModel,
-    this.initialTabIndex = 0,
+    this.initialSection = ModelManagerSection.localModels,
   });
-
-  factory ModelManagerScreen.recommended({Key? key}) {
-    final directoryService = DirectoryServiceFactory.create();
-    return ModelManagerScreen(
-      key: key,
-      viewModel: ModelManagerViewModel(
-        hfService: HuggingFaceService(),
-        downloadService: DownloadService(),
-        downloadRepository: DownloadRepository(),
-        directoryService: directoryService,
-      ),
-      initialTabIndex: 1,
-    );
-  }
 
   @override
   State<ModelManagerScreen> createState() => _ModelManagerScreenState();
@@ -56,7 +52,7 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
     _tabController = TabController(
       length: 2,
       vsync: this,
-      initialIndex: widget.initialTabIndex,
+      initialIndex: widget.initialSection.index,
     );
     widget.viewModel.init();
 

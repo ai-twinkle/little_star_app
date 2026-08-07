@@ -213,7 +213,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
       MaterialPageRoute<void>(
         builder:
             widget.recommendedModelsPageBuilder ??
-            (_) => ModelManagerScreen.recommended(),
+            (_) => const RecommendedModelManagerScreen(),
       ),
     );
     if (mounted && identical(_session, activeSession)) {
@@ -391,17 +391,7 @@ class _DefenseView extends StatelessWidget {
       if (isDiscoveringModels)
         const Text('正在發現已安裝模型…', textAlign: TextAlign.center)
       else if (models.isEmpty)
-        Column(
-          children: [
-            const Text('目前沒有已安裝模型，送出後將使用備援裁決。', textAlign: TextAlign.center),
-            const SizedBox(height: 4),
-            TextButton.icon(
-              onPressed: isJudging ? null : onOpenRecommendedModels,
-              icon: const Icon(Icons.download_outlined),
-              label: const Text('前往推薦模型'),
-            ),
-          ],
-        )
+        const Text('目前沒有已安裝模型，送出後將使用備援裁決。', textAlign: TextAlign.center)
       else
         DropdownButtonFormField<FoodReligionModel>(
           initialValue: selectedModel,
@@ -415,6 +405,13 @@ class _DefenseView extends StatelessWidget {
           ],
           onChanged: isJudging ? null : onModelChanged,
         ),
+      const SizedBox(height: 4),
+      TextButton.icon(
+        onPressed:
+            isJudging || isDiscoveringModels ? null : onOpenRecommendedModels,
+        icon: const Icon(Icons.download_outlined),
+        label: const Text('前往推薦模型'),
+      ),
       const SizedBox(height: 12),
       TextField(
         controller: controller,
