@@ -2,7 +2,7 @@
 
 **What to build:** 在實際 iOS 與 Android 裝置上確認新版「台灣食物宗教戰爭」可用原生鍵盤、輔助技術、觸覺與返回手勢完整操作，並以真實端側模型確認可接受的完成率；此票只做 release acceptance，不新增或擴張產品功能。
 
-**Blocked by:** 11 — 完成自動化響應式與無障礙驗收; 13 — 修正實機遊戲文字尺寸與對比.
+**Blocked by:** 11 — 完成自動化響應式與無障礙驗收; 13 — 修正實機遊戲文字尺寸與對比; 14 — 修正模型管理手機版無界限捲動佈局.
 
 **Status:** ready-for-human
 
@@ -18,5 +18,6 @@
 
 - 2026-08-07 部分實機驗收：iPhone 17 Pro（iPhone18,1），iOS 26.5.2。App 成功建置、安裝與啟動，未觀察到 crash；本次 App 啟動日誌最初發現 0 個本機模型。
 - 飲食抉擇、抽籤與辯護畫面發現阻斷性可讀性缺陷：多處必要文字過小，且選項名稱、固定質疑與字數以近黑色顯示在深色背景；信仰清單則為奶白字配近白底。實機截圖像素量測對比分別只有 1.16:1、1.08:1、1.07:1。另行追蹤於 Ticket 13，本票不得標記通過，修正後必須在同一裝置重驗。
-- 本輪尚未完成原生鍵盤 50 字、離開確認、再玩、回首頁、模型管理往返、VoiceOver、reduced motion、觸覺感受與真實模型 20 秒門檻；畫面可讀性阻斷後續可靠驗收。
+- 本輪尚未完成原生鍵盤 50 字、離開確認、再玩、回首頁、完整模型管理往返、VoiceOver、reduced motion 與觸覺感受；畫面可讀性阻斷後續可靠驗收。模型管理頁另觸發 `Vertical viewport was given unbounded height` 與後續 RenderBox layout errors，追蹤於 Ticket 14。
+- 真實 GGUF `twinkle-ai-gemma-3-4b-t1-it-q4_k_m.gguf` 已在裝置完成一次生成：從 backend session 建立／模型載入開始至 generation end 約 7.4 秒（純生成約 4.6 秒），低於 20 秒門檻；仍需在可讀性修正後由人確認完整裁決確實顯示且內容可接受。
 - iPhone SE（第 3 代，iPhone14,6）可被開發工具辨識但目前 unavailable；尚無 Android 實機。最小／最大 iOS 與 Android 裝置矩陣仍未完成。
