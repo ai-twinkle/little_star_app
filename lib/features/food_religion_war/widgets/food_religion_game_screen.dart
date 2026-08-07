@@ -971,7 +971,7 @@ class _BeliefSlate extends StatelessWidget {
                 width: 28,
                 height: 28,
                 fit: BoxFit.contain,
-                semanticLabel: faith.label,
+                excludeFromSemantics: true,
               ),
               if (faith == drawnFaith)
                 const Positioned(

@@ -39,6 +39,8 @@ void main() {
   test('all stances have unique loadable square transparent art', () async {
     expect(expectedAssets, hasLength(FoodFaith.values.length));
     expect(expectedAssets.values.toSet(), hasLength(FoodFaith.values.length));
+    final pixelSignatures = <String>{};
+    final artworkScales = <double>[];
 
     for (final MapEntry(key: faith, value: expectedPath)
         in expectedAssets.entries) {
@@ -53,14 +55,38 @@ void main() {
       final pixels = await frame.image.toByteData(
         format: ui.ImageByteFormat.rawRgba,
       );
+      final profile = _profileArtwork(pixels!, width: 1024, height: 1024);
       expect(
-        _containsTransparentAndOpaquePixels(pixels!),
-        isTrue,
-        reason: '${faith.label} must contain transparent padding and artwork',
+        profile.transparentPixelRatio,
+        greaterThan(0.15),
+        reason: '${faith.label} must have substantial transparent padding',
       );
+      expect(
+        profile.minimumPadding,
+        greaterThanOrEqualTo(12),
+        reason: '${faith.label} artwork must not touch or crop at an edge',
+      );
+      expect(
+        profile.hasOpaquePixels,
+        isTrue,
+        reason: '${faith.label} must contain fully opaque artwork',
+      );
+      expect(
+        pixelSignatures.add(profile.pixelSignature),
+        isTrue,
+        reason: '${faith.label} must not reuse another stance image',
+      );
+      artworkScales.add(profile.artworkScale);
       frame.image.dispose();
       codec.dispose();
     }
+
+    expect(
+      artworkScales.reduce((a, b) => a > b ? a : b) -
+          artworkScales.reduce((a, b) => a < b ? a : b),
+      lessThan(0.2),
+      reason: 'mascots must keep a consistent visual scale',
+    );
   });
 
   testWidgets('all twelve stances have stable content and artwork slots', (
@@ -171,16 +197,72 @@ void main() {
   });
 }
 
-bool _containsTransparentAndOpaquePixels(ByteData pixels) {
-  var hasTransparent = false;
+_ArtworkProfile _profileArtwork(
+  ByteData pixels, {
+  required int width,
+  required int height,
+}) {
+  var transparentPixels = 0;
   var hasOpaque = false;
-  for (var offset = 3; offset < pixels.lengthInBytes; offset += 4) {
-    final alpha = pixels.getUint8(offset);
-    hasTransparent |= alpha == 0;
-    hasOpaque |= alpha == 255;
-    if (hasTransparent && hasOpaque) return true;
+  var minX = width;
+  var minY = height;
+  var maxX = -1;
+  var maxY = -1;
+  var firstHash = 0x811c9dc5;
+  var secondHash = 5381;
+
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      final pixelOffset = (y * width + x) * 4;
+      for (var channel = 0; channel < 4; channel++) {
+        final value = pixels.getUint8(pixelOffset + channel);
+        firstHash = ((firstHash ^ value) * 0x01000193) & 0xffffffff;
+        secondHash = ((secondHash * 33) ^ value) & 0xffffffff;
+      }
+      final alpha = pixels.getUint8(pixelOffset + 3);
+      if (alpha == 0) {
+        transparentPixels++;
+        continue;
+      }
+      hasOpaque |= alpha == 255;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
   }
-  return false;
+
+  final horizontalScale = (maxX - minX + 1) / width;
+  final verticalScale = (maxY - minY + 1) / height;
+  return _ArtworkProfile(
+    transparentPixelRatio: transparentPixels / (width * height),
+    minimumPadding: [
+      minX,
+      minY,
+      width - maxX - 1,
+      height - maxY - 1,
+    ].reduce((a, b) => a < b ? a : b),
+    artworkScale:
+        horizontalScale > verticalScale ? horizontalScale : verticalScale,
+    hasOpaquePixels: hasOpaque,
+    pixelSignature: '$firstHash:$secondHash',
+  );
+}
+
+class _ArtworkProfile {
+  const _ArtworkProfile({
+    required this.transparentPixelRatio,
+    required this.minimumPadding,
+    required this.artworkScale,
+    required this.hasOpaquePixels,
+    required this.pixelSignature,
+  });
+
+  final double transparentPixelRatio;
+  final int minimumPadding;
+  final double artworkScale;
+  final bool hasOpaquePixels;
+  final String pixelSignature;
 }
 
 class _NewStanceRandomizer extends FixedFoodReligionRandomizer {

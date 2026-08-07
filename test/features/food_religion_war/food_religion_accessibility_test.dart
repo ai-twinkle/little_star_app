@@ -64,6 +64,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
     }
     expect(find.bySemanticsLabel('遊戲進度：辯護抽籤'), findsOneWidget);
+    expect(tester.getSemantics(find.text('北部粽派')).label, '北部粽派');
     await tester.tap(find.text('抽出辯護立場'));
     await tester.pump();
     expect(find.bySemanticsLabel('固定質疑：北部粽不就是包在粽葉裡的油飯嗎？'), findsOneWidget);
