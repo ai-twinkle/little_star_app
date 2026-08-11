@@ -4,13 +4,13 @@
 
 **Blocked by:** 13 — 修正實機遊戲文字尺寸與對比.
 
-**Status:** ready-for-agent
+**Status:** completed
 
 - [x] 裁決模型下拉展開時，未選取與已選取項目的文字對比皆達一般文字 4.5:1；不得出現奶白字配近白底。
 - [x] 修正方式為讓 popup/menu 表面取得與頁面一致的深色主題（或同等可靠的收斂做法），不得只對 `DropdownMenuItem` 逐一指定顏色。
 - [x] 同一頁面若有其他在 `Overlay` 開啟的表面（dialog、menu、tooltip、`SnackBar`），一併確認不繼承錯誤的前景／背景組合。
 - [x] 自動測試以玩家可觀察的渲染結果驗證下拉展開後的選項文字顏色與背景對比，不依賴私有 Widget 名稱或階層。
-- [ ] 在 Pixel 8a（Android 16）與 iPhone 17 Pro（iOS 26.5.2）各確認一次展開後的實際可讀性。
+- [x] 在 Pixel 8a（Android 16）與 iPhone 17 Pro（iOS 26.5.2）各確認一次展開後的實際可讀性。
 
 ## Comments
 
@@ -23,3 +23,4 @@
 - 2026-08-11 Pixel 8a（Android 16, API 36）release build 實機驗證通過。裝置上有 5 個 GGUF 模型，下拉展開後五個選項皆為奶白字（#FFF3DB）配深色面板：未選取項 #122329 對比 14.71:1，已選取項 highlight #2F3E43 對比 10.10:1，皆遠高於 4.5:1（修正前為 1.05:1）。離開確認 dialog 亦為深色 arena 樣式，內文對比 13.52:1。
 - 2026-08-11 實機發現並修正一個由本次 theme 變更引入的版面回歸：dialog 繼承了頁面主要操作的 `Size.fromHeight(52)`（寬度無限），導致 `AlertDialog` 的 action bar overflow、兩顆按鈕上下錯位堆疊。已在 `_showArenaDialog` 內把 dialog 的 `FilledButton` 最小尺寸改回依標籤大小，重新 build 後按鈕恢復並排。
 - iOS 端待辦：iPhone 17 Pro 目前未連線（只找得到無線通道且失敗），該半驗收尚未執行。
+- 2026-08-11 iPhone 17 Pro（iOS 26.5.2）release build 由使用者人工確認：展開後的選項可讀性與 dialog 版面皆無問題。Android 與 iOS 兩端驗收皆通過，本票關閉。
