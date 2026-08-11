@@ -78,7 +78,7 @@ merge 前對同一個 fixed point 再跑一次 `/code-review`，確認 Wave A �
 
 ### 這些 findings 是同一個根因，不要逐個修
 
-- `lib/features/food_religion_war/**` 整棵樹不在 `docs/architecture/overview.md` §3 的六層裡，也沒有 ADR
+- `lib/features/food_religion_war/**` 整棵樹不在 `docs/architecture/overview.md` §3 的六層裡，也沒有 ADR。**注意**：Wave A 已加入 architecture test `featureServiceUiDependencies()`（`test/support/architecture_rules.dart`），它替一個文件上不存在的 layer 立了規則 —— grill 的結論必須同時處理這個測試（保留並補文件，或隨檔案搬移一起移除）
 - Service 直接 `new` 而非 injected：`domain/food_religion_game_session.dart:68,82`、`widgets/food_religion_game_screen.dart:57,88-92`；整個 feature 沒碰 Riverpod，但同一個 diff 卻為 model manager 擴充了 `lib/providers/service_providers.dart`
 - `domain/` 裡放 `ChangeNotifier`（`food_religion_game_session.dart:57`）並持有 timer、model discovery、service orchestration
 - Glossary drift：`FoodFaith`／`finalChallenge`（`domain/food_faith.dart:1,131`，`CONTEXT.md` 明確禁止用 "final" 描述回合）、`contenders`（`food_religion_game_session.dart:108`，被淘汰的 bracket 用語）
@@ -87,10 +87,17 @@ merge 前對同一個 fixed point 再跑一次 `/code-review`，確認 Wave A �
 ### Grill 的題目
 
 1. `lib/features/` 是新的官方 layer（補 ADR、更新 `overview.md` §3/§5），還是搬回 `lib/ui/food_religion_war/`？
-2. `GenerationController` 屬於哪一層？現在在 `lib/ui/shared/inference/` 但被 service 需要，位置本身可能就是問題。
+2. `GenerationController` 屬於哪一層？**（2026-08-11 更新：題目變了）** Wave A 的 finding 2 已讓 judgment service 自行宣告 `FoodReligionTextGenerator` 並預設直接跑 `InferenceSession`，因此 service 不再需要 `GenerationController`，反向依賴已經消失。現在要決定的是：`GenerationController` 留在 `lib/ui/shared/inference/` 是否正確（它是 UI 專屬的產物，還是 core 的 generation boundary？），以及 `FoodReligionTextGenerator` 這個 feature-local seam 要收斂成共用抽象、還是維持各 feature 自宣告。
 3. `FoodReligionGameSession` 拆成 ViewModel + 純 domain 的界線畫在哪。
 4. `FoodReligionGameRunState.shared` 的正當替代。
 5. Glossary 正名範圍。
+
+### Wave A 之後才有的新事實（grill 開始前先讀）
+
+- judgment service 不再 import UI layer；seam 是 `FoodReligionTextGenerator`（`services/food_religion_judgment_service.dart`），commit `4fe8bc9`。
+- `spec.md` 的逾時門檻已改 40 秒並補上量測依據；`maxTokens` 80。這些是產品參數，不影響架構決定。
+- 仍未關的四張票都**不屬於** Wave B：12／15 是人工裝置驗收，16 是 overlay theme 的小缺陷（建議在 Wave B 動檔案之前先收掉），17 是 Android 端側裁決品質的產品決定。
+- Standards review（2026-08-11，merge gate）重複點出的兩項就是 Wave B 的題目 1 與題目 5：`lib/features/` 未寫入 `overview.md` §3/§5，以及 `FoodFaith.finalChallenge` 用了 `CONTEXT.md` 禁用的 "final"。
 
 ### 與既有 cycle 的關係
 
