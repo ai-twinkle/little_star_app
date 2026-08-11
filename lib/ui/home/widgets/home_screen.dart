@@ -20,9 +20,23 @@ import 'package:little_star_app/ui/models/widgets/mlx_models_screen.dart';
 import 'package:little_star_app/ui/benchmark/widgets/benchmark_screen.dart';
 import 'package:little_star_app/ui/about/about_screen.dart';
 import 'package:little_star_app/debug/mlx_spike_screen.dart';
+import 'package:little_star_app/features/food_religion_war/widgets/food_religion_game_home_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key})
+    : initialViewModel = null,
+      initialDirectoryService = null;
+
+  @visibleForTesting
+  const HomeScreen.withDependencies({
+    required HomeViewModel viewModel,
+    required DirectoryService directoryService,
+    super.key,
+  }) : initialViewModel = viewModel,
+       initialDirectoryService = directoryService;
+
+  final HomeViewModel? initialViewModel;
+  final DirectoryService? initialDirectoryService;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -36,7 +50,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initViewModel();
+    final initialViewModel = widget.initialViewModel;
+    final initialDirectoryService = widget.initialDirectoryService;
+    if (initialViewModel != null && initialDirectoryService != null) {
+      _viewModel = initialViewModel;
+      _directoryService = initialDirectoryService;
+      _isInitializing = false;
+    } else {
+      _initViewModel();
+    }
   }
 
   Future<void> _initViewModel() async {
@@ -133,6 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 24),
 
                       // Navigation Cards
+                      const FoodReligionGameHomeCard(),
+                      const SizedBox(height: 16),
                       _buildNavigationCard(
                         context: context,
                         title: 'Model Completion',

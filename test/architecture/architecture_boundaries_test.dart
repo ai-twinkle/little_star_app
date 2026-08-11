@@ -13,6 +13,12 @@ void main() {
     expect(violations, isEmpty, reason: violations.join('\n'));
   });
 
+  test('feature services do not depend on the UI layer', () {
+    final violations = rules.featureServiceUiDependencies();
+
+    expect(violations, isEmpty, reason: violations.join('\n'));
+  });
+
   test('data and platform code does not depend on the engine layer', () {
     final violations = rules.dataCoreDependencies();
 

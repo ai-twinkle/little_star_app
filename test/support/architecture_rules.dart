@@ -24,6 +24,26 @@ class ArchitectureRules {
     return violations..sort();
   }
 
+  List<String> featureServiceUiDependencies() {
+    final featuresRoot = Directory(
+      path.join(repositoryRoot.path, 'lib', 'features'),
+    );
+    final uiRoot = path.normalize(path.join(repositoryRoot.path, 'lib', 'ui'));
+    final violations = <String>[];
+
+    if (!featuresRoot.existsSync()) return violations;
+    for (final file in _dartFiles(featuresRoot)) {
+      if (!path.split(file.path).contains('services')) continue;
+      for (final uri in _dependencyUris(file.readAsStringSync())) {
+        if (_targetsUi(uri, from: file, uiRoot: uiRoot)) {
+          violations.add('${path.relative(file.path)} imports $uri');
+        }
+      }
+    }
+
+    return violations..sort();
+  }
+
   List<String> dataCoreDependencies() {
     final dataRoot = Directory(path.join(repositoryRoot.path, 'lib', 'data'));
     final coreRoot = path.normalize(

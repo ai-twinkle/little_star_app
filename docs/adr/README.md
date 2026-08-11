@@ -46,6 +46,8 @@ ADRs in this repo are written **after** the decision has been adopted in code, s
 | 0003 | [Pigeon streaming pattern (Swift → Dart token stream)](./0003-pigeon-streaming-pattern.md) | [中文](./0003-pigeon-streaming-pattern_zh-tw.md) | Accepted | 2026-05-21 |
 | 0004 | [ChatTemplate abstraction replaces PromptFormat](./0004-chat-template-abstraction.md) | [中文](./0004-chat-template-abstraction_zh-tw.md) | Accepted | 2026-05-21 |
 | 0005 | [GenerationController / ViewModel boundary](./0005-generation-controller-boundary.md) | [中文](./0005-generation-controller-boundary_zh-tw.md) | Accepted | 2026-05-21 |
+| 0006 | [Food stance selection and defense draw](./0006-food-stance-selection-and-defense-draw.md) | [中文](./0006-food-stance-selection-and-defense-draw_zh-tw.md) | Accepted | 2026-08-06 |
+| 0007 | [Night-market arena presentation and non-blocking model reminder](./0007-night-market-arena-and-model-reminder.md) | [中文](./0007-night-market-arena-and-model-reminder_zh-tw.md) | Accepted | 2026-08-06 |
 
 > Each ADR ships in two files: the English primary (`NNNN-title.md`) and a Traditional
 > Chinese translation (`NNNN-title_zh-tw.md`). Where the two versions differ, the English

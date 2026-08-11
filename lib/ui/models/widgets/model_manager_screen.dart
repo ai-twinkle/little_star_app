@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:little_star_app/config/recommended_models.dart';
 import 'package:little_star_app/models/download_task.dart';
+import 'package:little_star_app/providers/service_providers.dart';
 import 'package:little_star_app/ui/models/view_model/model_manager_viewmodel.dart';
 import 'package:little_star_app/ui/models/widgets/model_file_list.dart';
 import 'package:little_star_app/ui/models/widgets/model_search_list.dart';
@@ -10,14 +12,28 @@ import 'package:little_star_app/ui/models/widgets/download_progress_card.dart';
 import 'package:little_star_app/utils/logger.dart';
 
 /// Main screen for managing models - browsing, downloading, and local files.
+enum ModelManagerSection { localModels, recommendedModels }
+
+class RecommendedModelManagerScreen extends ConsumerWidget {
+  const RecommendedModelManagerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ModelManagerScreen(
+    viewModel: ref.watch(modelManagerViewModelProvider),
+    initialSection: ModelManagerSection.recommendedModels,
+  );
+}
+
 class ModelManagerScreen extends StatefulWidget {
   final ModelManagerViewModel viewModel;
   final dynamic preselectedModel;
+  final ModelManagerSection initialSection;
 
   const ModelManagerScreen({
     super.key,
     required this.viewModel,
     this.preselectedModel,
+    this.initialSection = ModelManagerSection.localModels,
   });
 
   @override
@@ -33,7 +49,11 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialSection.index,
+    );
     widget.viewModel.init();
 
     // If a preselected model is provided, switch to online tab and select it
@@ -76,9 +96,10 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
       final allPaths = result.paths.whereType<String>().toList();
       _log.debug('All paths: $allPaths');
 
-      final paths = allPaths
-          .where((path) => path.toLowerCase().endsWith('.gguf'))
-          .toList();
+      final paths =
+          allPaths
+              .where((path) => path.toLowerCase().endsWith('.gguf'))
+              .toList();
       _log.info('Filtered GGUF paths: ${paths.length} files');
 
       if (allPaths.isEmpty) {
@@ -116,7 +137,10 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
                 const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text('Importing ${paths.length} model(s)...'),
@@ -196,10 +220,7 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
-                  children: [
-                    _buildLocalTab(),
-                    _buildOnlineTab(),
-                  ],
+                  children: [_buildLocalTab(), _buildOnlineTab()],
                 ),
               ),
             ],
@@ -210,10 +231,12 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
   }
 
   Widget _buildDownloadSection() {
-    final activeTasks = widget.viewModel.activeTasks.where((t) =>
-        t.status == DownloadStatus.downloading ||
-        t.status == DownloadStatus.pending ||
-        t.status == DownloadStatus.paused);
+    final activeTasks = widget.viewModel.activeTasks.where(
+      (t) =>
+          t.status == DownloadStatus.downloading ||
+          t.status == DownloadStatus.pending ||
+          t.status == DownloadStatus.paused,
+    );
 
     if (activeTasks.isEmpty) return const SizedBox.shrink();
 
@@ -229,13 +252,15 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
               style: Theme.of(context).textTheme.titleSmall,
             ),
           ),
-          ...activeTasks.map((task) => DownloadProgressCard(
-                task: task,
-                progress: widget.viewModel.getProgress(task.id),
-                onPause: () => widget.viewModel.pauseDownload(task.id),
-                onResume: () => widget.viewModel.resumeDownload(task.id),
-                onCancel: () => widget.viewModel.cancelDownload(task.id),
-              )),
+          ...activeTasks.map(
+            (task) => DownloadProgressCard(
+              task: task,
+              progress: widget.viewModel.getProgress(task.id),
+              onPause: () => widget.viewModel.pauseDownload(task.id),
+              onResume: () => widget.viewModel.resumeDownload(task.id),
+              onCancel: () => widget.viewModel.cancelDownload(task.id),
+            ),
+          ),
           const SizedBox(height: 8),
         ],
       ),
@@ -261,16 +286,16 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
             Text(
               'No local models',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'Download models from "Online Downloads" tab\nor import existing .gguf files',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
@@ -316,15 +341,16 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
             decoration: InputDecoration(
               hintText: 'Search GGUF models...',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        widget.viewModel.searchModels();
-                      },
-                    )
-                  : null,
+              suffixIcon:
+                  _searchController.text.isNotEmpty
+                      ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          widget.viewModel.searchModels();
+                        },
+                      )
+                      : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -361,24 +387,23 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
             ),
           ),
         Expanded(
-          child: widget.viewModel.isSearching
-              ? const Center(child: CircularProgressIndicator())
-              : CustomScrollView(
-                  slivers: [
-                    // Recommended models section
-                    if (_searchController.text.isEmpty)
-                      SliverToBoxAdapter(
-                        child: _buildRecommendedModelsSection(),
-                      ),
-                    // Search results
-                    SliverToBoxAdapter(
-                      child: ModelSearchList(
+          child:
+              widget.viewModel.isSearching
+                  ? const Center(child: CircularProgressIndicator())
+                  : CustomScrollView(
+                    slivers: [
+                      // Recommended models section
+                      if (_searchController.text.isEmpty)
+                        SliverToBoxAdapter(
+                          child: _buildRecommendedModelsSection(),
+                        ),
+                      // Search results
+                      ModelSearchList(
                         models: widget.viewModel.searchResults,
                         onSelect: widget.viewModel.selectModel,
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
         ),
       ],
     );
@@ -396,9 +421,9 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
               const SizedBox(width: 8),
               Text(
                 'Recommended Models',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -448,9 +473,9 @@ class _ModelManagerScreenState extends State<ModelManagerScreen>
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text(
               'Search Results',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
       ],

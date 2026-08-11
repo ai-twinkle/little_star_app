@@ -1,0 +1,23 @@
+# 02 — 完成辯護與離線備援結果
+
+**What to build:** 玩家在冠軍產生後能輸入一句辯護、送出一次並完成整局；即使完全沒有 AI，遊戲也會顯示冠軍對應的安全備援判決、清楚揭露備援模式，並允許重新開始或回到 Home。
+
+**Blocked by:** 01 — 建立固定淘汰賽與 Home 入口.
+
+**Status:** wontfix
+
+- [x] 辯護頁同時顯示冠軍、正確固定質疑、自由輸入欄、50 字限制與目前或剩餘字數。
+- [x] 去除首尾空白後，1 個與 50 個使用者可見字元可送出；空白及超過 50 個使用者可見字元不可送出並顯示就地訊息。
+- [x] 送出後立即鎖定輸入與送出動作，顯示「AI 鄉民評審正在審判…」，重複點擊不會啟動第二次裁決。
+- [x] 在尚未接入 AI 的預設路徑中，流程會進入冠軍專屬的安全備援文案池，判決只能是「信仰堅定／勉強護教／叛教邊緣」。
+- [x] 備援結果顯示「AI 主持人暫時離線，改由備援鄉民評審裁決！」，不宣稱分析了玩家辯護，也不顯示技術錯誤。
+- [x] 結果頁只提供「再玩一次」與「回首頁」；兩者都清除勝方、冠軍、質疑、辯護及裁決，再玩會回到第一場。
+- [x] 所有固定質疑與備援文案集中管理，且只吐槽食物、飲食立場或論點，不含人身、地區、族群、歧視、性、威脅或髒話內容。
+- [x] 高層流程測試覆蓋四條冠軍路徑、字數邊界、重複提交、備援揭露、再玩與回首頁重置。
+
+## Comments
+
+- Implemented a validated defense value, visibly locked judging state, and champion-specific offline fallback judgments.
+- Verification: feature analyze reported no issues; 17 feature tests and the full 287-test Flutter suite passed.
+- Code review against `d2cf9ee`: Standards and Spec both passed with no remaining actionable findings.
+- Superseded on 2026-08-06 because its defense and result criteria are bound to the retired tournament outcome. Historical implementation is retained; replacement behavior is covered by 06 and 07.
