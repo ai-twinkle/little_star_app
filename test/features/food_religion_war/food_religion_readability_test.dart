@@ -32,8 +32,8 @@ void main() {
     final style = _effectiveTextStyle(tester, find.text('北部粽派'));
     expect(style.fontSize, greaterThanOrEqualTo(18));
     expect(
-      _contrastRatio(style.color!, const Color(0xFF182A30)),
-      greaterThanOrEqualTo(4.5),
+      contrastRatio(style.color!, const Color(0xFF182A30)),
+      greaterThanOrEqualTo(minimumNormalTextContrast),
     );
   });
 
@@ -57,8 +57,8 @@ void main() {
     expect(chipTheme.backgroundColor, const Color(0xFF182A30));
     expect(chipTheme.labelStyle?.fontSize, greaterThanOrEqualTo(16));
     expect(
-      _contrastRatio(chipTheme.labelStyle!.color!, chipTheme.backgroundColor!),
-      greaterThanOrEqualTo(4.5),
+      contrastRatio(chipTheme.labelStyle!.color!, chipTheme.backgroundColor!),
+      greaterThanOrEqualTo(minimumNormalTextContrast),
     );
     _expectReadableText(
       tester,
@@ -160,8 +160,8 @@ void main() {
         tester.widget<EditableText>(find.byType(EditableText)).style;
     expect(defenseStyle.fontSize, greaterThanOrEqualTo(16));
     expect(
-      _contrastRatio(defenseStyle.color!, const Color(0xFF071419)),
-      greaterThanOrEqualTo(4.5),
+      contrastRatio(defenseStyle.color!, const Color(0xFF071419)),
+      greaterThanOrEqualTo(minimumNormalTextContrast),
     );
 
     _expectReadableText(
@@ -206,8 +206,8 @@ void _expectReadableText(
   final style = _effectiveTextStyle(tester, finder);
   expect(style.fontSize, greaterThanOrEqualTo(minimumSize));
   expect(
-    _contrastRatio(style.color!, background),
-    greaterThanOrEqualTo(4.5),
+    contrastRatio(style.color!, background),
+    greaterThanOrEqualTo(minimumNormalTextContrast),
     reason: 'Rendered style $style on $background',
   );
 }
@@ -216,21 +216,6 @@ TextStyle _effectiveTextStyle(WidgetTester tester, Finder finder) {
   final text = tester.widget<Text>(finder);
   final inherited = DefaultTextStyle.of(tester.element(finder)).style;
   return inherited.merge(text.style);
-}
-
-double _contrastRatio(Color foreground, Color background) {
-  final renderedForeground = Color.alphaBlend(foreground, background);
-  final foregroundLuminance = renderedForeground.computeLuminance();
-  final backgroundLuminance = background.computeLuminance();
-  final lighter =
-      foregroundLuminance > backgroundLuminance
-          ? foregroundLuminance
-          : backgroundLuminance;
-  final darker =
-      foregroundLuminance > backgroundLuminance
-          ? backgroundLuminance
-          : foregroundLuminance;
-  return (lighter + 0.05) / (darker + 0.05);
 }
 
 class _PendingJudgmentService extends InstalledModelJudgmentService {

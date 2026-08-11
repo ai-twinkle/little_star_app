@@ -22,6 +22,23 @@ abstract final class _ArenaColors {
   static const muted = Color(0xFFB8C1C1);
 }
 
+/// Every surface role is pinned to an arena tone, including the container roles
+/// Material resolves for the menu and dialogs it builds in the [Overlay].
+const _arenaColorScheme = ColorScheme.dark(
+  primary: _ArenaColors.amber,
+  onPrimary: Color(0xFF2B1B05),
+  secondary: _ArenaColors.cyanSeat,
+  surface: _ArenaColors.panel,
+  onSurface: _ArenaColors.cream,
+  surfaceContainerLowest: _ArenaColors.night,
+  surfaceContainerLow: _ArenaColors.night,
+  surfaceContainer: _ArenaColors.panel,
+  surfaceContainerHigh: _ArenaColors.panelRaised,
+  surfaceContainerHighest: _ArenaColors.panelRaised,
+  onSurfaceVariant: _ArenaColors.muted,
+  outline: _ArenaColors.metal,
+);
+
 class FoodReligionGameScreen extends StatefulWidget {
   const FoodReligionGameScreen({
     super.key,
@@ -183,8 +200,23 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
     );
   }
 
+  /// Builds the arena theme from a fresh dark [ThemeData] instead of copying
+  /// the ambient light one.
+  ///
+  /// Copying left every surface Material *derives* — `canvasColor`, card and
+  /// dialog surfaces — on their light-theme values. Surfaces opened in the
+  /// [Overlay] build outside this page's tree and paint themselves from those
+  /// derived values, so the model menu came up near-white under the arena's
+  /// cream text. Deriving the whole theme from the dark scheme keeps them in
+  /// step without colouring individual items.
   ThemeData _arenaTheme(BuildContext context) {
-    final base = Theme.of(context);
+    final ambient = Theme.of(context);
+    final base = ThemeData(
+      colorScheme: _arenaColorScheme,
+      platform: ambient.platform,
+      visualDensity: ambient.visualDensity,
+      materialTapTargetSize: ambient.materialTapTargetSize,
+    );
     final coloredTextTheme = base.textTheme.apply(
       bodyColor: _ArenaColors.cream,
       displayColor: _ArenaColors.cream,
@@ -198,17 +230,8 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
       labelLarge: coloredTextTheme.labelLarge?.copyWith(fontSize: 18),
     );
     return base.copyWith(
-      brightness: Brightness.dark,
       disabledColor: _ArenaColors.muted,
       scaffoldBackgroundColor: _ArenaColors.night,
-      colorScheme: const ColorScheme.dark(
-        primary: _ArenaColors.amber,
-        onPrimary: Color(0xFF2B1B05),
-        secondary: _ArenaColors.cyanSeat,
-        surface: _ArenaColors.panel,
-        onSurface: _ArenaColors.cream,
-        outline: _ArenaColors.metal,
-      ),
       textTheme: textTheme,
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -330,10 +353,24 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
     });
   }
 
+  /// Dialogs open from this [State]'s context, which sits *above* the arena
+  /// [Theme] this widget builds — so without re-applying it they would come up
+  /// in the app's light theme, over a dark arena. Routing both dialogs through
+  /// one helper keeps that seam in a single place.
+  Future<T?> _showArenaDialog<T>({
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+  }) => showDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder:
+        (dialogContext) =>
+            Theme(data: _arenaTheme(dialogContext), child: builder(dialogContext)),
+  );
+
   Future<void> _showMissingModelReminder() async {
     _runState.recordMissingModelReminderShown();
-    final openRecommendedModels = await showDialog<bool>(
-      context: context,
+    final openRecommendedModels = await _showArenaDialog<bool>(
       barrierDismissible: false,
       builder:
           (dialogContext) => AlertDialog(
@@ -380,8 +417,7 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   Future<void> _confirmExit() async {
     if (_isExitDialogVisible) return;
     _isExitDialogVisible = true;
-    final shouldLeave = await showDialog<bool>(
-      context: context,
+    final shouldLeave = await _showArenaDialog<bool>(
       builder:
           (dialogContext) => AlertDialog(
             title: const Text('確定離開本局？'),

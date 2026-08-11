@@ -169,3 +169,22 @@ Future<void> playToDefense(WidgetTester tester) async {
   await tester.tap(find.text('抽出辯護立場'));
   await tester.pump();
 }
+
+/// WCAG 2.1 minimum contrast for normal-size text.
+const minimumNormalTextContrast = 4.5;
+
+/// Contrast ratio between two rendered colours, per WCAG 2.1.
+double contrastRatio(Color foreground, Color background) {
+  final renderedForeground = Color.alphaBlend(foreground, background);
+  final foregroundLuminance = renderedForeground.computeLuminance();
+  final backgroundLuminance = background.computeLuminance();
+  final lighter =
+      foregroundLuminance > backgroundLuminance
+          ? foregroundLuminance
+          : backgroundLuminance;
+  final darker =
+      foregroundLuminance > backgroundLuminance
+          ? backgroundLuminance
+          : foregroundLuminance;
+  return (lighter + 0.05) / (darker + 0.05);
+}
