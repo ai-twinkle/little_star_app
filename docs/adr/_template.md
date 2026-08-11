@@ -47,6 +47,6 @@ Add the following note at the top of the _zh-tw file:
 
 ## References
 
-- {Link to relevant `.dev/cycles/...` exploration or construction notes.}
+- {Link to the relevant spec, tickets or notes under `.scratch/<feature-slug>/`.}
 - {Link to code entry points, e.g. `lib/core/inference/inference_backend.dart`.}
 - {External references, papers, upstream issues.}
