@@ -363,9 +363,22 @@ class _FoodReligionGameScreenState extends State<FoodReligionGameScreen> {
   }) => showDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
-    builder:
-        (dialogContext) =>
-            Theme(data: _arenaTheme(dialogContext), child: builder(dialogContext)),
+    builder: (dialogContext) {
+      final arena = _arenaTheme(dialogContext);
+      return Theme(
+        data: arena.copyWith(
+          // The page's primary actions stretch full width, which would make a
+          // dialog's action bar overflow and stack its buttons. Dialog actions
+          // size to their own label instead.
+          filledButtonTheme: FilledButtonThemeData(
+            style: arena.filledButtonTheme.style?.copyWith(
+              minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+            ),
+          ),
+        ),
+        child: builder(dialogContext),
+      );
+    },
   );
 
   Future<void> _showMissingModelReminder() async {
